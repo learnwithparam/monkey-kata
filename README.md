@@ -203,7 +203,7 @@ This is a learning project for the AI Bootcamp course. Contributions are welcome
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+**Access is restricted to enrolled participants only.**
 
 ## 👨‍💻 Instructor
 

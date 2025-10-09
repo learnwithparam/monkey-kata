@@ -47,11 +47,28 @@ export default function BedtimeStoryPage() {
 
   const fetchProviderInfo = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/bedtime-story/health`);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+      console.log('API URL:', apiUrl);
+      const fullUrl = `${apiUrl}/bedtime-story/health`;
+      console.log('Full URL:', fullUrl);
+      
+      const response = await fetch(fullUrl);
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Provider info data:', data);
       setProviderInfo(data);
     } catch (err) {
       console.error('Failed to fetch provider info:', err);
+      console.error('Error details:', {
+        message: err.message,
+        name: err.name,
+        stack: err.stack
+      });
     }
   };
 
@@ -133,25 +150,24 @@ export default function BedtimeStoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto container-padding section-padding">
         {/* Header */}
-        <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4 flex items-center justify-center">
-              <BookOpenIcon className="w-10 h-10 text-purple-600 mr-3" />
-              Bedtime Story Generator
-            </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-4">
-            Create magical bedtime stories with AI. Perfect for teaching streaming responses, 
-            prompt engineering, and real-time UI updates.
+        <div className="text-center mb-12">
+          <h1 className="text-display text-gray-900 mb-6 flex items-center justify-center">
+            <BookOpenIcon className="w-12 h-12 text-brand-purple mr-4" />
+            Bedtime Story Generator
+          </h1>
+          <p className="text-body max-w-3xl mx-auto mb-8">
+            Create personalized bedtime stories with AI. Enter character details and watch as your story comes to life in real-time.
           </p>
           
           {/* Provider Status */}
           {providerInfo && (
-            <div className="inline-flex items-center px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm">
+            <div className="inline-flex items-center px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-sm">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-blue-800">
+                <span className="text-green-800">
                   Powered by: <strong>{providerInfo.llm_provider}</strong>
                 </span>
               </div>
@@ -161,13 +177,13 @@ export default function BedtimeStoryPage() {
 
         <div className="grid lg:grid-cols-2 gap-8">
           {/* Form */}
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Story Settings</h2>
+          <div className="card p-8">
+            <h2 className="text-headline text-gray-900 mb-8">Story Settings</h2>
             
-            <div className="space-y-6">
+            <div className="space-y-8">
               {/* Character Name */}
               <div>
-                <label htmlFor="character_name" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="character_name" className="block text-sm font-semibold text-gray-900 mb-3">
                   Character Name *
                 </label>
                 <input
@@ -177,14 +193,14 @@ export default function BedtimeStoryPage() {
                   value={formData.character_name}
                   onChange={handleInputChange}
                   placeholder="e.g., Emma, Alex, Luna"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus-ring text-gray-900 placeholder-gray-500"
                   disabled={isGenerating}
                 />
               </div>
 
               {/* Character Age */}
               <div>
-                <label htmlFor="character_age" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="character_age" className="block text-sm font-semibold text-gray-900 mb-3">
                   Character Age *
                 </label>
                 <select
@@ -192,7 +208,7 @@ export default function BedtimeStoryPage() {
                   name="character_age"
                   value={formData.character_age}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus-ring text-gray-900 placeholder-gray-500"
                   disabled={isGenerating}
                 >
                   {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
@@ -203,7 +219,7 @@ export default function BedtimeStoryPage() {
 
               {/* Story Theme */}
               <div>
-                <label htmlFor="story_theme" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="story_theme" className="block text-sm font-semibold text-gray-900 mb-3">
                   Story Theme *
                 </label>
                 <select
@@ -211,7 +227,7 @@ export default function BedtimeStoryPage() {
                   name="story_theme"
                   value={formData.story_theme}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus-ring text-gray-900 placeholder-gray-500"
                   disabled={isGenerating}
                 >
                   <option value="">Select a theme...</option>
@@ -225,7 +241,7 @@ export default function BedtimeStoryPage() {
 
               {/* Story Length */}
               <div>
-                <label htmlFor="story_length" className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="story_length" className="block text-sm font-semibold text-gray-900 mb-3">
                   Story Length
                 </label>
                 <select
@@ -233,7 +249,7 @@ export default function BedtimeStoryPage() {
                   name="story_length"
                   value={formData.story_length}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus-ring text-gray-900 placeholder-gray-500"
                   disabled={isGenerating}
                 >
                   <option value="short">Short (2-3 paragraphs)</option>
@@ -246,7 +262,7 @@ export default function BedtimeStoryPage() {
               <button
                 onClick={generateStory}
                 disabled={isGenerating || !formData.character_name.trim() || !formData.story_theme.trim()}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl disabled:cursor-not-allowed"
+                className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isGenerating ? (
                   <span className="flex items-center justify-center">
@@ -263,7 +279,7 @@ export default function BedtimeStoryPage() {
 
               {/* Error Message */}
               {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                   {error}
                 </div>
               )}
@@ -271,21 +287,21 @@ export default function BedtimeStoryPage() {
           </div>
 
           {/* Story Display */}
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Your Story</h2>
+          <div className="card p-8">
+            <h2 className="text-headline text-gray-900 mb-8">Your Story</h2>
             
             <div 
               ref={storyRef}
-              className="bg-gray-50 rounded-lg p-6 min-h-[400px] max-h-[600px] overflow-y-auto"
+              className="bg-gray-50 rounded-lg p-6 min-h-[500px]"
             >
               {story ? (
                 <div className="prose prose-lg max-w-none">
-                  <p className="text-gray-800 leading-relaxed whitespace-pre-wrap">
+                  <p className="text-gray-800 leading-relaxed whitespace-pre-wrap text-lg">
                     {story}
                   </p>
                   {isGenerating && (
                     <div className="flex items-center mt-4">
-                      <div className="animate-pulse bg-purple-500 h-2 w-2 rounded-full mr-2"></div>
+                      <div className="animate-pulse bg-brand-purple h-2 w-2 rounded-full mr-2"></div>
                       <span className="text-sm text-gray-500">AI is writing...</span>
                     </div>
                   )}
@@ -293,9 +309,9 @@ export default function BedtimeStoryPage() {
               ) : (
                 <div className="flex items-center justify-center h-full text-gray-500">
                   <div className="text-center">
-                    <div className="text-6xl mb-4">📖</div>
-                    <p className="text-lg">Your magical story will appear here...</p>
-                    <p className="text-sm mt-2">Fill in the form and click "Generate Story"</p>
+                    <BookOpenIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-lg text-gray-600 mb-2">Your story will appear here</p>
+                    <p className="text-sm text-gray-500">Fill in the details and click "Generate Story"</p>
                   </div>
                 </div>
               )}
@@ -303,33 +319,6 @@ export default function BedtimeStoryPage() {
           </div>
         </div>
 
-        {/* Learning Notes */}
-        <div className="mt-12 bg-blue-50 rounded-xl p-6">
-          <h3 className="text-xl font-bold text-blue-900 mb-4">🎓 What You're Learning</h3>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-semibold text-blue-800 mb-2">Backend Concepts:</h4>
-              <ul className="text-blue-700 space-y-1 text-sm">
-                <li>• Streaming responses with FastAPI</li>
-                <li>• Prompt engineering techniques</li>
-                <li>• Error handling and validation</li>
-                <li>• Async/await patterns</li>
-                <li>• Multi-provider LLM integration</li>
-                <li>• Factory pattern for providers</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold text-blue-800 mb-2">Frontend Concepts:</h4>
-              <ul className="text-blue-700 space-y-1 text-sm">
-                <li>• Real-time UI updates</li>
-                <li>• Stream processing</li>
-                <li>• Form validation</li>
-                <li>• Loading states</li>
-                <li>• Error handling</li>
-              </ul>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
