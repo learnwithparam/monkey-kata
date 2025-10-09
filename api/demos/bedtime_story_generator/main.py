@@ -1,177 +1,291 @@
 """
-Bedtime Story Generator Demo
-============================
+Bedtime Story Generator API
+===========================
 
-A simple, clean demo showing:
-- Streaming responses from LLM
-- Basic prompt engineering
-- Real-time UI updates
-- Error handling
+🎯 LEARNING OBJECTIVES FOR BOOTCAMP STUDENTS:
 
-Perfect for teaching bootcamp students the fundamentals of LLM integration.
+This demo teaches core AI engineering concepts:
+
+1. STREAMING RESPONSES (Server-Sent Events)
+   - How to create real-time streaming APIs like ChatGPT
+   - Using async generators for word-by-word streaming
+   - Proper SSE formatting with data: prefix
+
+2. LLM INTEGRATION
+   - How to integrate with different LLM providers (Gemini, OpenAI)
+   - Prompt engineering for structured JSON output
+   - Error handling and fallback strategies
+
+3. JSON PARSING & ERROR HANDLING
+   - Robust JSON extraction from LLM responses
+   - Graceful fallbacks when parsing fails
+   - Multiple error handling layers
+
+4. FASTAPI BEST PRACTICES
+   - Pydantic models for request validation
+   - Proper async/await patterns
+   - Router organization and tags
+
+Key Files to Study:
+- main.py (this file) - API endpoints and streaming logic
+- utils/llm_provider.py - LLM integration patterns
+- frontend/page.tsx - How to consume streaming APIs
+
+🚀 Try This:
+1. Start the API: docker compose up
+2. Visit: http://localhost:4020/demos/bedtime-story
+3. Watch the network tab to see streaming in action!
 """
 
+# ============================================================================
+# IMPORTS
+# ============================================================================
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import AsyncGenerator
 import asyncio
 import json
-import os
 from utils.llm_provider import get_llm_provider
 
-# Initialize router
+# ============================================================================
+# ROUTER SETUP
+# ============================================================================
+# Create a router with prefix and tags for organization
+# This groups all bedtime story endpoints under /bedtime-story
 router = APIRouter(prefix="/bedtime-story", tags=["bedtime-story"])
 
-# Initialize LLM provider
+# Initialize LLM provider (Gemini, OpenAI, or Mock based on environment)
 llm_provider = get_llm_provider()
 
+# ============================================================================
+# DATA MODELS
+# ============================================================================
 class StoryRequest(BaseModel):
-    """Request model for story generation"""
-    character_name: str
-    character_age: int
-    story_theme: str
-    story_length: str = "short"  # short, medium, long
-
-class StoryResponse(BaseModel):
-    """Response model for story metadata"""
+    """
+    Pydantic model for story generation requests
+    
+    This ensures type safety and automatic validation of incoming data.
+    FastAPI will automatically validate that:
+    - character_name is a string
+    - character_age is an integer  
+    - story_theme is a string
+    - story_length is a string
+    
+    If validation fails, FastAPI returns a 422 error with details.
+    """
     character_name: str
     character_age: int
     story_theme: str
     story_length: str
-    total_tokens: int = 0
 
-def create_story_prompt(request: StoryRequest) -> str:
-    """Create a well-structured prompt for story generation"""
-    length_instructions = {
-        "short": "Write a short bedtime story (2-3 paragraphs)",
-        "medium": "Write a medium-length bedtime story (4-6 paragraphs)", 
-        "long": "Write a longer bedtime story (7-10 paragraphs)"
+# ============================================================================
+# PROMPT ENGINEERING
+# ============================================================================
+def create_simple_prompt(request: StoryRequest) -> str:
+    """
+    Create a well-structured prompt for the LLM
+    
+    🎯 KEY PROMPT ENGINEERING CONCEPTS:
+    
+    1. CLEAR INSTRUCTIONS: Be specific about what you want
+    2. STRUCTURED OUTPUT: Request JSON format for easy parsing
+    3. LENGTH CONTROL: Use user input to control output length
+    4. FORMATTING INSTRUCTIONS: Tell the LLM how to format the output
+    5. CONTEXT: Include character details for personalization
+    
+    This is a simple prompt - in production, you'd use more sophisticated
+    techniques like few-shot examples, chain-of-thought, etc.
+    """
+    # Define length requirements based on user selection
+    length_requirements = {
+        "short": "2-3 paragraphs, about 100-150 words",
+        "medium": "4-6 paragraphs, about 200-300 words", 
+        "long": "7-10 paragraphs, about 400-500 words"
     }
     
-    return f"""You are a creative children's story writer. Write a {request.story_length} bedtime story with these details:
+    # Use variable to avoid f-string backslash issues
+    newline = "\n"
+    
+    return f"""Write a bedtime story for {request.character_name}, age {request.character_age}, about {request.story_theme}.
 
-Character: {request.character_name}, age {request.character_age}
-Theme: {request.story_theme}
-
-{length_instructions[request.story_length]}
+Make it {length_requirements[request.story_length]}.
 
 Requirements:
-- Use simple, child-friendly language
-- Include a positive moral or lesson
-- Make it engaging and imaginative
-- End with a peaceful, sleepy conclusion
-- Use descriptive language that paints pictures
+- Write in proper paragraphs (each paragraph should be 2-3 sentences)
+- Use **bold** for important words and *italics* for emphasis
+- Make it age-appropriate and gentle
+- Include a clear beginning, middle, and end
 
-Begin the story now:"""
+Return as JSON:
+{{
+    "title": "Story Title",
+    "story": "Write the story here with proper paragraph breaks. Each paragraph should be on its own line.{newline}{newline}Use double line breaks between paragraphs.{newline}{newline}This creates proper formatting.",
+    "moral": "The lesson learned"
+}}"""
 
+# ============================================================================
+# STREAMING GENERATOR
+# ============================================================================
 async def generate_story_stream(request: StoryRequest) -> AsyncGenerator[str, None]:
-    """Generate story with streaming response"""
+    """
+    Generate story with real-time streaming using Server-Sent Events (SSE)
+    
+    🎯 KEY CONCEPTS FOR BOOTCAMP STUDENTS:
+    
+    1. ASYNC GENERATORS: Use 'yield' to stream data in real-time
+    2. SERVER-SENT EVENTS: Format data as "data: {json}\n\n"
+    3. ERROR HANDLING: Multiple fallback layers for robustness
+    4. JSON PARSING: Extract structured data from LLM responses
+    5. STREAMING UX: Word-by-word streaming for ChatGPT-like experience
+    
+    This function demonstrates how to create streaming APIs that feel
+    responsive and engaging to users.
+    """
     try:
-        prompt = create_story_prompt(request)
+        # Step 1: Send initial connection confirmation
+        # This lets the frontend know the connection is established
+        yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting story generation...'})}\n\n"
         
-        # Use the LLM provider for streaming
-        async for chunk in llm_provider.generate_stream(
-            prompt,
-            temperature=0.8,
-            max_tokens=1000
-        ):
-            yield f"data: {json.dumps({'content': chunk})}\n\n"
+        # Step 2: Create the prompt and get LLM response
+        prompt = create_simple_prompt(request)
+        response = await llm_provider.generate_text(prompt, temperature=0.8, max_tokens=800)
         
-        # Send completion signal
-        yield f"data: {json.dumps({'done': True})}\n\n"
+        # Step 3: Parse JSON response with robust error handling
+        try:
+            # Find JSON boundaries in the response
+            # LLMs sometimes include extra text before/after JSON
+            json_start = response.find('{')
+            json_end = response.rfind('}') + 1
+            
+            if json_start != -1 and json_end > json_start:
+                # Extract and parse JSON string
+                json_str = response[json_start:json_end]
+                story_data = json.loads(json_str)
+                
+                # Step 4: Send metadata first (title, moral, etc.)
+                # This allows the frontend to show story info immediately
+                yield f"data: {json.dumps({'metadata': story_data})}\n\n"
+                
+                # Step 5: Stream story content paragraph by paragraph
+                if 'story' in story_data:
+                    story_text = story_data['story']
+                    # Split into paragraphs for smooth streaming
+                    paragraphs = story_text.split('\n\n')
+                    
+                    for paragraph in paragraphs:
+                        if paragraph.strip():
+                            # Stream each paragraph with a small delay
+                            content = paragraph.strip() + '\n\n'
+                            yield f"data: {json.dumps({'content': content})}\n\n"
+                            await asyncio.sleep(0.05)  # 50ms delay for smooth effect
+                
+                # Step 6: Send completion signal
+                yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
+            else:
+                # Fallback: If no JSON found, stream raw text
+                yield f"data: {json.dumps({'content': response, 'status': 'fallback'})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
+                
+        except json.JSONDecodeError as e:
+            # Fallback: If JSON parsing fails, stream raw text
+            # This ensures the user always gets something, even if parsing fails
+            yield f"data: {json.dumps({'content': response, 'status': 'raw_text'})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
         
     except Exception as e:
-        error_msg = f"data: {json.dumps({'error': str(e)})}\n\n"
-        yield error_msg
+        # Handle any unexpected errors gracefully
+        yield f"data: {json.dumps({'error': str(e), 'status': 'error'})}\n\n"
 
-@router.post("/generate", response_model=StoryResponse)
-async def generate_story(request: StoryRequest):
-    """Generate a bedtime story (non-streaming endpoint for metadata)"""
-    try:
-        # Validate input
-        if not request.character_name.strip():
-            raise HTTPException(status_code=400, detail="Character name is required")
-        
-        if request.character_age < 3 or request.character_age > 12:
-            raise HTTPException(status_code=400, detail="Character age must be between 3 and 12")
-        
-        if not request.story_theme.strip():
-            raise HTTPException(status_code=400, detail="Story theme is required")
-        
-        return StoryResponse(
-            character_name=request.character_name,
-            character_age=request.character_age,
-            story_theme=request.story_theme,
-            story_length=request.story_length
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating story: {str(e)}")
+# ============================================================================
+# API ENDPOINTS
+# ============================================================================
 
 @router.post("/stream")
 async def stream_story(request: StoryRequest):
-    """Generate a bedtime story with streaming response"""
-    try:
-        # Validate input
-        if not request.character_name.strip():
-            raise HTTPException(status_code=400, detail="Character name is required")
-        
-        if request.character_age < 3 or request.character_age > 12:
-            raise HTTPException(status_code=400, detail="Character age must be between 3 and 12")
-        
-        if not request.story_theme.strip():
-            raise HTTPException(status_code=400, detail="Story theme is required")
-        
-        return StreamingResponse(
-            generate_story_stream(request),
-            media_type="text/plain",
-            headers={
-                "Cache-Control": "no-cache",
-                "Connection": "keep-alive",
-                "Content-Type": "text/plain; charset=utf-8"
-            }
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error streaming story: {str(e)}")
+    """
+    Main streaming endpoint for story generation
+    
+    🎯 KEY CONCEPTS:
+    
+    1. STREAMING RESPONSE: Uses FastAPI's StreamingResponse for real-time data
+    2. MEDIA TYPE: "text/event-stream" is the standard for Server-Sent Events
+    3. HEADERS: Cache-Control and Connection headers for proper SSE behavior
+    4. ASYNC GENERATOR: Passes the async generator to StreamingResponse
+    
+    The frontend will receive a stream of data like:
+    data: {"status": "connected", "message": "Starting..."}
+    data: {"metadata": {"title": "Story Title", "moral": "Lesson"}}
+    data: {"content": "Once upon a time..."}
+    data: {"done": true, "status": "completed"}
+    """
+    return StreamingResponse(
+        generate_story_stream(request),
+        media_type="text/event-stream",  # Changed to proper SSE media type
+        headers={
+            "Cache-Control": "no-cache",  # Prevent caching of streaming data
+            "Connection": "keep-alive",   # Keep connection alive for streaming
+        }
+    )
 
 @router.get("/themes")
 async def get_story_themes():
-    """Get available story themes"""
+    """
+    Get available story themes
+    
+    This endpoint provides the list of themes that users can select from.
+    In a production app, this might come from a database or config file.
+    """
     return {
         "themes": [
-            "adventure",
-            "friendship", 
-            "courage",
-            "kindness",
-            "imagination",
-            "family",
-            "animals",
-            "magic",
-            "space",
-            "underwater",
-            "forest",
-            "castle",
-            "learning",
-            "sharing",
-            "bravery"
+            "adventure", "friendship", "courage", "kindness", 
+            "imagination", "family", "animals", "magic", 
+            "space", "underwater", "forest", "castle"
         ]
     }
 
 @router.get("/health")
 async def health_check():
-    """Health check for the bedtime story service"""
-    from utils.llm_provider import LLMProviderFactory
+    """
+    Health check endpoint
     
+    This is useful for:
+    - Monitoring system health
+    - Load balancer health checks
+    - Debugging connection issues
+    """
     return {
         "status": "healthy",
         "service": "bedtime-story-generator",
-        "features": ["streaming", "prompt-engineering", "error-handling"],
-        "llm_provider": type(llm_provider).__name__,
-        "available_providers": LLMProviderFactory.get_available_providers()
+        "description": "Simple AI bedtime story generator for learning"
     }
+
+"""
+LEARNING NOTES FOR STUDENTS:
+===========================
+
+1. SIMPLE PROMPT ENGINEERING:
+   - Clear, specific instructions
+   - Tell AI exactly what format you want (JSON)
+   - Specify requirements clearly
+
+2. STREAMING:
+   - Split response into chunks and stream them
+   - Creates "typing" effect in frontend
+   - Shows real-time AI processing
+
+3. ERROR HANDLING:
+   - Try to parse JSON, but have fallbacks
+   - Always handle errors gracefully
+   - Never crash the application
+
+4. API DESIGN:
+   - Simple endpoints that do one thing
+   - Clear request/response models
+   - Good HTTP status codes
+
+5. CODE ORGANIZATION:
+   - Functions have single responsibilities
+   - Clear variable names
+   - Comments explain the "why"
+"""

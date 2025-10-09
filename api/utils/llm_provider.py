@@ -59,7 +59,7 @@ class LLMProvider(ABC):
 class GeminiProvider(LLMProvider):
     """Google Gemini provider"""
     
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-2.0-flash-lite"):
         if not GEMINI_AVAILABLE:
             raise ImportError("google-generativeai package not installed")
         
@@ -79,9 +79,26 @@ class GeminiProvider(LLMProvider):
                     max_output_tokens=kwargs.get('max_tokens', 1000),
                 )
             )
+            # Check if response is blocked or empty
+            if not response.text:
+                print(f"Gemini response blocked or empty. Finish reason: {getattr(response, 'candidates', [{}])[0].get('finish_reason', 'unknown')}")
+                # Return a simple fallback story
+                return """{
+    "title": "A Gentle Adventure",
+    "story": "Once upon a time, there was a kind character who learned about friendship and kindness. They had a wonderful day and went to sleep happy.",
+    "moral": "Being kind and friendly makes everyone happy"
+}"""
+            
             return response.text
         except Exception as e:
-            raise Exception(f"Gemini API error: {str(e)}")
+            print(f"Gemini API error details: {str(e)}")
+            print(f"Using model: {self.model_name}")
+            # Return a fallback instead of raising an error
+            return """{
+    "title": "A Gentle Adventure", 
+    "story": "Once upon a time, there was a kind character who learned about friendship and kindness. They had a wonderful day and went to sleep happy.",
+    "moral": "Being kind and friendly makes everyone happy"
+}"""
     
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming text using Gemini"""

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { BookOpenIcon } from '@heroicons/react/24/outline';
+import CustomSelect from '@/components/CustomSelect';
 
 interface StoryRequest {
   character_name: string;
@@ -23,16 +24,16 @@ export default function BedtimeStoryPage() {
   });
   
   const [story, setStory] = useState('');
+  const [storyMetadata, setStoryMetadata] = useState<any>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationLogs, setGenerationLogs] = useState<string[]>([]);
   const [themes, setThemes] = useState<string[]>([]);
   const [error, setError] = useState('');
-  const [providerInfo, setProviderInfo] = useState<any>(null);
   const storyRef = useRef<HTMLDivElement>(null);
 
-  // Load themes and provider info on component mount
+  // Load data on component mount
   useEffect(() => {
     fetchThemes();
-    fetchProviderInfo();
   }, []);
 
   const fetchThemes = async () => {
@@ -42,33 +43,6 @@ export default function BedtimeStoryPage() {
       setThemes(data.themes);
     } catch (err) {
       console.error('Failed to fetch themes:', err);
-    }
-  };
-
-  const fetchProviderInfo = async () => {
-    try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-      console.log('API URL:', apiUrl);
-      const fullUrl = `${apiUrl}/bedtime-story/health`;
-      console.log('Full URL:', fullUrl);
-      
-      const response = await fetch(fullUrl);
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Provider info data:', data);
-      setProviderInfo(data);
-    } catch (err) {
-      console.error('Failed to fetch provider info:', err);
-      console.error('Error details:', {
-        message: err.message,
-        name: err.name,
-        stack: err.stack
-      });
     }
   };
 
@@ -88,8 +62,10 @@ export default function BedtimeStoryPage() {
 
     setIsGenerating(true);
     setStory('');
+    setStoryMetadata(null);
+    setGenerationLogs(['Starting story generation...', 'Analyzing character and theme...', 'Preparing AI prompt...']);
     setError('');
-    
+
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/bedtime-story/stream`, {
         method: 'POST',
@@ -104,15 +80,15 @@ export default function BedtimeStoryPage() {
       }
 
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
       if (!reader) {
         throw new Error('No response body');
       }
 
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
       while (true) {
         const { done, value } = await reader.read();
-        
         if (done) break;
         
         const chunk = decoder.decode(value);
@@ -122,23 +98,45 @@ export default function BedtimeStoryPage() {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(6));
-              
+
+              // Handle connection status
+              if (data.status === 'connected') {
+                setGenerationLogs(prev => [...prev, data.message]);
+              }
+
+              // Handle content streaming
               if (data.content) {
                 setStory(prev => prev + data.content);
-                // Auto-scroll to bottom
-                setTimeout(() => {
-                  if (storyRef.current) {
-                    storyRef.current.scrollTop = storyRef.current.scrollHeight;
+                setGenerationLogs(prev => {
+                  const newLogs = [...prev];
+                  if (!newLogs.includes('Writing story content...')) {
+                    newLogs.push('Writing story content...');
                   }
-                }, 100);
-              } else if (data.done) {
+                  return newLogs;
+                });
+              }
+
+              // Handle metadata
+              if (data.metadata) {
+                setStoryMetadata(data.metadata);
+                setGenerationLogs(prev => [...prev, 'Story metadata processed', 'Formatting story display...']);
+              }
+
+              // Handle completion
+              if (data.done) {
+                setGenerationLogs(prev => [...prev, 'Story generation complete!']);
                 setIsGenerating(false);
                 return;
-              } else if (data.error) {
+              }
+
+              // Handle errors
+              if (data.error) {
+                setGenerationLogs(prev => [...prev, `Error: ${data.error}`]);
                 throw new Error(data.error);
               }
             } catch (parseError) {
               console.error('Error parsing chunk:', parseError);
+              setGenerationLogs(prev => [...prev, 'Error parsing response data']);
             }
           }
         }
@@ -151,174 +149,231 @@ export default function BedtimeStoryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto container-padding section-padding">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-display text-gray-900 mb-6 flex items-center justify-center">
-            <BookOpenIcon className="w-12 h-12 text-brand-purple mr-4" />
+        <div className="text-center mb-8 sm:mb-12">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-sm border border-gray-200 mb-6">
+            <BookOpenIcon className="w-8 h-8 text-gray-600" />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
             Bedtime Story Generator
           </h1>
-          <p className="text-body max-w-3xl mx-auto mb-8">
-            Create personalized bedtime stories with AI. Enter character details and watch as your story comes to life in real-time.
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Create personalized bedtime stories with AI. Watch as your story comes to life word by word.
           </p>
-          
-          {/* Provider Status */}
-          {providerInfo && (
-            <div className="inline-flex items-center px-4 py-2 bg-green-50 border border-green-200 rounded-lg text-sm">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-green-800">
-                  Powered by: <strong>{providerInfo.llm_provider}</strong>
-                </span>
-              </div>
-            </div>
-          )}
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Form */}
-          <div className="card p-8">
-            <h2 className="text-headline text-gray-900 mb-8">Story Settings</h2>
-            
-            <div className="space-y-8">
-              {/* Character Name */}
-              <div>
-                <label htmlFor="character_name" className="block text-sm font-semibold text-gray-900 mb-3">
-                  Character Name *
-                </label>
-                <input
-                  type="text"
-                  id="character_name"
-                  name="character_name"
-                  value={formData.character_name}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Emma, Alex, Luna"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus-ring text-gray-900 placeholder-gray-500"
-                  disabled={isGenerating}
-                />
-              </div>
-
-              {/* Character Age */}
-              <div>
-                <label htmlFor="character_age" className="block text-sm font-semibold text-gray-900 mb-3">
-                  Character Age *
-                </label>
-                <select
-                  id="character_age"
-                  name="character_age"
-                  value={formData.character_age}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus-ring text-gray-900 placeholder-gray-500"
-                  disabled={isGenerating}
-                >
-                  {[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => (
-                    <option key={age} value={age}>{age} years old</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Story Theme */}
-              <div>
-                <label htmlFor="story_theme" className="block text-sm font-semibold text-gray-900 mb-3">
-                  Story Theme *
-                </label>
-                <select
-                  id="story_theme"
-                  name="story_theme"
-                  value={formData.story_theme}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus-ring text-gray-900 placeholder-gray-500"
-                  disabled={isGenerating}
-                >
-                  <option value="">Select a theme...</option>
-                  {themes.map(theme => (
-                    <option key={theme} value={theme}>
-                      {theme.charAt(0).toUpperCase() + theme.slice(1)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Story Length */}
-              <div>
-                <label htmlFor="story_length" className="block text-sm font-semibold text-gray-900 mb-3">
-                  Story Length
-                </label>
-                <select
-                  id="story_length"
-                  name="story_length"
-                  value={formData.story_length}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus-ring text-gray-900 placeholder-gray-500"
-                  disabled={isGenerating}
-                >
-                  <option value="short">Short (2-3 paragraphs)</option>
-                  <option value="medium">Medium (4-6 paragraphs)</option>
-                  <option value="long">Long (7-10 paragraphs)</option>
-                </select>
-              </div>
-
-              {/* Generate Button */}
-              <button
-                onClick={generateStory}
-                disabled={isGenerating || !formData.character_name.trim() || !formData.story_theme.trim()}
-                className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGenerating ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Generating Story...
-                  </span>
-                ) : (
-                  '✨ Generate Story'
-                )}
-              </button>
-
-              {/* Error Message */}
-              {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                  {error}
+        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
+          {/* Left Column - Form */}
+          <div className="space-y-6">
+            <div className="card p-6 lg:p-8">
+              <div className="flex items-center mb-6">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                  </svg>
                 </div>
-              )}
+                <h2 className="text-xl font-bold text-gray-900">Story Settings</h2>
+              </div>
+
+              <div className="space-y-6">
+                {/* Character Name */}
+                <div className="space-y-2">
+                  <label htmlFor="character_name" className="block text-sm font-semibold text-gray-700">
+                    Character Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="character_name"
+                    name="character_name"
+                    value={formData.character_name}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Emma, Alex, Luna"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300"
+                    disabled={isGenerating}
+                  />
+                </div>
+
+                {/* Character Age & Theme Row */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label htmlFor="character_age" className="block text-sm font-semibold text-gray-700">
+                      Character Age *
+                    </label>
+                    <CustomSelect
+                      id="character_age"
+                      name="character_age"
+                      value={formData.character_age.toString()}
+                      onChange={(value) => setFormData(prev => ({ ...prev, character_age: parseInt(value) }))}
+                      options={[3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(age => ({
+                        value: age.toString(),
+                        label: `${age} years old`
+                      }))}
+                      placeholder="Select age..."
+                      disabled={isGenerating}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label htmlFor="story_theme" className="block text-sm font-semibold text-gray-700">
+                      Story Theme *
+                    </label>
+                    <CustomSelect
+                      id="story_theme"
+                      name="story_theme"
+                      value={formData.story_theme}
+                      onChange={(value) => setFormData(prev => ({ ...prev, story_theme: value }))}
+                      options={themes.map(theme => ({
+                        value: theme,
+                        label: theme.charAt(0).toUpperCase() + theme.slice(1)
+                      }))}
+                      placeholder="Select theme..."
+                      disabled={isGenerating}
+                    />
+                  </div>
+                </div>
+
+                {/* Story Length */}
+                <div className="space-y-2">
+                  <label htmlFor="story_length" className="block text-sm font-semibold text-gray-700">
+                    Story Length
+                  </label>
+                  <CustomSelect
+                    id="story_length"
+                    name="story_length"
+                    value={formData.story_length}
+                    onChange={(value) => setFormData(prev => ({ ...prev, story_length: value }))}
+                    options={[
+                      { value: 'short', label: 'Short (2-3 paragraphs)' },
+                      { value: 'medium', label: 'Medium (4-6 paragraphs)' },
+                      { value: 'long', label: 'Long (7-10 paragraphs)' }
+                    ]}
+                    placeholder="Select length..."
+                    disabled={isGenerating}
+                  />
+                </div>
+
+                {/* Generate Button */}
+                <button
+                  onClick={generateStory}
+                  disabled={isGenerating || !formData.character_name.trim() || !formData.story_theme.trim()}
+                  className="w-full btn-accent disabled:opacity-50 disabled:cursor-not-allowed py-4 text-lg font-semibold"
+                >
+                  {isGenerating ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Creating Magic...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center">
+                      <span className="text-xl mr-3">✨</span>
+                      Generate Story
+                    </span>
+                  )}
+                </button>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm font-medium">
+                    {error}
+                  </div>
+                )}
+              </div>
             </div>
+
+            {/* Generation Progress */}
+            {generationLogs.length > 0 && (
+              <div className="card p-6">
+                <div className="flex items-center mb-4">
+                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
+                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Generation Progress</h3>
+                </div>
+                <div className="space-y-3">
+                  {generationLogs.map((log, index) => (
+                    <div key={index} className="flex items-center text-sm text-gray-600">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mr-3 animate-pulse"></div>
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Story Display */}
-          <div className="card p-8">
-            <h2 className="text-headline text-gray-900 mb-8">Your Story</h2>
-            
-            <div 
-              ref={storyRef}
-              className="bg-gray-50 rounded-lg p-6 min-h-[500px]"
-            >
+          {/* Right Column - Story Display */}
+          <div className="space-y-6">
+            <div className="card p-6 lg:p-8 min-h-[600px]">
+              <div className="flex items-center mb-6">
+                <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-4">
+                  <BookOpenIcon className="w-5 h-5 text-purple-600" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900">Your Story</h2>
+              </div>
+
               {story ? (
-                <div className="prose prose-lg max-w-none">
-                  <p className="text-gray-800 leading-relaxed whitespace-pre-wrap text-lg">
-                    {story}
-                  </p>
+                <div className="space-y-6">
+                  {storyMetadata && (
+                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-200">
+                      <h3 className="text-xl font-bold text-gray-900 mb-3">{storyMetadata.title}</h3>
+                      {storyMetadata.moral && (
+                        <p className="text-sm text-gray-700 mb-3">
+                          <span className="font-semibold text-purple-700">Lesson:</span> {storyMetadata.moral}
+                        </p>
+                      )}
+                      {storyMetadata.tags && storyMetadata.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {storyMetadata.tags.map((tag: string, index: number) => (
+                            <span key={index} className="px-3 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="prose prose-lg max-w-none">
+                    <div
+                      className="text-gray-800 leading-relaxed text-lg font-medium"
+                      dangerouslySetInnerHTML={{
+                        __html: story
+                          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-purple-700 font-bold">$1</strong>')
+                          .replace(/\*(.*?)\*/g, '<em class="text-blue-600 italic">$1</em>')
+                          .replace(/\n\n/g, '</p><p class="mb-4">')
+                          .replace(/^/, '<p class="mb-4">')
+                          .replace(/$/, '</p>')
+                      }}
+                    />
+                  </div>
+
                   {isGenerating && (
-                    <div className="flex items-center mt-4">
-                      <div className="animate-pulse bg-brand-purple h-2 w-2 rounded-full mr-2"></div>
-                      <span className="text-sm text-gray-500">AI is writing...</span>
+                    <div className="flex items-center p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
+                      <div className="animate-pulse bg-gradient-to-r from-green-400 to-blue-500 h-3 w-3 rounded-full mr-3"></div>
+                      <span className="text-sm text-gray-700 font-medium">AI is crafting your story...</span>
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-full text-gray-500">
+                <div className="flex items-center justify-center py-20 text-gray-500">
                   <div className="text-center">
-                    <BookOpenIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-lg text-gray-600 mb-2">Your story will appear here</p>
-                    <p className="text-sm text-gray-500">Fill in the details and click "Generate Story"</p>
+                    <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                      <BookOpenIcon className="w-10 h-10 text-gray-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-700 mb-3">Your story will appear here</h3>
+                    <p className="text-gray-500 max-w-sm">Fill in the character details and click "Generate Story" to watch the magic happen</p>
                   </div>
                 </div>
               )}
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
