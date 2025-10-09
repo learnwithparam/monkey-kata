@@ -99,30 +99,23 @@ def create_simple_prompt(request: StoryRequest) -> str:
     """
     # Define length requirements based on user selection
     length_requirements = {
-        "short": "2-3 paragraphs, about 100-150 words",
-        "medium": "4-6 paragraphs, about 200-300 words", 
-        "long": "7-10 paragraphs, about 400-500 words"
+        "short": "3-5 paragraphs, about 40-60 words",
+        "medium": "5-7 paragraphs, about 100-150 words", 
+        "long": "8-12 paragraphs, about 200-300 words"
     }
     
-    # Use variable to avoid f-string backslash issues
-    newline = "\n"
-    
-    return f"""Write a bedtime story for {request.character_name}, age {request.character_age}, about {request.story_theme}.
+    return f"""Write a personalized bedtime story for a {request.character_age}-year-old named {request.character_name} about {request.story_theme}.
 
-Make it {length_requirements[request.story_length]}.
+Make it {length_requirements[request.story_length]} and write in proper paragraphs with clear breaks between them.
 
-Requirements:
-- Write in proper paragraphs (each paragraph should be 2-3 sentences)
-- Use **bold** for important words and *italics* for emphasis
-- Make it age-appropriate and gentle
-- Include a clear beginning, middle, and end
+FORMAT YOUR RESPONSE LIKE THIS:
 
-Return as JSON:
-{{
-    "title": "Story Title",
-    "story": "Write the story here with proper paragraph breaks. Each paragraph should be on its own line.{newline}{newline}Use double line breaks between paragraphs.{newline}{newline}This creates proper formatting.",
-    "moral": "The lesson learned"
-}}"""
+TITLE: [Story Title Here]
+
+STORY:
+[Write the story here with proper paragraph breaks]
+
+MORAL: [The lesson learned]"""
 
 # ============================================================================
 # STREAMING GENERATOR
@@ -151,47 +144,62 @@ async def generate_story_stream(request: StoryRequest) -> AsyncGenerator[str, No
         prompt = create_simple_prompt(request)
         response = await llm_provider.generate_text(prompt, temperature=0.8, max_tokens=800)
         
-        # Step 3: Parse JSON response with robust error handling
-        try:
-            # Find JSON boundaries in the response
-            # LLMs sometimes include extra text before/after JSON
-            json_start = response.find('{')
-            json_end = response.rfind('}') + 1
+        # Step 3: Parse the structured response and stream it
+        # Clean the response - remove markdown code blocks if present
+        cleaned_response = response.strip()
+        if cleaned_response.startswith('```json'):
+            cleaned_response = cleaned_response[7:]  # Remove ```json
+        if cleaned_response.startswith('```'):
+            cleaned_response = cleaned_response[3:]   # Remove ```
+        if cleaned_response.endswith('```'):
+            cleaned_response = cleaned_response[:-3]  # Remove trailing ```
+        
+        # Parse the structured response
+        title = ""
+        story = ""
+        moral = ""
+        
+        # Split by sections
+        sections = cleaned_response.split('\n\n')
+        current_section = ""
+        
+        for section in sections:
+            section = section.strip()
             
-            if json_start != -1 and json_end > json_start:
-                # Extract and parse JSON string
-                json_str = response[json_start:json_end]
-                story_data = json.loads(json_str)
-                
-                # Step 4: Send metadata first (title, moral, etc.)
-                # This allows the frontend to show story info immediately
-                yield f"data: {json.dumps({'metadata': story_data})}\n\n"
-                
-                # Step 5: Stream story content paragraph by paragraph
-                if 'story' in story_data:
-                    story_text = story_data['story']
-                    # Split into paragraphs for smooth streaming
-                    paragraphs = story_text.split('\n\n')
-                    
-                    for paragraph in paragraphs:
-                        if paragraph.strip():
-                            # Stream each paragraph with a small delay
-                            content = paragraph.strip() + '\n\n'
-                            yield f"data: {json.dumps({'content': content})}\n\n"
-                            await asyncio.sleep(0.05)  # 50ms delay for smooth effect
-                
-                # Step 6: Send completion signal
-                yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
-            else:
-                # Fallback: If no JSON found, stream raw text
-                yield f"data: {json.dumps({'content': response, 'status': 'fallback'})}\n\n"
-                yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
-                
-        except json.JSONDecodeError as e:
-            # Fallback: If JSON parsing fails, stream raw text
-            # This ensures the user always gets something, even if parsing fails
-            yield f"data: {json.dumps({'content': response, 'status': 'raw_text'})}\n\n"
-            yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
+            if section.startswith('TITLE:'):
+                title = section.replace('TITLE:', '').strip()
+            elif section.startswith('STORY:'):
+                current_section = 'story'
+                story_content = section.replace('STORY:', '').strip()
+                if story_content:
+                    story += story_content + '\n\n'
+            elif section.startswith('MORAL:'):
+                moral = section.replace('MORAL:', '').strip()
+                current_section = 'moral'
+            elif current_section == 'story' and section:
+                story += section + '\n\n'
+        
+        # Send metadata first
+        if title or moral:
+            metadata = {}
+            if title:
+                metadata['title'] = title
+            if moral:
+                metadata['moral'] = moral
+            yield f"data: {json.dumps({'metadata': metadata})}\n\n"
+        
+        # Stream the story content paragraph by paragraph
+        if story:
+            paragraphs = story.split('\n\n')
+            for paragraph in paragraphs:
+                if paragraph.strip():
+                    # Stream each paragraph with proper formatting
+                    content = paragraph.strip() + '\n\n'
+                    yield f"data: {json.dumps({'content': content})}\n\n"
+                    # Remove the delay for faster streaming
+        
+        # Send completion signal
+        yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
         
     except Exception as e:
         # Handle any unexpected errors gracefully

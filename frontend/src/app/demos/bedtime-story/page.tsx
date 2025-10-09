@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BookOpenIcon } from '@heroicons/react/24/outline';
 import CustomSelect from '@/components/CustomSelect';
 
@@ -24,12 +24,10 @@ export default function BedtimeStoryPage() {
   });
   
   const [story, setStory] = useState('');
-  const [storyMetadata, setStoryMetadata] = useState<any>(null);
+  const [storyMetadata, setStoryMetadata] = useState<{title?: string; moral?: string} | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationLogs, setGenerationLogs] = useState<string[]>([]);
   const [themes, setThemes] = useState<string[]>([]);
   const [error, setError] = useState('');
-  const storyRef = useRef<HTMLDivElement>(null);
 
   // Load data on component mount
   useEffect(() => {
@@ -63,7 +61,6 @@ export default function BedtimeStoryPage() {
     setIsGenerating(true);
     setStory('');
     setStoryMetadata(null);
-    setGenerationLogs(['Starting story generation...', 'Analyzing character and theme...', 'Preparing AI prompt...']);
     setError('');
 
     try {
@@ -85,7 +82,6 @@ export default function BedtimeStoryPage() {
       }
 
       const decoder = new TextDecoder('utf-8');
-      let buffer = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -99,44 +95,33 @@ export default function BedtimeStoryPage() {
             try {
               const data = JSON.parse(line.slice(6));
 
-              // Handle connection status
+              // Handle connection status (ignore but don't break)
               if (data.status === 'connected') {
-                setGenerationLogs(prev => [...prev, data.message]);
+                // Connection established, continue processing
               }
 
               // Handle content streaming
               if (data.content) {
                 setStory(prev => prev + data.content);
-                setGenerationLogs(prev => {
-                  const newLogs = [...prev];
-                  if (!newLogs.includes('Writing story content...')) {
-                    newLogs.push('Writing story content...');
-                  }
-                  return newLogs;
-                });
               }
 
               // Handle metadata
               if (data.metadata) {
                 setStoryMetadata(data.metadata);
-                setGenerationLogs(prev => [...prev, 'Story metadata processed', 'Formatting story display...']);
               }
 
               // Handle completion
               if (data.done) {
-                setGenerationLogs(prev => [...prev, 'Story generation complete!']);
                 setIsGenerating(false);
                 return;
               }
 
               // Handle errors
               if (data.error) {
-                setGenerationLogs(prev => [...prev, `Error: ${data.error}`]);
                 throw new Error(data.error);
               }
             } catch (parseError) {
               console.error('Error parsing chunk:', parseError);
-              setGenerationLogs(prev => [...prev, 'Error parsing response data']);
             }
           }
         }
@@ -284,27 +269,6 @@ export default function BedtimeStoryPage() {
               </div>
             </div>
 
-            {/* Generation Progress */}
-            {generationLogs.length > 0 && (
-              <div className="card p-6">
-                <div className="flex items-center mb-4">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Generation Progress</h3>
-                </div>
-                <div className="space-y-3">
-                  {generationLogs.map((log, index) => (
-                    <div key={index} className="flex items-center text-sm text-gray-600">
-                      <div className="w-2 h-2 bg-green-500 rounded-full mr-3 animate-pulse"></div>
-                      {log}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Right Column - Story Display */}
@@ -317,49 +281,41 @@ export default function BedtimeStoryPage() {
                 <h2 className="text-xl font-bold text-gray-900">Your Story</h2>
               </div>
 
-              {story ? (
-                <div className="space-y-6">
-                  {storyMetadata && (
-                    <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-6 border border-purple-200">
-                      <h3 className="text-xl font-bold text-gray-900 mb-3">{storyMetadata.title}</h3>
-                      {storyMetadata.moral && (
-                        <p className="text-sm text-gray-700 mb-3">
-                          <span className="font-semibold text-purple-700">Lesson:</span> {storyMetadata.moral}
-                        </p>
-                      )}
-                      {storyMetadata.tags && storyMetadata.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {storyMetadata.tags.map((tag: string, index: number) => (
-                            <span key={index} className="px-3 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
-                              {tag}
-                            </span>
-                          ))}
+                      {story ? (
+                        <div className="space-y-6">
+                          {storyMetadata && (
+                            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                              {storyMetadata.title && (
+                                <h3 className="text-lg font-semibold text-gray-900 mb-2">{storyMetadata.title}</h3>
+                              )}
+                              {storyMetadata.moral && (
+                                <p className="text-sm text-gray-600"><strong>Lesson:</strong> {storyMetadata.moral}</p>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="prose prose-lg max-w-none">
+                            <div
+                              className="text-gray-800 leading-relaxed text-lg [&>p]:mb-4 [&>p:last-child]:mb-0"
+                              dangerouslySetInnerHTML={{
+                                __html: story
+                                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                                  .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                                  .replace(/\n\n+/g, '</p><p>')  // Handle multiple newlines
+                                  .replace(/^\s*/, '<p>')       // Start with paragraph
+                                  .replace(/\s*$/, '</p>')      // End with paragraph
+                                  .replace(/<p><\/p>/g, '')     // Remove empty paragraphs
+                              }}
+                            />
+                          </div>
+
+                          {isGenerating && (
+                            <div className="flex items-center p-4 bg-white rounded-lg border border-gray-200">
+                              <div className="animate-pulse bg-green-500 h-3 w-3 rounded-full mr-3"></div>
+                              <span className="text-sm text-gray-700 font-medium">AI is writing your story...</span>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="prose prose-lg max-w-none">
-                    <div
-                      className="text-gray-800 leading-relaxed text-lg font-medium"
-                      dangerouslySetInnerHTML={{
-                        __html: story
-                          .replace(/\*\*(.*?)\*\*/g, '<strong class="text-purple-700 font-bold">$1</strong>')
-                          .replace(/\*(.*?)\*/g, '<em class="text-blue-600 italic">$1</em>')
-                          .replace(/\n\n/g, '</p><p class="mb-4">')
-                          .replace(/^/, '<p class="mb-4">')
-                          .replace(/$/, '</p>')
-                      }}
-                    />
-                  </div>
-
-                  {isGenerating && (
-                    <div className="flex items-center p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl border border-green-200">
-                      <div className="animate-pulse bg-gradient-to-r from-green-400 to-blue-500 h-3 w-3 rounded-full mr-3"></div>
-                      <span className="text-sm text-gray-700 font-medium">AI is crafting your story...</span>
-                    </div>
-                  )}
-                </div>
               ) : (
                 <div className="flex items-center justify-center py-20 text-gray-500">
                   <div className="text-center">
@@ -367,7 +323,7 @@ export default function BedtimeStoryPage() {
                       <BookOpenIcon className="w-10 h-10 text-gray-400" />
                     </div>
                     <h3 className="text-xl font-semibold text-gray-700 mb-3">Your story will appear here</h3>
-                    <p className="text-gray-500 max-w-sm">Fill in the character details and click "Generate Story" to watch the magic happen</p>
+                    <p className="text-gray-500 max-w-sm">Fill in the character details and click &quot;Generate Story&quot; to watch the magic happen</p>
                   </div>
                 </div>
               )}
