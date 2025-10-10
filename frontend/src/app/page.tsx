@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import ChallengesModal from '@/components/ChallengesModal';
 import { 
   BookOpenIcon,
   ScaleIcon,
@@ -28,8 +27,6 @@ import {
 
 export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isChallengesOpen, setIsChallengesOpen] = useState(false);
-  const [selectedDemo, setSelectedDemo] = useState<string | undefined>(undefined);
 
   return (
     <div className="min-h-screen bg-white">
@@ -159,9 +156,15 @@ export default function Home() {
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <Link 
                       href="/demos/bedtime-story" 
-                      className="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-center"
+                      className="flex-1 bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-center"
                     >
                       Try Demo
+                    </Link>
+                    <Link
+                      href="/challenges/bedtime-story-generator"
+                      className="flex-1 bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md text-center"
+                    >
+                      Challenges
                     </Link>
                   </div>
                 </div>
@@ -177,9 +180,15 @@ export default function Home() {
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <Link 
                       href="/demos/website-rag" 
-                      className="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-center"
+                      className="flex-1 bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-center"
                     >
                       Try Demo
+                    </Link>
+                    <Link
+                      href="/challenges/website-rag"
+                      className="flex-1 bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md text-center"
+                    >
+                      Challenges
                     </Link>
                   </div>
                 </div>
@@ -481,15 +490,6 @@ export default function Home() {
         </div>
       </footer>
 
-      {/* Challenges Modal */}
-      <ChallengesModal 
-        isOpen={isChallengesOpen}
-        onClose={() => {
-          setIsChallengesOpen(false);
-          setSelectedDemo(undefined);
-        }}
-        demoName={selectedDemo || ''}
-      />
     </div>
   );
 }
