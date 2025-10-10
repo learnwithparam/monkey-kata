@@ -108,14 +108,7 @@ def create_simple_prompt(request: StoryRequest) -> str:
 
 Make it {length_requirements[request.story_length]} and write in proper paragraphs with clear breaks between them.
 
-FORMAT YOUR RESPONSE LIKE THIS:
-
-TITLE: [Story Title Here]
-
-STORY:
-[Write the story here with proper paragraph breaks]
-
-MORAL: [The lesson learned]"""
+Start with an engaging title that captures the adventure, then tell the story naturally. End with a gentle moral lesson that emphasizes the importance of kindness, bravery, or friendship. Let the title and moral flow organically within the narrative without explicit labels."""
 
 # ============================================================================
 # STREAMING GENERATOR
@@ -137,66 +130,16 @@ async def generate_story_stream(request: StoryRequest) -> AsyncGenerator[str, No
     """
     try:
         # Step 1: Send initial connection confirmation
-        # This lets the frontend know the connection is established
         yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting story generation...'})}\n\n"
         
         # Step 2: Create the prompt and get LLM response
         prompt = create_simple_prompt(request)
-        response = await llm_provider.generate_text(prompt, temperature=0.8, max_tokens=800)
         
-        # Step 3: Parse the structured response and stream it
-        # Clean the response - remove markdown code blocks if present
-        cleaned_response = response.strip()
-        if cleaned_response.startswith('```json'):
-            cleaned_response = cleaned_response[7:]  # Remove ```json
-        if cleaned_response.startswith('```'):
-            cleaned_response = cleaned_response[3:]   # Remove ```
-        if cleaned_response.endswith('```'):
-            cleaned_response = cleaned_response[:-3]  # Remove trailing ```
-        
-        # Parse the structured response
-        title = ""
-        story = ""
-        moral = ""
-        
-        # Split by sections
-        sections = cleaned_response.split('\n\n')
-        current_section = ""
-        
-        for section in sections:
-            section = section.strip()
-            
-            if section.startswith('TITLE:'):
-                title = section.replace('TITLE:', '').strip()
-            elif section.startswith('STORY:'):
-                current_section = 'story'
-                story_content = section.replace('STORY:', '').strip()
-                if story_content:
-                    story += story_content + '\n\n'
-            elif section.startswith('MORAL:'):
-                moral = section.replace('MORAL:', '').strip()
-                current_section = 'moral'
-            elif current_section == 'story' and section:
-                story += section + '\n\n'
-        
-        # Send metadata first
-        if title or moral:
-            metadata = {}
-            if title:
-                metadata['title'] = title
-            if moral:
-                metadata['moral'] = moral
-            yield f"data: {json.dumps({'metadata': metadata})}\n\n"
-        
-        # Stream the story content paragraph by paragraph
-        if story:
-            paragraphs = story.split('\n\n')
-            for paragraph in paragraphs:
-                if paragraph.strip():
-                    # Stream each paragraph with proper formatting
-                    content = paragraph.strip() + '\n\n'
-                    yield f"data: {json.dumps({'content': content})}\n\n"
-                    # Remove the delay for faster streaming
+        # Stream the story content directly from LLM
+        story_content = ""
+        async for chunk in llm_provider.generate_stream(prompt, temperature=0.8, max_tokens=800):
+            story_content += chunk
+            yield f"data: {json.dumps({'content': chunk})}\n\n"
         
         # Send completion signal
         yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
