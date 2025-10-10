@@ -156,7 +156,7 @@ export default function Home() {
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <Link 
                       href="/demos/bedtime-story" 
-                      className="flex-1 bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-center"
+                      className="flex-1 bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-center whitespace-nowrap"
                     >
                       Try Demo
                     </Link>
@@ -180,7 +180,7 @@ export default function Home() {
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                     <Link 
                       href="/demos/website-rag" 
-                      className="flex-1 bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-center"
+                      className="flex-1 bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-center whitespace-nowrap"
                     >
                       Try Demo
                     </Link>
