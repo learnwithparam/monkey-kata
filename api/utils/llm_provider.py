@@ -41,6 +41,7 @@ class LLMProviderType(Enum):
     """Supported LLM providers"""
     GEMINI = "gemini"
     OPENAI = "openai"
+    FIREWORKS = "fireworks"
     MOCK = "mock"
 
 class LLMProvider(ABC):
@@ -103,16 +104,120 @@ class GeminiProvider(LLMProvider):
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
         """Generate streaming text using Gemini"""
         try:
-            # Gemini doesn't have native streaming, so we simulate it
-            response = await self.generate_text(prompt, **kwargs)
+            # Use Gemini's streaming API
+            response = await asyncio.to_thread(
+                self.model.generate_content,
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=kwargs.get('temperature', 0.3),
+                    max_output_tokens=kwargs.get('max_tokens', 1000),
+                ),
+                stream=True
+            )
             
-            # Split into words and stream them
-            words = response.split()
-            for word in words:
-                await asyncio.sleep(0.05)  # Simulate streaming delay
-                yield word + " "
+            # Stream the response chunks
+            for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+                    # Small delay to make streaming visible but not too slow
+                    await asyncio.sleep(0.01)
+                    
         except Exception as e:
             yield f"Error: {str(e)}"
+
+class FireworksAIProvider(LLMProvider):
+    """FireworksAI provider"""
+    
+    def __init__(self, api_key: str, model: str = "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"):
+        self.api_key = api_key
+        self.model = model
+        self.base_url = "https://api.fireworks.ai/inference/v1/chat/completions"
+    
+    async def generate_text(self, prompt: str, **kwargs) -> str:
+        """Generate text using FireworksAI API"""
+        import aiohttp
+        import json
+        
+        payload = {
+            "model": self.model,
+            "max_tokens": kwargs.get('max_tokens', 1000),
+            "top_p": 1,
+            "top_k": 40,
+            "presence_penalty": 0,
+            "frequency_penalty": 0,
+            "temperature": kwargs.get('temperature', 0.7),
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        }
+        
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.base_url, headers=headers, data=json.dumps(payload)) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return result['choices'][0]['message']['content']
+                else:
+                    error_text = await response.text()
+                    raise Exception(f"FireworksAI API error {response.status}: {error_text}")
+    
+    async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
+        """Generate streaming text using FireworksAI API"""
+        import aiohttp
+        import json
+        
+        payload = {
+            "model": self.model,
+            "max_tokens": kwargs.get('max_tokens', 1000),
+            "top_p": 1,
+            "top_k": 40,
+            "presence_penalty": 0,
+            "frequency_penalty": 0,
+            "temperature": kwargs.get('temperature', 0.7),
+            "stream": True,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        }
+        
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.base_url, headers=headers, data=json.dumps(payload)) as response:
+                if response.status == 200:
+                    async for line in response.content:
+                        line = line.decode('utf-8').strip()
+                        if line.startswith('data: '):
+                            data = line[6:]  # Remove 'data: ' prefix
+                            if data == '[DONE]':
+                                break
+                            try:
+                                chunk = json.loads(data)
+                                if 'choices' in chunk and len(chunk['choices']) > 0:
+                                    delta = chunk['choices'][0].get('delta', {})
+                                    if 'content' in delta:
+                                        yield delta['content']
+                                        await asyncio.sleep(0.01)  # Small delay for visual effect
+                            except json.JSONDecodeError:
+                                continue
+                else:
+                    error_text = await response.text()
+                    raise Exception(f"FireworksAI API error {response.status}: {error_text}")
 
 class OpenAIProvider(LLMProvider):
     """OpenAI provider"""
@@ -196,26 +301,39 @@ class LLMProviderFactory:
     def create_provider() -> LLMProvider:
         """Create LLM provider based on environment variables"""
         
-        # Check for Gemini first (free tier)
+        # Check for provider preference
+        provider_type = os.getenv("LLM_PROVIDER", "").lower()
+        
+        # Check for FireworksAI
+        fireworks_key = os.getenv("FIREWORKS_API_KEY")
+        if fireworks_key and (provider_type == "fireworks" or not provider_type):
+            model = os.getenv("FIREWORKS_MODEL", "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507")
+            print(f"🤖 Using FireworksAI provider with model: {model}")
+            return FireworksAIProvider(api_key=fireworks_key, model=model)
+        
+        # Check for Gemini (free tier)
         gemini_key = os.getenv("GEMINI_API_KEY")
-        if gemini_key:
-            print("🤖 Using Google Gemini provider")
-            return GeminiProvider(api_key=gemini_key)
+        if gemini_key and (provider_type == "gemini" or not provider_type):
+            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
+            print(f"🤖 Using Google Gemini provider with model: {model}")
+            return GeminiProvider(api_key=gemini_key, model=model)
         
         # Check for OpenAI
         openai_key = os.getenv("OPENAI_API_KEY")
-        if openai_key:
-            print("🤖 Using OpenAI provider")
-            return OpenAIProvider(api_key=openai_key)
+        if openai_key and (provider_type == "openai" or not provider_type):
+            model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+            print(f"🤖 Using OpenAI provider with model: {model}")
+            return OpenAIProvider(api_key=openai_key, model=model)
         
         # Fall back to mock provider
-        print("🤖 Using Mock provider (set GEMINI_API_KEY or OPENAI_API_KEY for real AI)")
+        print("🤖 Using Mock provider (set FIREWORKS_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY for real AI)")
         return MockProvider()
     
     @staticmethod
     def get_available_providers() -> Dict[str, bool]:
         """Get information about available providers"""
         return {
+            "fireworks": True,  # FireworksAI uses aiohttp which is always available
             "gemini": GEMINI_AVAILABLE,
             "openai": OPENAI_AVAILABLE,
             "mock": True

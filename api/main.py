@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 
 # Import demo routers
 from demos.bedtime_story_generator.main import router as bedtime_story_router
+from demos.website_rag.main import router as website_rag_router
 
 # Load environment variables
 load_dotenv()
@@ -20,7 +21,7 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 AI Bootcamp API starting up...")
     app_state["started"] = True
-    app_state["demos"] = ["bedtime-story-generator"]
+    app_state["demos"] = ["bedtime-story-generator", "website-rag"]
     yield
     # Shutdown
     print("🛑 AI Bootcamp API shutting down...")
@@ -35,6 +36,7 @@ app = FastAPI(
 
 # Include demo routers
 app.include_router(bedtime_story_router)
+app.include_router(website_rag_router)
 
 # CORS middleware
 app.add_middleware(

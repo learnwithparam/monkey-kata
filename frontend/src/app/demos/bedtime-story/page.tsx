@@ -141,12 +141,13 @@ export default function BedtimeStoryPage() {
             <BookOpenIcon className="w-8 h-8 text-gray-600" />
           </div>
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-            Bedtime Story Generator
+            Bedtime Stories for Kids
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Create personalized bedtime stories with AI. Watch as your story comes to life word by word.
+            Create magical bedtime stories that adapt to your child's interests and age. Watch as AI brings their personalized adventure to life.
           </p>
         </div>
+
 
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-12">
           {/* Left Column - Form */}
@@ -174,7 +175,7 @@ export default function BedtimeStoryPage() {
                     value={formData.character_name}
                     onChange={handleInputChange}
                     placeholder="e.g., Emma, Alex, Luna"
-                    className="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300"
                     disabled={isGenerating}
                   />
                 </div>

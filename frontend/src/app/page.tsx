@@ -149,13 +149,13 @@ export default function Home() {
                   <div className="flex items-center">
                     <BookOpenIcon className="w-8 h-8 text-purple-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Bedtime Story Generator</h4>
-                      <p className="text-sm text-gray-600">Interactive story creation with streaming responses</p>
+                      <h4 className="font-semibold text-gray-900">Bedtime Stories for Kids</h4>
+                      <p className="text-sm text-gray-600">AI-powered bedtime stories that adapt to your child's interests and age</p>
                     </div>
                   </div>
                   <Link 
                     href="/demos/bedtime-story" 
-                    className="btn-accent px-4 py-2 text-sm"
+                    className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                   >
                     Try Demo
                   </Link>
@@ -165,30 +165,35 @@ export default function Home() {
                   <div className="flex items-center">
                     <ScaleIcon className="w-8 h-8 text-orange-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Legal Document Analysis</h4>
-                      <p className="text-sm text-gray-600">Extract key terms and risks from contracts</p>
+                      <h4 className="font-semibold text-gray-900">Legal Contract Analyzer</h4>
+                      <p className="text-sm text-gray-600">Instantly identify potential risks and key terms in legal documents</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
                 </div>
 
-                <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 opacity-60">
+                <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
                   <div className="flex items-center">
                     <GlobeAltIcon className="w-8 h-8 text-blue-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Web Page Q&A</h4>
-                      <p className="text-sm text-gray-600">Q&A system for any webpage content</p>
+                      <h4 className="font-semibold text-gray-900">Website FAQ Chatbot</h4>
+                      <p className="text-sm text-gray-600">Ask questions about any website and get instant, accurate answers from the content</p>
                     </div>
                   </div>
-                  <span className="text-gray-400 text-sm">Coming Soon</span>
+                  <Link 
+                    href="/demos/website-rag" 
+                    className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                  >
+                    Try Demo
+                  </Link>
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 opacity-60">
                   <div className="flex items-center">
                     <SpeakerWaveIcon className="w-8 h-8 text-green-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Customer Support KB</h4>
-                      <p className="text-sm text-gray-600">Q&A system with vector search</p>
+                      <h4 className="font-semibold text-gray-900">24/7 Customer Support Bot with Human Escalation</h4>
+                      <p className="text-sm text-gray-600">Intelligent customer support that finds answers instantly from your knowledge base</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -210,8 +215,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <TagIcon className="w-8 h-8 text-blue-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Lead Qualifier Bot</h4>
-                      <p className="text-sm text-gray-600">Chat-based lead qualification system</p>
+                      <h4 className="font-semibold text-gray-900">Sales Lead Qualifier</h4>
+                      <p className="text-sm text-gray-600">Automatically qualify and score leads through intelligent conversation</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -221,8 +226,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <CakeIcon className="w-8 h-8 text-orange-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Restaurant Voice Assistant</h4>
-                      <p className="text-sm text-gray-600">Voice system for food ordering</p>
+                      <h4 className="font-semibold text-gray-900">Voice Order Assistant</h4>
+                      <p className="text-sm text-gray-600">Take food orders naturally through voice conversation with AI</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -232,8 +237,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <HeartIcon className="w-8 h-8 text-red-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Healthcare Triage</h4>
-                      <p className="text-sm text-gray-600">Voice system for patient intake</p>
+                      <h4 className="font-semibold text-gray-900">Medical Triage Assistant</h4>
+                      <p className="text-sm text-gray-600">Intelligent patient intake that prioritizes cases and gathers symptoms</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -255,8 +260,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <MagnifyingGlassIcon className="w-8 h-8 text-green-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Competitor Analysis Agent</h4>
-                      <p className="text-sm text-gray-600">Agent that researches competitors</p>
+                      <h4 className="font-semibold text-gray-900">Market Intelligence Agent</h4>
+                      <p className="text-sm text-gray-600">Automatically research competitors and analyze market positioning</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -266,8 +271,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <DocumentTextIcon className="w-8 h-8 text-blue-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Web Form Filling Bot</h4>
-                      <p className="text-sm text-gray-600">Agent that fills forms automatically</p>
+                      <h4 className="font-semibold text-gray-900">Auto Form Filler</h4>
+                      <p className="text-sm text-gray-600">Intelligent agent that navigates websites and fills forms automatically</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -277,8 +282,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <LegalIcon className="w-8 h-8 text-red-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Legal Case Intake</h4>
-                      <p className="text-sm text-gray-600">Chat system with human lawyer review</p>
+                      <h4 className="font-semibold text-gray-900">Legal Case Intake System</h4>
+                      <p className="text-sm text-gray-600">Streamline client intake with AI-powered case assessment and lawyer handoff</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -289,7 +294,7 @@ export default function Home() {
                     <ShoppingBagIcon className="w-8 h-8 text-purple-600 mr-4" />
                     <div>
                       <h4 className="font-semibold text-gray-900">Personal Shopping Assistant</h4>
-                      <p className="text-sm text-gray-600">AI agent for product recommendations</p>
+                      <p className="text-sm text-gray-600">AI-powered shopping companion that finds perfect products based on your preferences</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -311,8 +316,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <RocketLaunchIcon className="w-8 h-8 text-orange-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">RAG Optimization</h4>
-                      <p className="text-sm text-gray-600">Optimize Customer Support RAG for production</p>
+                      <h4 className="font-semibold text-gray-900">RAG Performance Optimizer</h4>
+                      <p className="text-sm text-gray-600">Boost RAG system performance with advanced optimization techniques</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -322,8 +327,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <MicrophoneIcon className="w-8 h-8 text-blue-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Voice Agent Enhancement</h4>
-                      <p className="text-sm text-gray-600">Optimize voice systems for production</p>
+                      <h4 className="font-semibold text-gray-900">Voice Agent Optimizer</h4>
+                      <p className="text-sm text-gray-600">Enhance voice AI systems with advanced performance tuning and optimization</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -333,8 +338,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <ChartBarIcon className="w-8 h-8 text-green-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Agent System Scalability</h4>
-                      <p className="text-sm text-gray-600">Scale agent systems for production</p>
+                      <h4 className="font-semibold text-gray-900">AI System Scaler</h4>
+                      <p className="text-sm text-gray-600">Scale AI agent systems to handle millions of users with enterprise-grade architecture</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -401,8 +406,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <TruckIcon className="w-8 h-8 text-yellow-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Drive-Thru Voice Agent</h4>
-                      <p className="text-sm text-gray-600">Fast-food ordering with speech recognition</p>
+                      <h4 className="font-semibold text-gray-900">Drive-Thru Order Assistant</h4>
+                      <p className="text-sm text-gray-600">Revolutionary voice AI that takes fast-food orders with natural conversation</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -412,8 +417,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <PhoneIcon className="w-8 h-8 text-blue-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">IVR Agent</h4>
-                      <p className="text-sm text-gray-600">Inbound support calls with natural conversation</p>
+                      <h4 className="font-semibold text-gray-900">Smart Call Center</h4>
+                      <p className="text-sm text-gray-600">Transform customer support with AI that handles calls naturally and efficiently</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
@@ -423,8 +428,8 @@ export default function Home() {
                   <div className="flex items-center">
                     <EyeIcon className="w-8 h-8 text-purple-600 mr-4" />
                     <div>
-                      <h4 className="font-semibold text-gray-900">Vision AI Agent</h4>
-                      <p className="text-sm text-gray-600">Multimodal assistant for financial reports</p>
+                      <h4 className="font-semibold text-gray-900">Financial Document Analyzer</h4>
+                      <p className="text-sm text-gray-600">AI that reads and analyzes financial reports, charts, and documents with computer vision</p>
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
