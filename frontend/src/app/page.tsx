@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import ChallengesModal from '@/components/ChallengesModal';
 import { 
   BookOpenIcon,
   ScaleIcon,
@@ -27,6 +28,8 @@ import {
 
 export default function Home() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isChallengesOpen, setIsChallengesOpen] = useState(false);
+  const [selectedDemo, setSelectedDemo] = useState<string | undefined>(undefined);
 
   return (
     <div className="min-h-screen bg-white">
@@ -145,21 +148,42 @@ export default function Home() {
               </div>
               
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+                <div className="flex items-center justify-between p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md">
                   <div className="flex items-center">
                     <BookOpenIcon className="w-8 h-8 text-purple-600 mr-4" />
                     <div>
                       <h4 className="font-semibold text-gray-900">Bedtime Stories for Kids</h4>
-                      <p className="text-sm text-gray-600">AI-powered bedtime stories that adapt to your child's interests and age</p>
+                      <p className="text-sm text-gray-600">AI-powered bedtime stories that adapt to your child&apos;s interests and age</p>
                     </div>
                   </div>
-                  <Link 
-                    href="/demos/bedtime-story" 
-                    className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                  >
-                    Try Demo
-                  </Link>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <Link 
+                      href="/demos/bedtime-story" 
+                      className="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-center"
+                    >
+                      Try Demo
+                    </Link>
+                  </div>
                 </div>
+
+                <div className="flex items-center justify-between p-6 bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md">
+                  <div className="flex items-center">
+                    <GlobeAltIcon className="w-8 h-8 text-blue-600 mr-4" />
+                    <div>
+                      <h4 className="font-semibold text-gray-900">Website FAQ Chatbot</h4>
+                      <p className="text-sm text-gray-600">Ask questions about any website and get instant, accurate answers from the content</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <Link 
+                      href="/demos/website-rag" 
+                      className="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md text-center"
+                    >
+                      Try Demo
+                    </Link>
+                  </div>
+                </div>
+
 
                 <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 opacity-60">
                   <div className="flex items-center">
@@ -170,22 +194,6 @@ export default function Home() {
                     </div>
                   </div>
                   <span className="text-gray-400 text-sm">Coming Soon</span>
-                </div>
-
-                <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
-                  <div className="flex items-center">
-                    <GlobeAltIcon className="w-8 h-8 text-blue-600 mr-4" />
-                    <div>
-                      <h4 className="font-semibold text-gray-900">Website FAQ Chatbot</h4>
-                      <p className="text-sm text-gray-600">Ask questions about any website and get instant, accurate answers from the content</p>
-                    </div>
-                  </div>
-                  <Link 
-                    href="/demos/website-rag" 
-                    className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-                  >
-                    Try Demo
-                  </Link>
                 </div>
 
                 <div className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 opacity-60">
@@ -472,6 +480,16 @@ export default function Home() {
           </p>
         </div>
       </footer>
+
+      {/* Challenges Modal */}
+      <ChallengesModal 
+        isOpen={isChallengesOpen}
+        onClose={() => {
+          setIsChallengesOpen(false);
+          setSelectedDemo(undefined);
+        }}
+        demoName={selectedDemo || ''}
+      />
     </div>
   );
 }

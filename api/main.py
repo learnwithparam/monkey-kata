@@ -5,6 +5,8 @@ import uvicorn
 from contextlib import asynccontextmanager
 import os
 from dotenv import load_dotenv
+import glob
+from pathlib import Path
 
 # Import demo routers
 from demos.bedtime_story_generator.main import router as bedtime_story_router
@@ -65,6 +67,30 @@ async def health_check():
         "timestamp": "2025-01-27T00:00:00Z",
         "version": "1.0.0"
     }
+
+@app.get("/challenges/{demo_name}")
+async def get_challenge(demo_name: str):
+    """Get README content for a specific demo"""
+    try:
+        # Get the base directory (parent of api directory)
+        base_dir = Path(__file__).parent
+        readme_path = base_dir / "demos" / demo_name / "README.md"
+        
+        if not readme_path.exists():
+            raise HTTPException(status_code=404, detail=f"Challenge not found for demo: {demo_name}")
+        
+        with open(readme_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        return {
+            "demo_name": demo_name,
+            "content": content
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading challenge: {str(e)}")
 
 # Error handlers
 @app.exception_handler(404)

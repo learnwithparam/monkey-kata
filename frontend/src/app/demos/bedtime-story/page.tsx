@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { BookOpenIcon } from '@heroicons/react/24/outline';
 import CustomSelect from '@/components/CustomSelect';
+import ChallengesModal from '@/components/ChallengesModal';
 
 interface StoryRequest {
   character_name: string;
@@ -28,6 +29,7 @@ export default function BedtimeStoryPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [themes, setThemes] = useState<string[]>([]);
   const [error, setError] = useState('');
+  const [isChallengesOpen, setIsChallengesOpen] = useState(false);
 
   // Load data on component mount
   useEffect(() => {
@@ -143,9 +145,15 @@ export default function BedtimeStoryPage() {
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
             Bedtime Stories for Kids
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
             Create magical bedtime stories that adapt to your child's interests and age. Watch as AI brings their personalized adventure to life.
           </p>
+          <button
+            onClick={() => setIsChallengesOpen(true)}
+            className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md"
+          >
+            View Learning Challenges
+          </button>
         </div>
 
 
@@ -332,6 +340,13 @@ export default function BedtimeStoryPage() {
           </div>
         </div>
       </div>
+
+      {/* Challenges Modal */}
+      <ChallengesModal 
+        isOpen={isChallengesOpen}
+        onClose={() => setIsChallengesOpen(false)}
+        demoName="bedtime_story_generator"
+      />
     </div>
   );
 }

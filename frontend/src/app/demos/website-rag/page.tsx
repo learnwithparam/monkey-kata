@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import ChallengesModal from '@/components/ChallengesModal';
 import { 
   GlobeAltIcon,
   PaperAirplaneIcon,
@@ -45,6 +46,7 @@ export default function WebsiteRAGDemo() {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [sources, setSources] = useState<Array<{url: string; content: string}>>([]);
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
+  const [isChallengesOpen, setIsChallengesOpen] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const questionInputRef = useRef<HTMLInputElement>(null);
@@ -389,9 +391,15 @@ export default function WebsiteRAGDemo() {
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
             Website Chatbot
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
             Transform any website into an intelligent assistant. Simply add a URL and start having meaningful conversations about their services and offerings.
           </p>
+          <button
+            onClick={() => setIsChallengesOpen(true)}
+            className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md"
+          >
+            View Learning Challenges
+          </button>
         </div>
 
         {/* Main Content */}
@@ -589,7 +597,7 @@ export default function WebsiteRAGDemo() {
                                       : 'text-gray-800'
                                   }`}
                                   dangerouslySetInnerHTML={{
-                                    __html: marked(message.content)
+                                    __html: marked(message.content, { breaks: true, gfm: true }) as string
                                   }}
                                 />
                           </div>
@@ -700,6 +708,13 @@ export default function WebsiteRAGDemo() {
           </p>
         </div>
       </div>
+
+      {/* Challenges Modal */}
+      <ChallengesModal 
+        isOpen={isChallengesOpen}
+        onClose={() => setIsChallengesOpen(false)}
+        demoName="website_rag"
+      />
     </div>
   );
 }
