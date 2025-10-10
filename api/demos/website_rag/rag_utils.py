@@ -172,12 +172,8 @@ class WebScraper:
         # Remove extra whitespace
         text = re.sub(r'\s+', ' ', text)
         
-        # Remove common web artifacts
-        text = re.sub(r'Cookie Policy|Privacy Policy|Terms of Service|Subscribe|Newsletter', '', text, flags=re.IGNORECASE)
-        
-        # Remove email addresses and phone numbers
-        text = re.sub(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', '', text)
-        text = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '', text)
+        # Remove only truly irrelevant content like navigation elements
+        text = re.sub(r'Skip to content|Menu|Navigation|Search', '', text, flags=re.IGNORECASE)
         
         return text.strip()
     
@@ -403,17 +399,19 @@ Context from the website:
 User Question: {question}
 
 Instructions:
-1. Answer as the website's chatbot - be helpful, friendly, and professional
+1. Answer as the website's chatbot - be professional, helpful, and concise
 2. Use "we", "our", "us" when referring to the website's services
-3. Be specific and cite relevant information from the website content
-4. If you don't have enough information, politely explain what you can help with
-5. Keep answers concise but comprehensive
-6. Focus on what the website offers and how it can help the user
+3. ONLY use information from the provided website context above
+4. Keep responses under 100 words - be very concise
+5. Use professional language without emojis or casual expressions
+6. If the context doesn't contain relevant information, say "I don't have specific information about that in our website content. Please contact us directly for more details."
+7. Do not make up or assume any information not present in the context
+8. Focus on what the website offers and how it can help the user
 
 Answer:"""
             
             # Generate streaming answer
-            async for chunk in self.llm_provider.generate_stream(prompt, temperature=0.3, max_tokens=1000):
+            async for chunk in self.llm_provider.generate_stream(prompt, temperature=0.1, max_tokens=300):
                 yield chunk
                 
         except Exception as e:

@@ -119,8 +119,6 @@ class GeminiProvider(LLMProvider):
             for chunk in response:
                 if chunk.text:
                     yield chunk.text
-                    # Small delay to make streaming visible but not too slow
-                    await asyncio.sleep(0.01)
                     
         except Exception as e:
             yield f"Error: {str(e)}"
@@ -212,7 +210,6 @@ class FireworksAIProvider(LLMProvider):
                                     delta = chunk['choices'][0].get('delta', {})
                                     if 'content' in delta:
                                         yield delta['content']
-                                        await asyncio.sleep(0.01)  # Small delay for visual effect
                             except json.JSONDecodeError:
                                 continue
                 else:
@@ -285,14 +282,10 @@ class MockProvider(LLMProvider):
             return self.mock_responses["default"]
     
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
-        """Generate mock streaming text"""
+        """Generate mock streaming text - instant response for demos"""
         response = await self.generate_text(prompt, **kwargs)
-        
-        # Split into words and stream them
-        words = response.split()
-        for word in words:
-            await asyncio.sleep(0.05)  # Simulate streaming delay
-            yield word + " "
+        # Return the full response immediately for mock provider
+        yield response
 
 class LLMProviderFactory:
     """Factory for creating LLM providers based on environment configuration"""

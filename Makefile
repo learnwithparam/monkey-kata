@@ -13,7 +13,6 @@ install: ## Install all dependencies (Python + Node.js)
 	@echo "📦 Installing all dependencies..."
 	@cd api && pip install -r requirements.txt
 	@cd frontend && npm install
-	@npm install
 	@echo "✅ All dependencies installed!"
 
 dev: ## Start development servers (API + Frontend)

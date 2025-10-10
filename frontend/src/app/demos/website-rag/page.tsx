@@ -9,7 +9,11 @@ import {
   ExclamationTriangleIcon,
   ClockIcon,
   DocumentTextIcon,
+  CheckBadgeIcon,
+  ExclamationCircleIcon,
+  InformationCircleIcon,
 } from '@heroicons/react/24/outline';
+import { marked } from 'marked';
 
 interface Message {
   id: string;
@@ -159,7 +163,7 @@ export default function WebsiteRAGDemo() {
             console.log('Processing completed!');
             addMessage({
               type: 'system',
-              content: `✅ Successfully processed ${urlToCheck}! Found ${status.documents_count} document chunks. I'm now ready to answer questions as this website's AI assistant.`,
+              content: `Successfully processed ${urlToCheck}! Found ${status.documents_count} document chunks. I'm now ready to answer questions as this website's AI assistant.`,
             });
             setIsProcessing(false);
             clearInterval(pollInterval);
@@ -494,15 +498,15 @@ export default function WebsiteRAGDemo() {
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
               >
                 <div
-                  className={`max-w-3xl px-4 py-3 rounded-lg ${
+                  className={`max-w-[85%] px-5 py-4 shadow-sm ${
                     message.type === 'user'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-blue-600 text-white rounded-2xl rounded-br-md'
                       : message.type === 'assistant'
-                      ? 'bg-gray-100 text-gray-900'
-                      : 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                      ? 'bg-white text-gray-900 border border-gray-200 rounded-2xl rounded-bl-md'
+                      : 'bg-amber-50 text-amber-800 border border-amber-200 rounded-2xl rounded-bl-md'
                   }`}
                 >
                   {message.isTyping ? (
@@ -516,7 +520,29 @@ export default function WebsiteRAGDemo() {
                     </div>
                   ) : (
                     <>
-                      <div className="whitespace-pre-wrap">{message.content}</div>
+                      {message.type === 'system' && (
+                        <div className="flex items-start space-x-2 mb-2">
+                          {message.content.includes('Successfully') ? (
+                            <CheckBadgeIcon className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                          ) : message.content.includes('Error') || message.content.includes('Failed') ? (
+                            <ExclamationCircleIcon className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                          ) : (
+                            <InformationCircleIcon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                          )}
+                        </div>
+                      )}
+                      <div className="prose prose-sm max-w-none">
+                        <div
+                          className={`leading-relaxed [&>p]:mb-2 [&>p:last-child]:mb-0 [&>ul]:list-disc [&>ul]:list-inside [&>ul]:mb-2 [&>ul]:space-y-1 [&>ol]:list-decimal [&>ol]:list-inside [&>ol]:mb-2 [&>ol]:space-y-1 [&>li]:text-gray-700 [&>strong]:font-semibold [&>strong]:text-gray-900 [&>em]:italic [&>em]:text-gray-800 [&>code]:bg-gray-100 [&>code]:px-1 [&>code]:py-0.5 [&>code]:rounded [&>code]:text-sm [&>code]:font-mono [&>pre]:bg-gray-100 [&>pre]:p-2 [&>pre]:rounded [&>pre]:text-sm [&>pre]:font-mono [&>pre]:overflow-x-auto [&>h1]:text-lg [&>h1]:font-bold [&>h1]:text-gray-900 [&>h1]:mb-2 [&>h2]:text-base [&>h2]:font-bold [&>h2]:text-gray-900 [&>h2]:mb-2 [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mb-1 [&>blockquote]:border-l-4 [&>blockquote]:border-gray-300 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-gray-600 [&>blockquote]:mb-2 ${
+                            message.type === 'user' 
+                              ? 'text-white [&>strong]:text-white [&>em]:text-gray-200 [&>li]:text-gray-200 [&>h1]:text-white [&>h2]:text-white [&>h3]:text-white [&>blockquote]:text-gray-200'
+                              : 'text-gray-800'
+                          }`}
+                          dangerouslySetInnerHTML={{
+                            __html: marked(message.content)
+                          }}
+                        />
+                      </div>
                       
                       {message.sources && message.sources.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-gray-200">
