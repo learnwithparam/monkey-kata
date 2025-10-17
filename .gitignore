@@ -94,6 +94,3 @@ temp/
 
 # Examples directory (excluded from git)
 examples/
-
-# Cursor Notebook MCP
-cursor-notebook-mcp/

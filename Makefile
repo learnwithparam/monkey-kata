@@ -193,25 +193,6 @@ lint-fix: ## Fix linting issues
 	@echo "🔧 Fixing linting issues..."
 	@cd frontend && npm run lint:fix
 
-# MCP Server commands
-mcp-install: ## Install MCP server for notebook functionality
-	@echo "📦 Installing MCP server..."
-	@cd cursor-notebook-mcp && uv venv .venv
-	@cd cursor-notebook-mcp && uv pip install -e .
-	@echo "✅ MCP server installed!"
-
-mcp-start: ## Start MCP server for notebook functionality
-	@echo "🚀 Starting MCP server..."
-	@cd cursor-notebook-mcp && uv run cursor-notebook-mcp --allow-root /Users/param/learn/learnwithparam/ai-bootcamp/notebooks
-
-mcp-test: ## Test MCP server functionality
-	@echo "🧪 Testing MCP server..."
-	@cd cursor-notebook-mcp && uv run cursor-notebook-mcp --help
-
-mcp-configure: ## Configure Cursor MCP settings
-	@echo "⚙️ Configuring Cursor MCP settings..."
-	@echo "MCP server configured in ~/.cursor/mcp.json"
-	@echo "Restart Cursor to activate the MCP server"
 
 # Port management
 ports: ## Show running services and ports
@@ -220,7 +201,6 @@ ports: ## Show running services and ports
 	@echo "  Frontend: http://localhost:4020"
 	@echo "  Docs:     http://localhost:4010/docs"
 	@echo "  Notebooks: http://localhost:8888"
-	@echo "  MCP Server: Configured in Cursor"
 	@echo ""
 	@docker compose ps
 
