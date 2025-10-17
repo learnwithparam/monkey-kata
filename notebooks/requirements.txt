@@ -1,0 +1,69 @@
+# AI Bootcamp Notebooks - Requirements
+# Core dependencies for LLM notebooks
+
+# Environment and configuration
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# HTTP requests and API clients
+requests>=2.31.0
+httpx>=0.24.0
+
+# Data processing and analysis
+pandas>=2.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Jupyter and notebook tools
+jupyter>=1.0.0
+jupyterlab>=4.0.0
+ipywidgets>=8.0.0
+nbconvert>=7.0.0
+
+# LLM and AI libraries
+openai>=1.0.0
+google-generativeai>=0.3.0
+anthropic>=0.7.0
+
+# Vector databases and embeddings
+chromadb>=0.4.0
+qdrant-client>=1.6.0
+sentence-transformers>=2.2.0
+faiss-cpu>=1.7.4
+
+# Text processing and NLP
+nltk>=3.8.0
+spacy>=3.6.0
+transformers>=4.30.0
+tokenizers>=0.13.0
+
+# Web scraping and automation
+beautifulsoup4>=4.12.0
+selenium>=4.10.0
+playwright>=1.35.0
+
+# Audio processing (for voice AI)
+pydub>=0.25.0
+speechrecognition>=3.10.0
+pyaudio>=0.2.11
+
+# Streaming and real-time
+websockets>=11.0.0
+sseclient-py>=1.8.0
+
+# Monitoring and logging
+structlog>=23.0.0
+rich>=13.0.0
+
+# Testing and development
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+black>=23.0.0
+flake8>=6.0.0
+
+# Optional: Advanced features
+# langchain>=0.1.0
+# langchain-community>=0.0.10
+# crewai>=0.1.0
+# autogen-agentchat>=0.2.0
