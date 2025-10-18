@@ -197,10 +197,13 @@ lint-fix: ## Fix linting issues
 # Port management
 ports: ## Show running services and ports
 	@echo "🌐 Running services:"
-	@echo "  API:      http://localhost:4010"
-	@echo "  Frontend: http://localhost:4020"
-	@echo "  Docs:     http://localhost:4010/docs"
-	@echo "  Notebooks: http://localhost:8888"
+	@echo "  API:        http://localhost:4010"
+	@echo "  Frontend:   http://localhost:4020"
+	@echo "  Docs:       http://localhost:4010/docs"
+	@echo "  Notebooks:  http://localhost:8888"
+	@echo "  Qdrant:     http://localhost:6333"
+	@echo "  Redis:      redis://localhost:6379"
+	@echo "  Prometheus: http://localhost:9090"
 	@echo ""
 	@docker compose ps
 
@@ -243,3 +246,38 @@ env-check: notebooks-env-check ## Check environment configuration
 
 env-check-uv: notebooks-env-check-uv ## Check environment configuration with uv
 	@echo "🔍 Environment check complete with uv!"
+
+# RAG-specific commands
+rag-start: ## Start RAG services (Qdrant + Redis + Jupyter)
+	@echo "🚀 Starting RAG services..."
+	@docker compose up -d qdrant redis jupyter
+	@echo "✅ RAG services started!"
+	@echo "  Jupyter: http://localhost:8888"
+	@echo "  Qdrant:  http://localhost:6333"
+	@echo "  Redis:   redis://localhost:6379"
+
+rag-stop: ## Stop RAG services
+	@echo "🛑 Stopping RAG services..."
+	@docker compose stop qdrant redis jupyter
+	@echo "✅ RAG services stopped!"
+
+rag-logs: ## Show RAG services logs
+	@docker compose logs -f qdrant redis jupyter
+
+rag-status: ## Check RAG services status
+	@echo "📊 RAG Services Status:"
+	@echo "  Qdrant:"
+	@curl -s http://localhost:6333/collections || echo "  ❌ Qdrant not responding"
+	@echo "  Redis:"
+	@redis-cli -h localhost -p 6379 ping || echo "  ❌ Redis not responding"
+	@echo "  Jupyter:"
+	@curl -s http://localhost:8888/lab || echo "  ❌ Jupyter not responding"
+
+# Framework demos
+demos-langchain: ## Start LangChain demo notebook
+	@echo "🔗 Starting LangChain demo..."
+	@cd notebooks && jupyter lab notebooks/week1-llms-prompts-rag/demos/langchain_rag_demo.ipynb
+
+demos-llamaindex: ## Start LlamaIndex demo notebook
+	@echo "🦙 Starting LlamaIndex demo..."
+	@cd notebooks && jupyter lab notebooks/week1-llms-prompts-rag/demos/llamaindex_rag_demo.ipynb
