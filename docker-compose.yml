@@ -69,25 +69,6 @@ services:
       - ai-bootcamp-network
     restart: unless-stopped
 
-  # Jupyter Lab for Notebooks
-  jupyter:
-    build:
-      context: ./notebooks
-      dockerfile: Dockerfile
-    ports:
-      - "8888:8888"
-    volumes:
-      - ./notebooks:/home/jovyan/work
-      - jupyter_data:/home/jovyan/work/.jupyter
-    environment:
-      - JUPYTER_ENABLE_LAB=yes
-      - JUPYTER_TOKEN=ai-bootcamp-2025
-    networks:
-      - ai-bootcamp-network
-    depends_on:
-      - qdrant
-      - redis
-    restart: unless-stopped
 
   # Monitoring - Prometheus (optional)
   prometheus:
@@ -110,7 +91,6 @@ services:
 volumes:
   qdrant_storage:
   redis_data:
-  jupyter_data:
   prometheus_data:
 
 networks:

@@ -1,0 +1,43 @@
+{
+  "name": "ai-bootcamp-demos",
+  "version": "1.0.0",
+  "description": "AI Bootcamp Demos - Production-ready API and frontend implementations",
+  "private": true,
+  "scripts": {
+    "dev": "docker compose up --build",
+    "build": "docker compose build",
+    "start": "docker compose up -d",
+    "stop": "docker compose down",
+    "clean": "docker compose down -v --remove-orphans && docker system prune -f",
+    "logs": "docker compose logs -f",
+    "ports": "docker compose ps"
+  },
+  "keywords": [
+    "ai",
+    "bootcamp",
+    "demos",
+    "api",
+    "frontend",
+    "fastapi",
+    "nextjs",
+    "llm",
+    "rag"
+  ],
+  "author": "Param Harrison",
+  "license": "PROPRIETARY",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/learnwithparam/ai-bootcamp-demos.git"
+  },
+  "bugs": {
+    "url": "https://github.com/learnwithparam/ai-bootcamp-demos/issues"
+  },
+  "homepage": "https://learnwithparam.com/ai-engineering-bootcamp",
+  "engines": {
+    "node": ">=18.0.0",
+    "python": ">=3.8.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
