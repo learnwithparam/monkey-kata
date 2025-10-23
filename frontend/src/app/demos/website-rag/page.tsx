@@ -4,16 +4,16 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   GlobeAltIcon,
-  PaperAirplaneIcon,
-  CheckCircleIcon,
-  ExclamationTriangleIcon,
-  ClockIcon,
   DocumentTextIcon,
   CheckBadgeIcon,
   ExclamationCircleIcon,
   InformationCircleIcon,
 } from '@heroicons/react/24/outline';
 import { marked } from 'marked';
+import StatusIndicator from '@/components/demos/StatusIndicator';
+import ProcessingButton from '@/components/demos/ProcessingButton';
+import ChatInput from '@/components/demos/ChatInput';
+import AlertMessage from '@/components/demos/AlertMessage';
 
 interface Message {
   id: string;
@@ -432,68 +432,24 @@ export default function WebsiteRAGDemo() {
                   />
                 </div>
 
-                <button
+                <ProcessingButton
+                  isLoading={isProcessing}
                   onClick={processUrl}
-                  disabled={isProcessing || !url.trim() || !isValidUrl(url)}
-                  className="w-full btn-accent disabled:opacity-50 disabled:cursor-not-allowed py-4 text-lg font-semibold"
+                  disabled={!url.trim() || !isValidUrl(url)}
                 >
-                  {isProcessing ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Processing...
-                    </span>
-                  ) : (
-                    <span className="flex items-center justify-center">
-                      <GlobeAltIcon className="w-5 h-5 mr-3" />
-                      Process Website
-                    </span>
-                  )}
-                </button>
+                  <span className="flex items-center justify-center">
+                    Process Website
+                  </span>
+                </ProcessingButton>
 
                 {/* Processing Status */}
                 {processingStatus && (
-                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        {processingStatus.url}
-                      </span>
-                      <div className="flex items-center">
-                        {processingStatus.status === 'completed' && (
-                          <CheckCircleIcon className="w-5 h-5 text-green-500 mr-2" />
-                        )}
-                        {processingStatus.status === 'error' && (
-                          <ExclamationTriangleIcon className="w-5 h-5 text-red-500 mr-2" />
-                        )}
-                        {processingStatus.status === 'processing' && (
-                          <ClockIcon className="w-5 h-5 text-blue-500 mr-2 animate-spin" />
-                        )}
-                        <span className="text-sm text-gray-600">
-                          {processingStatus.status}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    {processingStatus.status === 'processing' && (
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${processingStatus.progress}%` }}
-                        />
-                      </div>
-                    )}
-
-                    <p className="text-sm text-gray-600 mt-2">
-                      {processingStatus.message}
-                      {processingStatus.documents_count > 0 && (
-                        <span className="ml-2 text-green-600">
-                          ({processingStatus.documents_count} chunks)
-                        </span>
-                      )}
-                    </p>
-                  </div>
+                  <StatusIndicator
+                    status={processingStatus.status}
+                    message={processingStatus.message}
+                    progress={processingStatus.progress}
+                    documentsCount={processingStatus.documents_count}
+                  />
                 )}
               </div>
             </div>
@@ -649,48 +605,28 @@ export default function WebsiteRAGDemo() {
           {/* Question Input */}
               <div className="border-t border-gray-100 pt-6">
                 <div className="space-y-4">
-                  <div className="relative">
-                    <div className="flex items-center space-x-3 bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm hover:shadow-md transition-all duration-200 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent">
-                      <div className="flex-shrink-0">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-blue-600 text-sm font-semibold">U</span>
-                        </div>
-                      </div>
-                    <input
-                        ref={questionInputRef}
-                      type="text"
-                        id="question"
-                      value={question}
-                      onChange={(e) => setQuestion(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                        placeholder="Ask me anything about our services..."
-                        className="flex-1 bg-transparent border-none outline-none text-gray-900 placeholder-gray-500 text-sm"
-                        disabled={isAsking || !processingStatus || processingStatus.status !== 'completed'}
-                      />
-                  <button
-                    onClick={askQuestion}
-                    disabled={isAsking || !question.trim() || !processingStatus || processingStatus.status !== 'completed'}
-                    className="flex-shrink-0 w-10 h-10 bg-green-600 hover:bg-green-700 text-white rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow-md"
-                  >
-                    {isAsking ? (
-                          <ClockIcon className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <PaperAirplaneIcon className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
-                  </div>
+                  <ChatInput
+                    value={question}
+                    onChange={setQuestion}
+                    onSend={askQuestion}
+                    onKeyPress={handleKeyPress}
+                    disabled={isAsking || !processingStatus || processingStatus.status !== 'completed'}
+                    isLoading={isAsking}
+                    placeholder="Ask me anything about our services..."
+                  />
                   
                   {(!processingStatus || processingStatus.status !== 'completed') && (
-                    <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg text-sm font-medium">
-                      Please process a URL first before asking questions.
-                    </div>
+                    <AlertMessage
+                      type="warning"
+                      message="Please process a URL first before asking questions."
+                    />
                   )}
                   
                   {isAsking && (
-                    <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg text-sm font-medium">
-                      AI is thinking and will respond shortly...
-                    </div>
+                    <AlertMessage
+                      type="info"
+                      message="AI is thinking and will respond shortly..."
+                    />
                   )}
                 </div>
               </div>

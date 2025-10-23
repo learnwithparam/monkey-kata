@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { BookOpenIcon } from '@heroicons/react/24/outline';
 import CustomSelect from '@/components/CustomSelect';
+import SubmitButton from '@/components/demos/SubmitButton';
+import AlertMessage from '@/components/demos/AlertMessage';
 
 interface StoryRequest {
   character_name: string;
@@ -145,7 +147,7 @@ export default function BedtimeStoryPage() {
             Bedtime Stories for Kids
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
-            Create magical bedtime stories that adapt to your child's interests and age. Watch as AI brings their personalized adventure to life.
+            Create magical bedtime stories that adapt to your child&apos;s interests and age. Watch as AI brings their personalized adventure to life.
           </p>
             <Link
               href="/challenges/bedtime-story-generator"
@@ -247,32 +249,23 @@ export default function BedtimeStoryPage() {
                 </div>
 
                 {/* Generate Button */}
-                <button
+                <SubmitButton
+                  isLoading={isGenerating}
                   onClick={generateStory}
-                  disabled={isGenerating || !formData.character_name.trim() || !formData.story_theme.trim()}
-                  className="w-full btn-accent disabled:opacity-50 disabled:cursor-not-allowed py-4 text-lg font-semibold"
+                  disabled={!formData.character_name.trim() || !formData.story_theme.trim()}
                 >
-                  {isGenerating ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Creating Magic...
-                    </span>
-                  ) : (
-                    <span className="flex items-center justify-center">
-                      <span className="text-xl mr-3">✨</span>
-                      Generate Story
-                    </span>
-                  )}
-                </button>
+                  <span className="flex items-center justify-center">
+                    <span className="text-xl mr-3">✨</span>
+                    Generate Story
+                  </span>
+                </SubmitButton>
 
                 {/* Error Message */}
                 {error && (
-                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm font-medium">
-                    {error}
-                  </div>
+                  <AlertMessage
+                    type="error"
+                    message={error}
+                  />
                 )}
               </div>
             </div>

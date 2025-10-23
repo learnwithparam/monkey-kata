@@ -4,7 +4,7 @@ import { BookOpenIcon } from '@heroicons/react/24/outline';
 
 interface StoryDisplayProps {
   story: string;
-  storyMetadata: any;
+  storyMetadata: { title?: string; moral?: string; tags?: string[] } | null;
   isGenerating: boolean;
   generationLogs: string[];
 }
@@ -84,7 +84,7 @@ export default function StoryDisplay({
                 <BookOpenIcon className="w-8 h-8 text-gray-400" />
               </div>
               <h3 className="text-lg font-semibold text-gray-700 mb-2">Your story will appear here</h3>
-              <p className="text-gray-500">Fill in the details and click "Generate Story" to begin</p>
+              <p className="text-gray-500">Fill in the details and click &quot;Generate Story&quot; to begin</p>
             </div>
           </div>
         )}

@@ -7,8 +7,10 @@ import {
   DocumentTextIcon,
   ArrowLeftIcon
 } from '@heroicons/react/24/outline';
-import { marked } from 'marked';
 import mermaid from 'mermaid';
+import ChallengeLoader from '@/components/challenges/ChallengeLoader';
+import ChallengeError from '@/components/challenges/ChallengeError';
+import MarkdownRenderer from '@/components/challenges/MarkdownRenderer';
 
 interface Challenge {
   demo_name: string;
@@ -140,41 +142,21 @@ export default function ChallengePage({ params }: ChallengePageProps) {
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading && (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-            <span className="ml-3 text-gray-600">Loading challenge...</span>
-          </div>
+          <ChallengeLoader message="Loading challenge..." />
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-6">
-            <div className="flex items-center">
-              <div className="w-5 h-5 text-red-600 mr-2">⚠️</div>
-              <span className="text-red-800 font-medium">Error loading challenge</span>
-            </div>
-            <p className="text-red-700 text-sm mt-1">{error}</p>
-            <button
-              onClick={fetchChallenge}
-              className="mt-3 text-red-600 hover:text-red-800 text-sm font-medium"
-            >
-              Try again
-            </button>
-          </div>
+          <ChallengeError
+            message={error}
+            onRetry={fetchChallenge}
+          />
         )}
 
         {!loading && !error && challenge && (
-          <div className="prose prose-lg max-w-none">
-            <div
-              ref={contentRef}
-              className="[&>h1]:text-4xl [&>h1]:font-bold [&>h1]:text-gray-900 [&>h1]:mb-6 [&>h1]:mt-8 [&>h1]:leading-tight [&>h2]:text-3xl [&>h2]:font-bold [&>h2]:text-gray-900 [&>h2]:mb-4 [&>h2]:mt-8 [&>h2]:leading-tight [&>h3]:text-2xl [&>h3]:font-semibold [&>h3]:text-gray-800 [&>h3]:mb-3 [&>h3]:mt-6 [&>h3]:leading-snug [&>h4]:text-xl [&>h4]:font-semibold [&>h4]:text-gray-800 [&>h4]:mb-2 [&>h4]:mt-4 [&>h4]:leading-snug [&>p]:text-gray-700 [&>p]:mb-4 [&>p]:leading-relaxed [&>ul]:mb-4 [&>ul]:space-y-2 [&>ul]:list-disc [&>ul]:pl-6 [&>ol]:mb-4 [&>ol]:space-y-2 [&>ol]:list-decimal [&>ol]:pl-6 [&>li]:text-gray-700 [&>li]:mb-1 [&>blockquote]:mb-4 [&>blockquote]:pl-4 [&>blockquote]:border-l-4 [&>blockquote]:border-blue-500 [&>blockquote]:italic [&>blockquote]:text-gray-600 [&>blockquote]:bg-blue-50 [&>blockquote]:py-2 [&>blockquote]:rounded-r-lg [&>code]:text-sm [&>code]:font-mono [&>code]:bg-gray-100 [&>code]:text-gray-800 [&>code]:px-2 [&>code]:py-1 [&>code]:rounded [&>code]:border [&>code]:border-gray-200 [&>pre]:mb-6 [&>pre]:overflow-x-auto [&>pre]:rounded-lg [&>pre]:border [&>pre]:border-gray-300 [&>pre]:bg-gray-900 [&>pre]:text-gray-100 [&>pre]:p-4 [&>pre]:shadow-lg [&>pre_code]:text-gray-100 [&>pre_code]:bg-transparent [&>pre_code]:p-0 [&>pre_code]:border-0 [&>pre_code]:text-sm [&>pre_code]:font-mono [&>pre_code]:leading-relaxed [&>img]:rounded-lg [&>img]:shadow-sm [&>img]:mb-4 [&>table]:w-full [&>table]:border-collapse [&>table]:mb-4 [&>table]:rounded-lg [&>table]:overflow-hidden [&>table]:border [&>table]:border-gray-300 [&>th]:border [&>th]:border-gray-300 [&>th]:px-4 [&>th]:py-3 [&>th]:bg-gray-50 [&>th]:font-semibold [&>th]:text-gray-900 [&>th]:text-left [&>td]:border [&>td]:border-gray-300 [&>td]:px-4 [&>td]:py-3 [&>td]:text-gray-700 [&>a]:text-blue-600 [&>a]:no-underline [&>a]:hover:underline [&>a]:font-medium [&>strong]:text-gray-900 [&>strong]:font-semibold [&>pre.mermaid]:bg-white [&>pre.mermaid]:border-0 [&>pre.mermaid]:p-0 [&>pre.mermaid]:overflow-visible [&>pre.mermaid]:shadow-none"
-              dangerouslySetInnerHTML={{
-                __html: marked(challenge.content, {
-                  breaks: true,
-                  gfm: true
-                }) as string
-              }}
-            />
-          </div>
+          <MarkdownRenderer
+            content={challenge.content}
+            className="[&>h1]:text-4xl [&>h1]:font-bold [&>h1]:text-gray-900 [&>h1]:mb-6 [&>h1]:mt-8 [&>h1]:leading-tight [&>h2]:text-3xl [&>h2]:font-bold [&>h2]:text-gray-900 [&>h2]:mb-4 [&>h2]:mt-8 [&>h2]:leading-tight [&>h3]:text-2xl [&>h3]:font-semibold [&>h3]:text-gray-800 [&>h3]:mb-3 [&>h3]:mt-6 [&>h3]:leading-snug [&>h4]:text-xl [&>h4]:font-semibold [&>h4]:text-gray-800 [&>h4]:mb-2 [&>h4]:mt-4 [&>h4]:leading-snug [&>p]:text-gray-700 [&>p]:mb-4 [&>p]:leading-relaxed [&>ul]:mb-4 [&>ul]:space-y-2 [&>ul]:list-disc [&>ul]:pl-6 [&>ol]:mb-4 [&>ol]:space-y-2 [&>ol]:list-decimal [&>ol]:pl-6 [&>li]:text-gray-700 [&>li]:mb-1 [&>blockquote]:mb-4 [&>blockquote]:pl-4 [&>blockquote]:border-l-4 [&>blockquote]:border-blue-500 [&>blockquote]:italic [&>blockquote]:text-gray-600 [&>blockquote]:bg-blue-50 [&>blockquote]:py-2 [&>blockquote]:rounded-r-lg [&>code]:text-sm [&>code]:font-mono [&>code]:bg-gray-100 [&>code]:text-gray-800 [&>code]:px-2 [&>code]:py-1 [&>code]:rounded [&>code]:border [&>code]:border-gray-200 [&>pre]:mb-6 [&>pre]:overflow-x-auto [&>pre]:rounded-lg [&>pre]:border [&>pre]:border-gray-300 [&>pre]:bg-gray-900 [&>pre]:text-gray-100 [&>pre]:p-4 [&>pre]:shadow-lg [&>pre_code]:text-gray-100 [&>pre_code]:bg-transparent [&>pre_code]:p-0 [&>pre_code]:border-0 [&>pre_code]:text-sm [&>pre_code]:font-mono [&>pre_code]:leading-relaxed [&>img]:rounded-lg [&>img]:shadow-sm [&>img]:mb-4 [&>table]:w-full [&>table]:border-collapse [&>table]:mb-4 [&>table]:rounded-lg [&>table]:overflow-hidden [&>table]:border [&>table]:border-gray-300 [&>th]:border [&>th]:border-gray-300 [&>th]:px-4 [&>th]:py-3 [&>th]:bg-gray-50 [&>th]:font-semibold [&>th]:text-gray-900 [&>th]:text-left [&>td]:border [&>td]:border-gray-300 [&>td]:px-4 [&>td]:py-3 [&>td]:text-gray-700 [&>a]:text-blue-600 [&>a]:no-underline [&>a]:hover:underline [&>a]:font-medium [&>strong]:text-gray-900 [&>strong]:font-semibold [&>pre.mermaid]:bg-white [&>pre.mermaid]:border-0 [&>pre.mermaid]:p-0 [&>pre.mermaid]:overflow-visible [&>pre.mermaid]:shadow-none"
+          />
         )}
       </div>
     </div>

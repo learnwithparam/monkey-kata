@@ -105,7 +105,6 @@ ports: ## Show running services and ports
 	@echo "  Docs:       http://localhost:4010/docs"
 	@echo "  Qdrant:     http://localhost:6333"
 	@echo "  Redis:      redis://localhost:6379"
-	@echo "  Prometheus: http://localhost:9090"
 	@echo ""
 	@docker compose ps
 
