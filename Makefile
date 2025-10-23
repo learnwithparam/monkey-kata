@@ -127,35 +127,3 @@ env-setup: ## Setup environment files
 
 env-check: ## Check environment configuration
 	@echo "🔍 Environment check complete!"
-
-# RAG-specific commands
-rag-start: ## Start RAG services (Qdrant + Redis)
-	@echo "🚀 Starting RAG services..."
-	@docker compose up -d qdrant redis
-	@echo "✅ RAG services started!"
-	@echo "  Qdrant:  http://localhost:6333"
-	@echo "  Redis:   redis://localhost:6379"
-
-rag-stop: ## Stop RAG services
-	@echo "🛑 Stopping RAG services..."
-	@docker compose stop qdrant redis
-	@echo "✅ RAG services stopped!"
-
-rag-logs: ## Show RAG services logs
-	@docker compose logs -f qdrant redis
-
-rag-status: ## Check RAG services status
-	@echo "📊 RAG Services Status:"
-	@echo "  Qdrant:"
-	@curl -s http://localhost:6333/collections || echo "  ❌ Qdrant not responding"
-	@echo "  Redis:"
-	@redis-cli -h localhost -p 6379 ping || echo "  ❌ Redis not responding"
-
-# Framework demos
-demos-langchain: ## Start LangChain demo
-	@echo "🔗 Starting LangChain demo..."
-	@cd api/demos && python -m uvicorn main:app --reload --port 8001
-
-demos-llamaindex: ## Start LlamaIndex demo
-	@echo "🦙 Starting LlamaIndex demo..."
-	@cd api/demos && python -m uvicorn main:app --reload --port 8002
