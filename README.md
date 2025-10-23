@@ -91,7 +91,7 @@ make test             # Run tests
 ai-bootcamp-demos/
 ├── 🔧 api/                         # FastAPI backend
 │   ├── main.py                     # Main FastAPI application
-│   ├── requirements.txt           # Python dependencies
+│   ├── requirements.txt              # Python dependencies
 │   ├── env.example                 # Environment variables
 │   ├── Dockerfile                  # Production Docker image
 │   ├── demos/                      # Individual demo implementations
@@ -223,7 +223,6 @@ PINECONE_API_KEY=your-pinecone-key-here
 - [Course Syllabus](https://learnwithparam.com/ai-engineering-bootcamp) - Detailed curriculum
 - [Live Sessions](https://learnwithparam.com) - Weekly live instruction
 - [Notebooks Repository](https://github.com/learnwithparam/ai-bootcamp-notebooks) - Interactive learning materials
-- [Examples Repository](https://github.com/learnwithparam/ai-bootcamp-notebooks/tree/main/examples) - Additional examples and projects
 
 ### **Technical Documentation**
 - [FastAPI Documentation](https://fastapi.tiangolo.com/) - Backend development
