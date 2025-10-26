@@ -1,22 +1,22 @@
-# Legal Contract Analyzer
+# Document QA Chatbot
 
-Learn document processing and legal AI by building a system that analyzes legal documents for risks and key terms.
+Learn document processing and AI-powered Q&A by building a system that analyzes any document type for insights and answers questions intelligently.
 
 ## 🎯 Learning Objectives
 
-Master the fundamentals of **Legal Document Analysis** through hands-on implementation:
+Master the fundamentals of **Document Analysis & Q&A** through hands-on implementation:
 
-- **Document Parsing & Extraction** - Parse complex legal documents with tables, images, and structured content
-- **Risk Analysis & Categorization** - Identify and categorize legal risks using AI
-- **Key Terms Extraction** - Extract important legal terms and definitions
-- **Legal RAG Pipeline** - Build Q&A systems for legal document analysis
-- **Legal AI Limitations** - Understand when and why legal AI works
+- **Universal Document Parsing** - Parse various document types (PDF, Word, text) with different structures
+- **Intelligent Content Analysis** - Extract key insights and important information from any document
+- **Smart Q&A System** - Build RAG pipelines for document-specific question answering
+- **Content Summarization** - Generate summaries and identify key points
+- **Multi-Format Support** - Handle different document formats and structures
 
 ## 🏗️ System Architecture
 
 ```mermaid
 graph TD
-    A[Legal Document] --> B[Document Parser]
+    A[Document Upload] --> B[Document Parser]
     B --> C[Content Extraction]
     C --> D[Semantic Chunking]
     D --> E[Embedding Generation]
@@ -26,16 +26,16 @@ graph TD
     H --> I[Similarity Search]
     F --> I
     I --> J[Retrieve Relevant Chunks]
-    J --> K[Legal RAG Pipeline]
-    K --> L[Risk Analysis]
-    K --> M[Key Terms Extraction]
-    K --> N[Legal Q&A Response]
+    J --> K[Document RAG Pipeline]
+    K --> L[Content Analysis]
+    K --> M[Key Insights Extraction]
+    K --> N[Intelligent Q&A Response]
     
     style A fill:#e1f5fe
     style G fill:#e8f5e8
-    style L fill:#ffebee
+    style L fill:#fff3e0
     style M fill:#f3e5f5
-    style N fill:#fff3e0
+    style N fill:#e8f5e8
 ```
 
 ## 🚀 Quick Start
@@ -44,50 +44,50 @@ graph TD
 # Start the demo
 make dev
 
-# Visit: http://localhost:4020/demos/legal-contract-analyzer
+# Visit: http://localhost:4020/demos/document-qa-chatbot
 ```
 
 ## 🧪 Learning Challenges
 
-### **Challenge 1: Document Parsing Impact**
-**Goal**: Understand how parsing quality affects analysis accuracy
+### **Challenge 1: Document Parsing Quality**
+**Goal**: Understand how parsing affects Q&A accuracy across document types
 
 **Experiment**:
-- Try different parsing methods (docling vs unstructured vs simple)
-- Test with various document types (PDF, Word, text)
-- Compare parsing accuracy for tables and images
+- Test with PDF, Word, and text documents
+- Compare parsing accuracy for different content structures
+- Analyze how parsing quality impacts answer quality
 
-**Question**: How does document parsing quality affect risk analysis and key terms extraction?
+**Question**: How does document parsing quality affect Q&A accuracy across different document types?
 
-### **Challenge 2: Risk Analysis Accuracy**
-**Goal**: Compare AI risk analysis with manual review
-
-**Experiment**:
-- Upload a known contract with known risks
-- Compare AI-identified risks with manual analysis
-- Test with different risk categories (financial, legal, operational)
-
-**Question**: How accurate is AI risk analysis compared to human legal review?
-
-### **Challenge 3: Key Terms Extraction Quality**
-**Goal**: Evaluate key terms extraction effectiveness
+### **Challenge 2: Chunking Strategy Impact**
+**Goal**: Compare different chunking approaches for document analysis
 
 **Experiment**:
-- Test with contracts containing specific legal terms
-- Compare extracted terms with known important clauses
-- Analyze importance ranking accuracy
+- Test semantic vs fixed-size chunking
+- Compare chunk overlap strategies
+- Analyze context preservation across chunks
 
-**Question**: How well does AI identify and rank important legal terms?
+**Question**: What chunking strategy works best for different types of documents and questions?
 
-### **Challenge 4: Legal RAG vs Direct LLM**
-**Goal**: Compare legal RAG performance with direct LLM queries
+### **Challenge 3: RAG vs Direct LLM Performance**
+**Goal**: Compare document-specific RAG with general LLM responses
 
 **Experiment**:
-- Ask the same legal question to the RAG system
-- Ask ChatGPT the same question directly
-- Compare accuracy and legal specificity
+- Ask questions about uploaded document content
+- Compare RAG responses with ChatGPT responses
+- Test accuracy and specificity of answers
 
-**Question**: When does legal RAG outperform direct LLM for legal questions?
+**Question**: When does document RAG outperform general LLM for document-specific questions?
+
+### **Challenge 4: Multi-Document Analysis**
+**Goal**: Handle questions across multiple uploaded documents
+
+**Experiment**:
+- Upload multiple related documents
+- Ask questions that span across documents
+- Test cross-document information retrieval
+
+**Question**: How can you effectively analyze and answer questions across multiple documents?
 
 ## 🔧 Configuration
 
@@ -98,66 +98,66 @@ FIREWORKS_MODEL=accounts/fireworks/models/qwen3-235b-a22b-instruct-2507
 EMBEDDING_MODEL=all-MiniLM-L6-v2  # Fast & cheap
 ```
 
-## 🎓 Key Legal AI Concepts
+## 🎓 Key Document AI Concepts
 
 ### **What You'll Discover:**
-1. **Document Complexity** - Legal documents have complex structures that affect parsing
-2. **Risk Categorization** - Different types of risks require different analysis approaches
-3. **Legal Context Preservation** - Maintaining legal context across document chunks
-4. **Hallucination Risk** - Legal AI may generate incorrect legal advice
-5. **Source Attribution** - Legal analysis requires proper citation and sources
+1. **Document Diversity** - Different document types require different processing approaches
+2. **Content Structure** - How document structure affects information extraction
+3. **Context Preservation** - Maintaining context across document chunks
+4. **Answer Quality** - Balancing accuracy with comprehensiveness
+5. **Source Attribution** - Properly citing document sources in responses
 
 ### **Production Considerations:**
 - Document security and privacy
-- Legal compliance and audit trails
-- Error handling for parsing failures
 - Performance optimization for large documents
-- Legal disclaimer and accuracy warnings
+- Error handling for parsing failures
+- Multi-format document support
+- Scalable document storage and retrieval
 
 ## 🚀 Advanced Challenges
 
-### **Challenge 5: Multi-Document Analysis**
-**Goal**: Analyze multiple related legal documents simultaneously
+### **Challenge 5: Document Summarization**
+**Goal**: Generate intelligent summaries of uploaded documents
 
-**Learning Focus**: Cross-document risk analysis, contract comparison, and relationship mapping between legal documents.
+**Learning Focus**: Abstractive vs extractive summarization, key point identification, and summary quality evaluation.
 
-### **Challenge 6: Legal Clause Comparison**
-**Goal**: Compare similar clauses across different contracts
+### **Challenge 6: Cross-Document Comparison**
+**Goal**: Compare information across multiple documents
 
-**Learning Focus**: Clause similarity analysis, standard vs custom terms identification, and contract standardization insights.
+**Learning Focus**: Document similarity analysis, information synthesis, and comparative insights generation.
 
-### **Challenge 7: Risk Scoring & Prioritization**
-**Goal**: Implement sophisticated risk scoring algorithms
+### **Challenge 7: Document Classification**
+**Goal**: Automatically classify and categorize uploaded documents
 
-**Learning Focus**: Risk quantification, priority ranking, and actionable recommendation generation.
+**Learning Focus**: Document type detection, content categorization, and metadata extraction.
 
-### **Challenge 8: Legal Compliance Checking**
-**Goal**: Check contracts against legal compliance requirements
+### **Challenge 8: Real-time Document Updates**
+**Goal**: Handle dynamic documents that change over time
 
-**Learning Focus**: Regulatory compliance analysis, legal requirement mapping, and compliance gap identification.
+**Learning Focus**: Incremental processing, change detection, and maintaining consistency across updates.
 
 ## 🤔 Critical Thinking Questions
 
-1. **What if the legal document is in a different language?** How would you handle multilingual analysis?
-2. **How would you prevent legal hallucination?** What validation could you add?
-3. **What if you had 10,000 legal documents?** How would you scale the system?
-4. **How would you measure legal analysis quality?** What metrics matter most?
-5. **How would you handle confidential legal documents?** What security measures would you implement?
-6. **What if the legal document contains errors or is incomplete?** How would you handle edge cases?
+1. **What if the document is in a different language?** How would you handle multilingual document analysis?
+2. **How would you handle very large documents?** What strategies would you use for scalability?
+3. **What if the document contains sensitive information?** How would you ensure privacy and security?
+4. **How would you measure document analysis quality?** What metrics matter most for Q&A systems?
+5. **What if the document is corrupted or incomplete?** How would you handle edge cases?
+6. **How would you handle documents with images, tables, or complex formatting?** What parsing strategies would you use?
 
 ## 📚 Further Learning
 
 **Essential Reading:**
-- [Legal AI Best Practices](https://www.legaltechhub.com/) - Production-ready legal AI
-- [Document Processing with Docling](https://github.com/DS4SD/docling) - Advanced document parsing
+- [Document Processing Best Practices](https://docs.unstructured.io/) - Advanced document parsing
+- [RAG System Design](https://docs.langchain.com/) - Building robust RAG pipelines
 
 **Next Steps:**
-- Implement legal-specific embedding models
-- Add contract comparison features
-- Build legal compliance checking
-- Scale with legal document databases
-- Add multi-language support
+- Implement document-specific embedding models
+- Add multi-language document support
+- Build document comparison features
+- Scale with document databases
+- Add real-time document processing
 
 ---
 
-*This demo teaches you legal AI by doing. Experiment with different documents, break things, and learn what makes legal AI applications work.*
+*This demo teaches you document AI by doing. Experiment with different document types, break things, and learn what makes document Q&A systems work effectively.*

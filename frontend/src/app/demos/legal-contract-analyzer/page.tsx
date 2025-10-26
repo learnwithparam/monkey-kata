@@ -484,7 +484,7 @@ export default function LegalContractAnalyzerDemo() {
                   <div 
                     className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
                       selectedFile 
-                        ? 'border-blue-300 bg-blue-50' 
+                        ? 'border-gray-300 bg-gray-50' 
                         : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
                     }`}
                     onDragOver={(e) => {
@@ -514,39 +514,51 @@ export default function LegalContractAnalyzerDemo() {
                       disabled={isProcessing}
                     />
                     
-                    {selectedFile ? (
-                      <div className="space-y-2">
-                        <DocumentTextIcon className="w-8 h-8 text-gray-600 mx-auto" />
-                        <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-                        <p className="text-xs text-gray-700">
-                          {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                    <div className="space-y-2">
+                      <DocumentArrowUpIcon className="w-8 h-8 text-gray-400 mx-auto" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">
+                          Drop your legal document here
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedFile(null)}
-                          className="text-xs text-blue-600 hover:text-blue-800 underline"
-                        >
-                          Remove file
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <DocumentArrowUpIcon className="w-8 h-8 text-gray-400 mx-auto" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            Drop your legal document here
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            or click to browse files
-                          </p>
-                        </div>
-                        <p className="text-xs text-gray-400">
-                          Supports PDF, Word, and text files (max 10MB)
+                        <p className="text-xs text-gray-500">
+                          or click to browse files
                         </p>
                       </div>
-                    )}
+                      <p className="text-xs text-gray-400">
+                        Supports PDF, Word, and text files (max 10MB)
+                      </p>
+                    </div>
                   </div>
                 </div>
+
+                {/* Selected File Display */}
+                {selectedFile && (
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <DocumentTextIcon className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFile(null)}
+                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 hover:border-red-300 transition-all duration-200"
+                      >
+                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <ProcessingButton
                   isLoading={isProcessing}

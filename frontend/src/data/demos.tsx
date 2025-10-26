@@ -58,17 +58,18 @@ export const weeksData: WeekData[] = [
         challengeHref: "/challenges/website-rag"
       },
       {
+        icon: <DocumentTextIcon className="w-8 h-8 text-blue-600 mr-4" />,
+        title: "Document QA Chatbot",
+        description: "Upload any document and get instant AI-powered analysis, key insights, and intelligent Q&A",
+        demoHref: "/demos/document-qa-chatbot",
+        challengeHref: "/challenges/document-qa-chatbot"
+      },
+      {
         icon: <ScaleIcon className="w-8 h-8 text-orange-600 mr-4" />,
         title: "Legal Contract Analyzer",
         description: "Instantly identify potential risks and key terms in legal documents",
         demoHref: "/demos/legal-contract-analyzer",
         challengeHref: "/challenges/legal-contract-analyzer"
-      },
-      {
-        icon: <SpeakerWaveIcon className="w-8 h-8 text-green-600 mr-4" />,
-        title: "24/7 Customer Support Bot with Human Escalation",
-        description: "Intelligent customer support that finds answers instantly from your knowledge base",
-        isComingSoon: true
       }
     ]
   },
@@ -77,6 +78,12 @@ export const weeksData: WeekData[] = [
     weekTitle: "Building Reliable Conversational Systems",
     weekColor: "bg-blue-100 text-blue-800",
     demos: [
+      {
+        icon: <SpeakerWaveIcon className="w-8 h-8 text-green-600 mr-4" />,
+        title: "24/7 Customer Support Bot with Human Escalation",
+        description: "Intelligent customer support that finds answers instantly from your knowledge base",
+        isComingSoon: true
+      },
       {
         icon: <TagIcon className="w-8 h-8 text-blue-600 mr-4" />,
         title: "Sales Lead Qualifier",
