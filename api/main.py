@@ -11,7 +11,6 @@ from pathlib import Path
 # Import demo routers
 from demos.bedtime_story_generator.main import router as bedtime_story_router
 from demos.website_rag.main import router as website_rag_router
-from demos.legal_contract_analyzer.main import router as legal_contract_analyzer_router
 from demos.document_qa_chatbot.main import router as document_qa_chatbot_router
 from demos.cv_analyzer.main import router as cv_analyzer_router
 
@@ -26,7 +25,7 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 AI Bootcamp API starting up...")
     app_state["started"] = True
-    app_state["demos"] = ["bedtime-story-generator", "website-rag", "legal-contract-analyzer", "document-qa-chatbot", "cv-analyzer"]
+    app_state["demos"] = ["bedtime-story-generator", "website-rag", "document-qa-chatbot", "cv-analyzer"]
     yield
     # Shutdown
     print("🛑 AI Bootcamp API shutting down...")
@@ -42,7 +41,6 @@ app = FastAPI(
 # Include demo routers
 app.include_router(bedtime_story_router)
 app.include_router(website_rag_router)
-app.include_router(legal_contract_analyzer_router)
 app.include_router(document_qa_chatbot_router)
 app.include_router(cv_analyzer_router)
 

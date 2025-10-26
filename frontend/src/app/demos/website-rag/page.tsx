@@ -436,10 +436,9 @@ export default function WebsiteRAGDemo() {
                   isLoading={isProcessing}
                   onClick={processUrl}
                   disabled={!url.trim() || !isValidUrl(url)}
+                  icon={<GlobeAltIcon className="w-5 h-5 mr-3" />}
                 >
-                  <span className="flex items-center justify-center">
-                    Process Website
-                  </span>
+                  Process Website
                 </ProcessingButton>
 
                 {/* Processing Status */}

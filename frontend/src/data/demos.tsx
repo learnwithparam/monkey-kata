@@ -66,13 +66,6 @@ export const weeksData: WeekData[] = [
         challengeHref: "/challenges/document-qa-chatbot"
       },
       {
-        icon: <ScaleIcon className="w-8 h-8 text-orange-600 mr-4" />,
-        title: "Legal Contract Analyzer",
-        description: "Instantly identify potential risks and key terms in legal documents",
-        demoHref: "/demos/legal-contract-analyzer",
-        challengeHref: "/challenges/legal-contract-analyzer"
-      },
-      {
         icon: <BriefcaseIcon className="w-8 h-8 text-indigo-600 mr-4" />,
         title: "CV Analyzer & Improvement Suggester",
         description: "AI-powered CV analysis with personalized improvement suggestions to land your dream job",

@@ -6,13 +6,14 @@ import {
   BriefcaseIcon,
   DocumentTextIcon,
   CheckBadgeIcon,
-  InformationCircleIcon,
   DocumentArrowUpIcon,
   ExclamationTriangleIcon,
   ChartBarIcon,
-  ClipboardDocumentListIcon,
   LightBulbIcon,
-  StarIcon,
+  ArrowTrendingUpIcon,
+  UserIcon,
+  AcademicCapIcon,
+  CogIcon,
 } from '@heroicons/react/24/outline';
 import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
@@ -169,11 +170,65 @@ export default function CVAnalyzerDemo() {
     return 'text-red-600';
   };
 
-  const getScoreBgColor = (score: number) => {
-    if (score >= 80) return 'bg-green-100';
-    if (score >= 60) return 'bg-yellow-100';
-    return 'bg-red-100';
+  const CircularProgress = ({ score, size = 'w-24 h-24', strokeWidth = 8 }: { score: number; size?: string; strokeWidth?: number }) => {
+    const radius = 40;
+    const circumference = 2 * Math.PI * radius;
+    const strokeDasharray = circumference;
+    const strokeDashoffset = circumference - (score / 100) * circumference;
+    
+    return (
+      <div className={`${size} relative`}>
+        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+          {/* Background circle */}
+          <circle
+            cx="50"
+            cy="50"
+            r={radius}
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            fill="none"
+            className="text-gray-200"
+          />
+          {/* Progress circle */}
+          <circle
+            cx="50"
+            cy="50"
+            r={radius}
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            fill="none"
+            strokeDasharray={strokeDasharray}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            className={`transition-all duration-1000 ease-out ${getScoreColor(score)}`}
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className={`text-lg font-bold ${getScoreColor(score)}`}>
+            {score}
+          </span>
+        </div>
+      </div>
+    );
   };
+
+  const ScoreCard = ({ title, score, icon: Icon, color }: { title: string; score: number; icon: React.ComponentType<{ className?: string }>; color: string }) => (
+    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
+            <Icon className="w-5 h-5 text-white" />
+          </div>
+          <h3 className="text-sm font-semibold text-gray-900 ml-3">{title}</h3>
+        </div>
+        <CircularProgress score={score} size="w-16 h-16" strokeWidth={6} />
+      </div>
+      <div className="text-right">
+        <span className={`text-2xl font-bold ${getScoreColor(score)}`}>{score}</span>
+        <span className="text-sm text-gray-500 ml-1">/100</span>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -187,7 +242,7 @@ export default function CVAnalyzerDemo() {
             CV Analyzer & Improvement Suggester
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
-            Upload your CV and get AI-powered analysis with personalized improvement suggestions to land your dream job.
+            Transform your CV with AI-powered analysis and personalized improvement suggestions to land your dream job
           </p>
           <Link
             href="/challenges/cv-analyzer"
@@ -197,21 +252,21 @@ export default function CVAnalyzerDemo() {
           </Link>
         </div>
 
-        {/* Main Content - Single Column */}
-        <div className="max-w-4xl mx-auto space-y-8">
-          {/* CV Upload Section */}
-          <div className="card p-6 lg:p-8">
-            <div className="flex items-center mb-6 sm:mb-8">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                <DocumentArrowUpIcon className="w-5 h-5 text-blue-600" />
+        {/* Main Content */}
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Upload Section */}
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+            <div className="flex items-center mb-8">
+              <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mr-4">
+                <DocumentArrowUpIcon className="w-6 h-6 text-gray-600" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Upload Your CV</h2>
-                <p className="text-sm text-gray-600">Upload PDF, Word, or text files for comprehensive analysis</p>
+                <h2 className="text-2xl font-bold text-gray-900">Upload Your CV</h2>
+                <p className="text-gray-600">Get started with comprehensive AI analysis</p>
               </div>
             </div>
 
-            <div className="space-y-4 sm:space-y-6">
+            <div className="space-y-6">
               <FileUpload
                 selectedFile={selectedFile}
                 onFileSelect={handleFileSelect}
@@ -230,7 +285,7 @@ export default function CVAnalyzerDemo() {
               />
 
               <div>
-                <label htmlFor="jobDescription" className="block text-sm font-semibold text-gray-700 mb-2">
+                <label htmlFor="jobDescription" className="block text-sm font-semibold text-gray-700 mb-3">
                   Job Description (Optional)
                 </label>
                 <textarea
@@ -238,12 +293,12 @@ export default function CVAnalyzerDemo() {
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
                   placeholder="Paste the job description for targeted analysis..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  className="w-full px-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all duration-200"
                   rows={4}
                   disabled={isProcessing}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  Including a job description helps provide more targeted suggestions
+                <p className="text-sm text-gray-500 mt-2">
+                  💡 Including a job description helps provide more targeted suggestions
                 </p>
               </div>
 
@@ -251,13 +306,11 @@ export default function CVAnalyzerDemo() {
                 isLoading={isProcessing}
                 onClick={processDocument}
                 disabled={!selectedFile}
+                icon={<ArrowTrendingUpIcon className="w-5 h-5 mr-3" />}
               >
-                <span className="flex items-center justify-center">
-                  Analyze CV
-                </span>
+                Analyze CV
               </ProcessingButton>
 
-              {/* Processing Status */}
               {processingStatus && (
                 <StatusIndicator
                   status={processingStatus.status}
@@ -269,172 +322,197 @@ export default function CVAnalyzerDemo() {
             </div>
           </div>
 
-          {/* Analysis Results Section */}
-          <div className="card p-6 lg:p-8">
-            <div className="flex items-center justify-between mb-6 sm:mb-8">
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                  <ChartBarIcon className="w-5 h-5 text-green-600" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Analysis Results</h2>
-                  <p className="text-sm text-gray-500">Comprehensive CV analysis and improvement suggestions</p>
+          {/* Analysis Results */}
+          {analysisResult && (
+            <div className="space-y-8">
+              {/* Overall Score Hero */}
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                <div className="text-center">
+                  <h2 className="text-3xl font-bold mb-4 text-gray-900">Your CV Analysis Results</h2>
+                  <div className="flex justify-center mb-6">
+                    <CircularProgress score={analysisResult.overall_score} size="w-32 h-32" strokeWidth={12} />
+                  </div>
+                  <div className="text-center">
+                    <div className="text-5xl font-bold mb-2 text-gray-900">{analysisResult.overall_score}</div>
+                    <div className="text-xl text-gray-600">Overall Score</div>
+                    <div className="mt-4">
+                      {analysisResult.overall_score >= 80 && (
+                        <span className="inline-flex items-center px-4 py-2 bg-green-100 rounded-full text-green-800">
+                          <CheckBadgeIcon className="w-5 h-5 mr-2" />
+                          Excellent CV!
+                        </span>
+                      )}
+                      {analysisResult.overall_score >= 60 && analysisResult.overall_score < 80 && (
+                        <span className="inline-flex items-center px-4 py-2 bg-yellow-100 rounded-full text-yellow-800">
+                          <ArrowTrendingUpIcon className="w-5 h-5 mr-2" />
+                          Good, with room for improvement
+                        </span>
+                      )}
+                      {analysisResult.overall_score < 60 && (
+                        <span className="inline-flex items-center px-4 py-2 bg-red-100 rounded-full text-red-800">
+                          <ExclamationTriangleIcon className="w-5 h-5 mr-2" />
+                          Needs significant improvement
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-              {analysisResult && (
-                <div className="flex items-center space-x-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span>Analysis Complete</span>
-                </div>
-              )}
-            </div>
 
-            {/* Analysis Content */}
-            <div className="space-y-6">
-              {analysisError && (
-                <AlertMessage type="error" message={analysisError} />
-              )}
+              {/* Detailed Scores Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <ScoreCard
+                  title="Keyword Match"
+                  score={analysisResult.keyword_match_score}
+                  icon={CogIcon}
+                  color="bg-blue-500"
+                />
+                <ScoreCard
+                  title="Experience Relevance"
+                  score={analysisResult.experience_relevance}
+                  icon={UserIcon}
+                  color="bg-green-500"
+                />
+                <ScoreCard
+                  title="Skills Alignment"
+                  score={analysisResult.skills_alignment}
+                  icon={AcademicCapIcon}
+                  color="bg-purple-500"
+                />
+                <ScoreCard
+                  title="Format & Presentation"
+                  score={analysisResult.format_score}
+                  icon={ChartBarIcon}
+                  color="bg-orange-500"
+                />
+              </div>
 
-              {isAnalyzing && (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Running comprehensive CV analysis...</p>
+              {/* Strengths & Weaknesses */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Strengths */}
+                <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                  <div className="flex items-center mb-6">
+                    <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mr-4">
+                      <CheckBadgeIcon className="w-6 h-6 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">Strengths</h3>
+                      <p className="text-gray-600">What&apos;s working well</p>
+                    </div>
                   </div>
-                </div>
-              )}
-
-              {analysisResult && (
-                <div className="space-y-6">
-                  {/* Overall Score */}
-                  <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
-                      <StarIcon className="w-5 h-5 text-yellow-600 mr-2" />
-                      Overall CV Score
-                    </h3>
-                    <div className="text-center">
-                      <div className={`inline-flex items-center justify-center w-20 h-20 sm:w-24 sm:h-24 rounded-full ${getScoreBgColor(analysisResult.overall_score)} mb-3 sm:mb-4`}>
-                        <span className={`text-2xl sm:text-3xl font-bold ${getScoreColor(analysisResult.overall_score)}`}>
-                          {analysisResult.overall_score}
-                        </span>
+                  <div className="space-y-4">
+                    {analysisResult.strengths.map((strength, index) => (
+                      <div key={index} className="flex items-start p-4 bg-green-50 rounded-xl border border-green-200">
+                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
+                          <CheckBadgeIcon className="w-4 h-4 text-white" />
+                        </div>
+                        <span className="text-gray-700">{strength}</span>
                       </div>
-                      <p className="text-sm text-gray-600">out of 100</p>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Weaknesses */}
+                <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                  <div className="flex items-center mb-6">
+                    <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center mr-4">
+                      <ExclamationTriangleIcon className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">Areas for Improvement</h3>
+                      <p className="text-gray-600">Focus areas to enhance</p>
                     </div>
                   </div>
-
-                  {/* Detailed Scores */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                    <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
-                        <CheckBadgeIcon className="w-5 h-5 text-green-600 mr-2" />
-                        Detailed Scores
-                      </h3>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Keyword Match</span>
-                          <span className={`font-semibold ${getScoreColor(analysisResult.keyword_match_score)}`}>
-                            {analysisResult.keyword_match_score}/100
-                          </span>
+                  <div className="space-y-4">
+                    {analysisResult.weaknesses.map((weakness, index) => (
+                      <div key={index} className="flex items-start p-4 bg-red-50 rounded-xl border border-red-200">
+                        <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
+                          <ExclamationTriangleIcon className="w-4 h-4 text-white" />
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Experience Relevance</span>
-                          <span className={`font-semibold ${getScoreColor(analysisResult.experience_relevance)}`}>
-                            {analysisResult.experience_relevance}/100
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Skills Alignment</span>
-                          <span className={`font-semibold ${getScoreColor(analysisResult.skills_alignment)}`}>
-                            {analysisResult.skills_alignment}/100
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600">Format & Presentation</span>
-                          <span className={`font-semibold ${getScoreColor(analysisResult.format_score)}`}>
-                            {analysisResult.format_score}/100
-                          </span>
-                        </div>
+                        <span className="text-gray-700">{weakness}</span>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Improvement Suggestions */}
+              <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                <div className="flex items-center mb-6">
+                  <div className="w-12 h-12 bg-yellow-100 rounded-xl flex items-center justify-center mr-4">
+                    <LightBulbIcon className="w-6 h-6 text-yellow-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900">Actionable Suggestions</h3>
+                    <p className="text-gray-600">Step-by-step improvements</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {analysisResult.improvement_suggestions.map((suggestion, index) => (
+                    <div key={index} className="flex items-start p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                      <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center mr-3 mt-0.5 flex-shrink-0">
+                        <span className="text-white font-bold text-sm">{index + 1}</span>
+                      </div>
+                      <span className="text-gray-700 font-medium">{suggestion}</span>
                     </div>
-
-                    {/* Strengths */}
-                    <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
-                        <CheckBadgeIcon className="w-5 h-5 text-green-600 mr-2" />
-                        Strengths
-                      </h3>
-                      <ul className="space-y-2 sm:space-y-3">
-                        {(analysisResult.strengths || []).map((strength, index) => (
-                          <li key={index} className="flex items-start">
-                            <div className="w-2 h-2 bg-green-600 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                            <span className="text-gray-700 text-sm sm:text-base">{strength}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Weaknesses */}
-                  <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
-                      <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mr-2" />
-                      Areas for Improvement
-                    </h3>
-                    <ul className="space-y-2 sm:space-y-3">
-                      {(analysisResult.weaknesses || []).map((weakness, index) => (
-                        <li key={index} className="flex items-start">
-                          <div className="w-2 h-2 bg-red-600 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                          <span className="text-gray-700 text-sm sm:text-base">{weakness}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Improvement Suggestions */}
-                  <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
-                      <LightBulbIcon className="w-5 h-5 text-yellow-600 mr-2" />
-                      Actionable Suggestions
-                    </h3>
-                    <ul className="space-y-2 sm:space-y-3">
-                      {(analysisResult.improvement_suggestions || []).map((suggestion, index) => (
-                        <li key={index} className="flex items-start">
-                          <div className="w-2 h-2 bg-yellow-600 rounded-full mt-2 mr-3 flex-shrink-0"></div>
-                          <span className="text-gray-700 text-sm sm:text-base">{suggestion}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  ))}
                 </div>
-              )}
-
-              {!analysisResult && !isAnalyzing && !analysisError && processingStatus?.status === 'completed' && (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <BriefcaseIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready for Analysis</h3>
-                    <p className="text-gray-600 mb-4">Your CV has been processed successfully.</p>
-                    <button
-                      onClick={() => runCVAnalysis()}
-                      className="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Run CV Analysis
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {!analysisResult && !isAnalyzing && !analysisError && !processingStatus && (
-                <div className="flex items-center justify-center py-12">
-                  <div className="text-center">
-                    <DocumentTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload Your CV</h3>
-                    <p className="text-gray-600">Upload your CV to get started with comprehensive analysis and improvement suggestions.</p>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Loading State */}
+          {isAnalyzing && (
+            <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-2xl mb-6">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600"></div>
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Analyzing Your CV</h3>
+                <p className="text-gray-600">Our AI agents are working hard to provide you with comprehensive insights...</p>
+              </div>
+            </div>
+          )}
+
+          {/* Error State */}
+          {analysisError && (
+            <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+              <AlertMessage type="error" message={analysisError} />
+            </div>
+          )}
+
+          {/* Ready State */}
+          {!analysisResult && !isAnalyzing && !analysisError && processingStatus?.status === 'completed' && (
+            <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-2xl mb-6">
+                  <CheckBadgeIcon className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Ready for Analysis</h3>
+                <p className="text-gray-600 mb-6">Your CV has been processed successfully.</p>
+                <button
+                  onClick={() => runCVAnalysis()}
+                  className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md"
+                >
+                  <ArrowTrendingUpIcon className="w-5 h-5 mr-2" />
+                  Run CV Analysis
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!analysisResult && !isAnalyzing && !analysisError && !processingStatus && (
+            <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200">
+              <div className="text-center">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-2xl mb-6">
+                  <DocumentTextIcon className="w-8 h-8 text-gray-600" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Upload Your CV</h3>
+                <p className="text-gray-600">Upload your CV to get started with comprehensive analysis and improvement suggestions.</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

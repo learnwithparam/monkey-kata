@@ -450,10 +450,9 @@ export default function LegalContractAnalyzerDemo() {
                   isLoading={isProcessing}
                   onClick={processDocument}
                   disabled={!selectedFile}
+                  icon={<DocumentTextIcon className="w-5 h-5 mr-3" />}
                 >
-                  <span className="flex items-center justify-center">
-                    Analyze Document
-                  </span>
+                  Analyze Document
                 </ProcessingButton>
 
                 {/* Processing Status */}

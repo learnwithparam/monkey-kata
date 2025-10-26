@@ -1,13 +1,15 @@
 import { GlobeAltIcon } from '@heroicons/react/24/outline';
+import { ReactNode } from 'react';
 
 interface ProcessingButtonProps {
   isLoading: boolean;
   onClick: () => void;
   disabled?: boolean;
   children: React.ReactNode;
+  icon?: ReactNode;
 }
 
-export default function ProcessingButton({ isLoading, onClick, disabled, children }: ProcessingButtonProps) {
+export default function ProcessingButton({ isLoading, onClick, disabled, children, icon }: ProcessingButtonProps) {
   return (
     <button
       onClick={onClick}
@@ -24,7 +26,7 @@ export default function ProcessingButton({ isLoading, onClick, disabled, childre
         </span>
       ) : (
         <span className="flex items-center justify-center">
-          <GlobeAltIcon className="w-5 h-5 mr-3" />
+          {icon || <GlobeAltIcon className="w-5 h-5 mr-3" />}
           {children}
         </span>
       )}
