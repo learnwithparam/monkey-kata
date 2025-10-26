@@ -61,7 +61,8 @@ export const weeksData: WeekData[] = [
         icon: <ScaleIcon className="w-8 h-8 text-orange-600 mr-4" />,
         title: "Legal Contract Analyzer",
         description: "Instantly identify potential risks and key terms in legal documents",
-        isComingSoon: true
+        demoHref: "/demos/legal-contract-analyzer",
+        challengeHref: "/challenges/legal-contract-analyzer"
       },
       {
         icon: <SpeakerWaveIcon className="w-8 h-8 text-green-600 mr-4" />,
