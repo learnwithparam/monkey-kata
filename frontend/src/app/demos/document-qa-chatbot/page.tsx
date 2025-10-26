@@ -422,10 +422,10 @@ export default function LegalContractAnalyzerDemo() {
         </div>
 
         {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {/* Left Column - Document Upload */}
-          <div className="space-y-6">
-            <div className="card p-6 lg:p-8">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="card p-4 sm:p-6 lg:p-8">
               <div className="flex items-center mb-8">
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
                   <DocumentArrowUpIcon className="w-5 h-5 text-blue-600" />
@@ -500,8 +500,8 @@ export default function LegalContractAnalyzerDemo() {
           </div>
 
           {/* Right Column - Chat */}
-          <div className="space-y-6">
-            <div className="card p-6 lg:p-8 min-h-[600px] flex flex-col">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="card p-4 sm:p-6 lg:p-8 min-h-[500px] sm:min-h-[600px] flex flex-col">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center">
                   <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-4">

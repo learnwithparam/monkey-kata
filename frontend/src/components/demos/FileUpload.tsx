@@ -51,7 +51,7 @@ export default function FileUpload({
       
       {/* Drag and Drop Area */}
       <div 
-        className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+        className={`relative border-2 border-dashed rounded-lg p-4 sm:p-6 text-center transition-colors ${
           selectedFile 
             ? 'border-gray-300 bg-gray-50' 
             : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
@@ -71,7 +71,7 @@ export default function FileUpload({
         />
         
         <div className="space-y-2">
-          <DocumentArrowUpIcon className="w-8 h-8 text-gray-400 mx-auto" />
+          <DocumentArrowUpIcon className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400 mx-auto" />
           <div>
             <p className="text-sm font-medium text-gray-900">
               {placeholder}

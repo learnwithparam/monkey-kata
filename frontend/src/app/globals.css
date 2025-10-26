@@ -187,11 +187,24 @@ body {
 
 /* Professional spacing */
 .section-padding {
-  @apply py-16 md:py-24;
+  @apply py-12 sm:py-16 md:py-24;
 }
 
 .container-padding {
   @apply px-4 sm:px-6 lg:px-8;
+}
+
+/* Mobile-first responsive utilities */
+.mobile-padding {
+  @apply px-4 py-4;
+}
+
+.tablet-padding {
+  @apply sm:px-6 sm:py-6;
+}
+
+.desktop-padding {
+  @apply lg:px-8 lg:py-8;
 }
 
 /* Focus states */
@@ -214,17 +227,17 @@ body {
 
 /* Demo specific styles */
 .demo-card {
-  @apply bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md p-6;
+  @apply bg-white rounded-xl border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md p-4 sm:p-6;
 }
 
 .demo-header {
-  @apply text-xl font-bold text-gray-900 mb-4;
+  @apply text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4;
 }
 
 .demo-description {
-  @apply text-gray-600 mb-4;
+  @apply text-sm sm:text-base text-gray-600 mb-3 sm:mb-4;
 }
 
 .demo-button {
-  @apply bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200;
+  @apply bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-sm sm:text-base;
 }

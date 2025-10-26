@@ -253,20 +253,20 @@ export default function CVAnalyzerDemo() {
         </div>
 
         {/* Main Content */}
-        <div className="max-w-6xl mx-auto space-y-8">
+        <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8">
           {/* Upload Section */}
-          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-            <div className="flex items-center mb-8">
+          <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200">
+            <div className="flex items-center mb-6 sm:mb-8">
               <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mr-4">
                 <DocumentArrowUpIcon className="w-6 h-6 text-gray-600" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">Upload Your CV</h2>
-                <p className="text-gray-600">Get started with comprehensive AI analysis</p>
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Upload Your CV</h2>
+                <p className="text-sm sm:text-base text-gray-600">Get started with comprehensive AI analysis</p>
               </div>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-4 sm:space-y-6">
               <FileUpload
                 selectedFile={selectedFile}
                 onFileSelect={handleFileSelect}

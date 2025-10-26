@@ -14,7 +14,7 @@ export default function Home() {
 
       <main>
         {/* Demos Section */}
-        <section id="demos" className="py-12 sm:py-16 md:py-24 bg-white">
+        <section id="demos" className="py-8 sm:py-12 md:py-16 lg:py-24 bg-white">
           <div className="max-w-4xl mx-auto container-padding">
             <Hero />
 
