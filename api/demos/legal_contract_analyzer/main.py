@@ -53,7 +53,7 @@ import logging
 import tempfile
 import shutil
 from utils.llm_provider import get_llm_provider
-from .legal_utils import LegalDocumentProcessor, RiskAnalyzer, KeyTermsExtractor, LegalRAGPipeline
+from .legal_utils import LegalDocumentProcessor
 from .legal_agentic_rag import LegalAgenticRAG
 
 # Configure logging
@@ -67,9 +67,6 @@ router = APIRouter(prefix="/legal-contract-analyzer", tags=["legal-contract-anal
 # Initialize providers
 llm_provider = get_llm_provider()
 document_processor = LegalDocumentProcessor()
-risk_analyzer = RiskAnalyzer(llm_provider)
-key_terms_extractor = KeyTermsExtractor(llm_provider)
-legal_rag_pipeline = LegalRAGPipeline(llm_provider)
 legal_agentic_rag = LegalAgenticRAG(llm_provider)
 
 # In-memory storage for demo (use database in production)
@@ -401,84 +398,7 @@ async def get_agentic_legal_analysis(document_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to analyze document: {str(e)}")
 
-async def generate_legal_rag_stream(request: QuestionRequest) -> AsyncGenerator[str, None]:
-    """
-    Generate legal RAG response with streaming
-    """
-    try:
-        # Clean up inactive sessions first
-        cleanup_inactive_sessions()
-        
-        document_id = request.document_id
-        
-        # Check if document is processed
-        if document_id not in processing_status or processing_status[document_id].status != "completed":
-            yield f"data: {json.dumps({'error': f'Document not yet processed: {document_id}', 'status': 'error'})}\n\n"
-            return
-        
-        # Update activity timestamp
-        import time
-        last_activity[document_id] = time.time()
-        
-        # Get documents and embeddings
-        if document_id not in document_data or document_id not in document_embeddings:
-            yield f"data: {json.dumps({'error': 'No document data available', 'status': 'error'})}\n\n"
-            return
-        
-        documents = document_data[document_id]['documents']
-        embeddings = document_embeddings[document_id]
-        
-        # Send initial status
-        yield f"data: {json.dumps({'status': 'connected', 'message': 'Analyzing your legal question...'})}\n\n"
-        
-        # Generate query embedding
-        yield f"data: {json.dumps({'status': 'processing', 'message': 'Processing your question...'})}\n\n"
-        query_embedding = await document_processor.generate_embeddings([request.question])
-        
-        # Retrieve relevant chunks
-        yield f"data: {json.dumps({'status': 'processing', 'message': 'Finding relevant legal clauses...'})}\n\n"
-        relevant_chunks = legal_rag_pipeline.retrieve_relevant_chunks(
-            query_embedding[0],
-            embeddings,
-            documents,
-            request.max_chunks
-        )
-        
-        # Send sources
-        yield f"data: {json.dumps({'sources': [{'url': f'Page {chunk.page_number}', 'content': chunk.content[:200] + '...'} for chunk in relevant_chunks]})}\n\n"
-        
-        # Generate streaming answer
-        yield f"data: {json.dumps({'status': 'generating', 'message': 'Generating legal analysis...'})}\n\n"
-        
-        try:
-            async for chunk in legal_rag_pipeline.generate_answer_stream(request.question, relevant_chunks):
-                yield f"data: {json.dumps({'content': chunk})}\n\n"
-            
-            # Send completion
-            yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
-        except Exception as e:
-            logger.error(f"Error in streaming generation: {e}")
-            yield f"data: {json.dumps({'error': f'Error generating response: {str(e)}', 'status': 'error'})}\n\n"
-        
-    except Exception as e:
-        yield f"data: {json.dumps({'error': str(e), 'status': 'error'})}\n\n"
 
-@router.post("/ask/stream")
-async def ask_question_stream(request: QuestionRequest):
-    """
-    Ask a question about the legal document with streaming response
-    
-    This provides real-time streaming of the legal analysis,
-    with proper legal context and risk awareness.
-    """
-    return StreamingResponse(
-        generate_legal_rag_stream(request),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        }
-    )
 
 @router.post("/clear")
 async def clear_all_sessions():

@@ -1,9 +1,9 @@
 """
-Legal Document Processing Utilities
-==================================
+CV Document Processing Utilities
+===============================
 
-Simplified utilities for legal document processing using LlamaIndex.
-This file focuses only on document parsing and chunking.
+Utilities for processing CV documents using LlamaIndex.
+Focused on CV-specific parsing and analysis.
 """
 
 import asyncio
@@ -35,15 +35,15 @@ logger.info("LlamaIndex configured with fallback embeddings")
 
 @dataclass
 class DocumentChunk:
-    """Represents a chunk of legal text with metadata"""
+    """Represents a chunk of CV text with metadata"""
     content: str
     document_id: str
     chunk_index: int
-    page_number: int
+    section: str
     metadata: Dict[str, Any]
 
-class LegalDocumentProcessor:
-    """LlamaIndex-based document processor for legal documents"""
+class CVDocumentProcessor:
+    """LlamaIndex-based document processor for CVs"""
     
     def __init__(self):
         self.index = None
@@ -51,7 +51,7 @@ class LegalDocumentProcessor:
     
     async def parse_document(self, file_path: str) -> Optional[Dict[str, Any]]:
         """
-        Parse a legal document using LlamaIndex
+        Parse a CV document using LlamaIndex
         
         Args:
             file_path: Path to the document file
@@ -60,7 +60,7 @@ class LegalDocumentProcessor:
             Dictionary with parsed content and metadata
         """
         try:
-            logger.info(f"Parsing document with LlamaIndex: {file_path}")
+            logger.info(f"Parsing CV document with LlamaIndex: {file_path}")
             
             # Create a temporary directory for LlamaIndex
             temp_dir = tempfile.mkdtemp()
@@ -72,7 +72,7 @@ class LegalDocumentProcessor:
             documents = reader.load_data()
             
             if not documents:
-                raise Exception("No content extracted from document")
+                raise Exception("No content extracted from CV document")
             
             # Create vector index
             self.index = VectorStoreIndex.from_documents(documents)
@@ -95,12 +95,12 @@ class LegalDocumentProcessor:
             }
                 
         except Exception as e:
-            logger.error(f"Error parsing document {file_path}: {e}")
+            logger.error(f"Error parsing CV document {file_path}: {e}")
             return None
     
-    def chunk_document(self, document_content: Dict[str, Any], chunk_size: int = 500, chunk_overlap: int = 50) -> List[Dict[str, Any]]:
+    def chunk_cv_document(self, document_content: Dict[str, Any], chunk_size: int = 300, chunk_overlap: int = 50) -> List[Dict[str, Any]]:
         """
-        Split legal document into semantic chunks
+        Split CV document into semantic chunks based on sections
         
         Args:
             document_content: Parsed document content
@@ -112,44 +112,100 @@ class LegalDocumentProcessor:
         """
         content = document_content['content']
         pages = document_content.get('pages', 1)
-        page_numbers = document_content.get('page_numbers', [1])
         
-        # Split into sentences first
-        sentences = self._split_into_sentences(content)
+        # CV-specific section detection
+        sections = self._detect_cv_sections(content)
         
         chunks = []
         current_chunk = ""
-        current_page = 1
+        current_section = "General"
         
-        for sentence in sentences:
-            # If adding this sentence would exceed chunk size, start a new chunk
-            if len(current_chunk) + len(sentence) > chunk_size and current_chunk:
-                chunks.append({
-                    'content': current_chunk.strip(),
-                    'page_number': current_page
-                })
-                
-                # Start new chunk with overlap
-                if chunk_overlap > 0:
-                    overlap_text = current_chunk[-chunk_overlap:] if len(current_chunk) > chunk_overlap else current_chunk
-                    current_chunk = overlap_text + " " + sentence
+        for section_name, section_content in sections.items():
+            # Split section into sentences
+            sentences = self._split_into_sentences(section_content)
+            
+            for sentence in sentences:
+                # If adding this sentence would exceed chunk size, start a new chunk
+                if len(current_chunk) + len(sentence) > chunk_size and current_chunk:
+                    chunks.append({
+                        'content': current_chunk.strip(),
+                        'section': current_section,
+                        'page_number': 1
+                    })
+                    
+                    # Start new chunk with overlap
+                    if chunk_overlap > 0:
+                        overlap_text = current_chunk[-chunk_overlap:] if len(current_chunk) > chunk_overlap else current_chunk
+                        current_chunk = overlap_text + " " + sentence
+                    else:
+                        current_chunk = sentence
                 else:
-                    current_chunk = sentence
-            else:
-                current_chunk += " " + sentence if current_chunk else sentence
+                    current_chunk += " " + sentence if current_chunk else sentence
+            
+            current_section = section_name
         
         # Add the last chunk
         if current_chunk.strip():
             chunks.append({
                 'content': current_chunk.strip(),
-                'page_number': current_page
+                'section': current_section,
+                'page_number': 1
             })
         
         # Filter out very short chunks
-        chunks = [chunk for chunk in chunks if len(chunk['content']) > 50]
+        chunks = [chunk for chunk in chunks if len(chunk['content']) > 30]
         
-        logger.info(f"Created {len(chunks)} chunks from document of length {len(content)}")
+        logger.info(f"Created {len(chunks)} CV chunks from document of length {len(content)}")
         return chunks
+    
+    def _detect_cv_sections(self, content: str) -> Dict[str, str]:
+        """Detect CV sections based on common patterns"""
+        sections = {}
+        
+        # Common CV section patterns
+        section_patterns = {
+            'Personal Info': r'(?i)(name|contact|email|phone|address|location)',
+            'Summary': r'(?i)(summary|profile|objective|about)',
+            'Experience': r'(?i)(experience|work history|employment|career)',
+            'Education': r'(?i)(education|academic|degree|university|college)',
+            'Skills': r'(?i)(skills|technical skills|competencies|technologies)',
+            'Projects': r'(?i)(projects|portfolio|work samples)',
+            'Certifications': r'(?i)(certifications|certificates|licenses)',
+            'Achievements': r'(?i)(achievements|awards|honors|recognition)'
+        }
+        
+        # Split content into lines
+        lines = content.split('\n')
+        current_section = 'General'
+        current_content = []
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check if line matches a section header
+            section_found = False
+            for section_name, pattern in section_patterns.items():
+                if re.search(pattern, line) and len(line) < 100:  # Likely a header
+                    # Save previous section
+                    if current_content:
+                        sections[current_section] = '\n'.join(current_content)
+                    
+                    # Start new section
+                    current_section = section_name
+                    current_content = [line]
+                    section_found = True
+                    break
+            
+            if not section_found:
+                current_content.append(line)
+        
+        # Save the last section
+        if current_content:
+            sections[current_section] = '\n'.join(current_content)
+        
+        return sections
     
     def _split_into_sentences(self, text: str) -> List[str]:
         """Split text into sentences using NLTK or fallback"""
@@ -165,7 +221,7 @@ class LegalDocumentProcessor:
     
     async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embeddings using sentence-transformers (same as website-rag demo)
+        Generate embeddings using sentence-transformers (same as other demos)
         
         Args:
             texts: List of text strings to embed
@@ -174,7 +230,7 @@ class LegalDocumentProcessor:
             List of embedding vectors
         """
         try:
-            # Use the same approach as website-rag demo
+            # Use the same approach as other demos
             from sentence_transformers import SentenceTransformer
             
             model_name = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
@@ -249,32 +305,58 @@ class LegalDocumentProcessor:
 
 # Example usage and testing
 if __name__ == "__main__":
-    async def test_legal_processor():
-        """Test the legal document processor with sample data"""
+    async def test_cv_processor():
+        """Test the CV document processor with sample data"""
         
         # Initialize processor
-        document_processor = LegalDocumentProcessor()
+        document_processor = CVDocumentProcessor()
         
-        # Test document processing
-        print("Testing legal document processing...")
+        # Test CV section detection
+        print("Testing CV section detection...")
+        sample_cv = """
+        John Doe
+        Software Engineer
+        john@email.com
+        (555) 123-4567
+        
+        SUMMARY
+        Experienced software engineer with 5 years of experience in web development.
+        
+        EXPERIENCE
+        Software Developer at Tech Corp (2020-2023)
+        - Built web applications using Python and JavaScript
+        - Led team of 3 developers
+        
+        EDUCATION
+        BS Computer Science, University of Tech (2018-2020)
+        
+        SKILLS
+        - Python, JavaScript, React, Node.js
+        - Database design and management
+        """
+        
+        sections = document_processor._detect_cv_sections(sample_cv)
+        print(f"Detected sections: {list(sections.keys())}")
         
         # Test chunking
-        print("Testing document chunking...")
+        print("Testing CV chunking...")
         sample_content = {
-            'content': 'This is a sample legal document with multiple sentences. It contains various clauses and terms. The document should be properly chunked for analysis.',
-            'title': 'Sample Contract',
+            'content': sample_cv,
+            'title': 'Sample CV',
             'pages': 1
         }
-        chunks = document_processor.chunk_document(sample_content)
+        chunks = document_processor.chunk_cv_document(sample_content)
         print(f"Created {len(chunks)} chunks")
+        for i, chunk in enumerate(chunks[:3]):  # Show first 3 chunks
+            print(f"Chunk {i+1} ({chunk['section']}): {chunk['content'][:100]}...")
         
         # Test embeddings
         print("Testing embeddings...")
-        texts = ["This is a test sentence", "Another test sentence"]
+        texts = ["Python developer", "React experience", "Team leadership"]
         embeddings = await document_processor.generate_embeddings(texts)
         print(f"Generated {len(embeddings)} embeddings")
         
-        print("Legal document processor test completed!")
+        print("CV document processor test completed!")
     
     # Run test
-    asyncio.run(test_legal_processor())
+    asyncio.run(test_cv_processor())

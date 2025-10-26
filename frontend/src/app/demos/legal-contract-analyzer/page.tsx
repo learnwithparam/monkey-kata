@@ -1,34 +1,22 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { 
   ScaleIcon,
   DocumentTextIcon,
   CheckBadgeIcon,
-  ExclamationCircleIcon,
   InformationCircleIcon,
   DocumentArrowUpIcon,
   ShieldExclamationIcon,
-  KeyIcon,
+  ChartBarIcon,
+  ClipboardDocumentListIcon,
+  LightBulbIcon,
 } from '@heroicons/react/24/outline';
-import { marked } from 'marked';
 import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
-import ChatInput from '@/components/demos/ChatInput';
 import AlertMessage from '@/components/demos/AlertMessage';
-
-interface Message {
-  id: string;
-  type: 'user' | 'assistant' | 'system';
-  content: string;
-  timestamp: Date;
-  sources?: Array<{
-    url: string;
-    content: string;
-  }>;
-  isTyping?: boolean;
-}
+import FileUpload from '@/components/demos/FileUpload';
 
 interface ProcessingStatus {
   document_id: string;
@@ -39,118 +27,48 @@ interface ProcessingStatus {
   error?: string;
 }
 
-interface RiskAnalysis {
-  risk_level: 'low' | 'medium' | 'high' | 'critical';
-  category: string;
-  description: string;
-  clause: string;
-  recommendation: string;
-}
-
-interface KeyTerm {
-  term: string;
-  definition: string;
-  importance: 'low' | 'medium' | 'high';
-  clause: string;
+interface LegalInsights {
+  executive_summary: string;
+  risk_overview: {
+    total_risks: number;
+    high_risk_count: number;
+    medium_risk_count: number;
+    low_risk_count: number;
+    critical_areas: string[];
+  };
+  compliance_score: number;
+  key_insights: string[];
+  action_items: string[];
+  recommendations: string[];
 }
 
 export default function LegalContractAnalyzerDemo() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [question, setQuestion] = useState('');
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isAsking, setIsAsking] = useState(false);
+  const [insights, setInsights] = useState<LegalInsights | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus | null>(null);
-  const [currentAnswer, setCurrentAnswer] = useState('');
-  const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
-  const [riskAnalysis, setRiskAnalysis] = useState<RiskAnalysis[]>([]);
-  const [keyTerms, setKeyTerms] = useState<KeyTerm[]>([]);
-  
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const questionInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  const toggleSource = (messageId: string) => {
-    setExpandedSources(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(messageId)) {
-        newSet.delete(messageId);
-      } else {
-        newSet.add(messageId);
-      }
-      return newSet;
-    });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, currentAnswer]);
-
-  const addMessage = (message: Omit<Message, 'id' | 'timestamp'> & { id?: string }) => {
-    const newMessage: Message = {
-      ...message,
-      id: message.id || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date(),
-    };
-    setMessages(prev => [...prev, newMessage]);
-  };
-
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // Check file type
-      const allowedTypes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'text/plain'
-      ];
-      
-      if (!allowedTypes.includes(file.type)) {
-        alert('Please select a PDF, Word document, or text file');
-        return;
-      }
-      
-      // Check file size (10MB limit)
-      if (file.size > 10 * 1024 * 1024) {
-        alert('File size must be less than 10MB');
-        return;
-      }
-      
-      setSelectedFile(file);
-    }
-  };
 
   const processDocument = async () => {
     if (!selectedFile) {
-      alert('Please select a document to analyze');
+      alert('Please select a file first');
       return;
     }
 
     setIsProcessing(true);
-    addMessage({
-      type: 'system',
-      content: `Starting to process document: ${selectedFile.name}`,
-    });
+    setAnalysisError(null);
+    setInsights(null);
 
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
-      formData.append('chunk_size', '500');
-      formData.append('chunk_overlap', '50');
 
-      console.log('Sending document to process:', selectedFile.name);
-      
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/legal-contract-analyzer/upload-document`, {
         method: 'POST',
         body: formData,
       });
-
-      console.log('Upload response:', response.status, response.ok);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -159,282 +77,100 @@ export default function LegalContractAnalyzerDemo() {
       }
 
       const result = await response.json();
-      console.log('Upload result:', result);
+      setProcessingStatus(result);
       
-      // Start polling for status
+      // Start polling for status updates
       pollProcessingStatus(result.document_id);
-      
     } catch (error) {
       console.error('Error processing document:', error);
-      addMessage({
-        type: 'system',
-        content: `Error processing document: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
+      setAnalysisError('Failed to process document. Please try again.');
       setIsProcessing(false);
     }
   };
 
   const pollProcessingStatus = async (documentId: string) => {
-    console.log('Starting to poll status for:', documentId);
     const pollInterval = setInterval(async () => {
       try {
-        console.log('Polling status for:', documentId);
         const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/legal-contract-analyzer/status/${documentId}`);
-        console.log('Status response:', response.status, response.ok);
+        const status = await response.json();
         
-        if (response.ok) {
-          const status: ProcessingStatus = await response.json();
-          console.log('Status data:', status);
-          setProcessingStatus(status);
-          
-          if (status.status === 'completed') {
-            console.log('Processing completed!');
-            addMessage({
-              type: 'system',
-              content: `Successfully processed document! Found ${status.pages_count} pages. I'm now ready to analyze risks and key terms.`,
-            });
-            
-            // Get comprehensive agentic analysis
-            await fetchAgenticAnalysis(documentId);
-            
-            setIsProcessing(false);
-            clearInterval(pollInterval);
-          } else if (status.status === 'error') {
-            console.log('Processing error:', status.error);
-            addMessage({
-              type: 'system',
-              content: `❌ Error processing document: ${status.error || 'Unknown error'}`,
-            });
-            setIsProcessing(false);
-            clearInterval(pollInterval);
-          } else {
-            console.log('Still processing, status:', status.status, 'progress:', status.progress);
-          }
-        } else {
-          console.error('Status response not ok:', response.status);
+        setProcessingStatus(status);
+        
+        if (status.status === 'completed') {
+          clearInterval(pollInterval);
+          setIsProcessing(false);
+          // Automatically run analysis when processing is complete
+          runComprehensiveAnalysis(status);
+        } else if (status.status === 'error') {
+          clearInterval(pollInterval);
+          setIsProcessing(false);
+          setAnalysisError(status.error || 'Processing failed');
         }
       } catch (error) {
         console.error('Error polling status:', error);
         clearInterval(pollInterval);
         setIsProcessing(false);
+        setAnalysisError('Failed to check processing status');
       }
-    }, 1000);
-
-    // Clear interval after 2 minutes
-    setTimeout(() => {
-      clearInterval(pollInterval);
-      if (isProcessing) {
-        setIsProcessing(false);
-        addMessage({
-          type: 'system',
-          content: '⏰ Processing timeout. Please try again.',
-        });
-      }
-    }, 120000);
+    }, 2000);
   };
 
-  const fetchAgenticAnalysis = async (documentId: string) => {
-    try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/legal-contract-analyzer/agentic-analysis/${documentId}`);
-      if (response.ok) {
-        const analysis = await response.json();
-        
-        // Check if it's a legal document
-        if (!analysis.is_legal_document) {
-          addMessage({
-            type: 'system',
-            content: '⚠️ This document does not appear to be a legal document. Please upload a contract, agreement, or other legal document for analysis.',
-          });
-          return;
-        }
-        
-        // Set the analysis results
-        setRiskAnalysis(analysis.risk_analysis || []);
-        setKeyTerms(analysis.key_terms || []);
-        
-        // Add the comprehensive report as a system message
-        if (analysis.final_report) {
-          addMessage({
-            type: 'system',
-            content: `📋 **Comprehensive Legal Analysis Report**\n\n${analysis.final_report}`,
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching agentic analysis:', error);
-    }
-  };
-
-  const askQuestion = async () => {
-    if (!question.trim() || !processingStatus) {
-      alert('Please enter a question and make sure a document is processed');
+  const runComprehensiveAnalysis = async (status?: ProcessingStatus) => {
+    const currentStatus = status || processingStatus;
+    
+    if (!currentStatus || currentStatus.status !== 'completed') {
+      setAnalysisError('Please wait for the document to finish processing');
       return;
     }
 
-    if (!processingStatus || processingStatus.status !== 'completed') {
-      alert('Please wait for the document to finish processing');
-      return;
-    }
-
-    // Store the question and clear input immediately
-    const userQuestion = question;
-    setQuestion(''); // Clear input immediately
-    setIsAsking(true);
-    setCurrentAnswer('');
-
-    // Add user message
-    addMessage({
-      type: 'user',
-      content: userQuestion,
-    });
-
-    // Add typing indicator with unique ID
-    const typingMessageId = `typing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    addMessage({
-      id: typingMessageId,
-      type: 'assistant',
-      content: '',
-      isTyping: true,
-    });
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    setInsights(null);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/legal-contract-analyzer/ask/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: question,
-          document_id: processingStatus.document_id,
-          max_chunks: 3,
-        }),
-      });
-
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/legal-contract-analyzer/agentic-analysis/${currentStatus.document_id}`);
+      
       if (!response.ok) {
-        throw new Error('Failed to ask question');
+        throw new Error('Failed to analyze document');
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
+      const analysis = await response.json();
+      
+      // Check if it's not a legal document
+      if (analysis.error && analysis.error.includes('not a legal document')) {
+        setAnalysisError('This document does not appear to be a legal document. Please upload a contract, agreement, or other legal document for analysis.');
+        return;
       }
 
-      const decoder = new TextDecoder();
-      let done = false;
-      let finalAnswer = '';
-      let finalSources: Array<{url: string; content: string}> = [];
-
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        const chunk = decoder.decode(value);
-        
-        // Parse SSE data
-        const lines = chunk.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              console.log('Received streaming data:', data);
-              
-              if (data.error) {
-                console.error('Streaming error:', data.error);
-                addMessage({
-                  type: 'system',
-                  content: `❌ Error: ${data.error}`,
-                });
-                setIsAsking(false);
-                return;
-              }
-
-              if (data.sources) {
-                console.log('Received sources:', data.sources);
-                finalSources = data.sources;
-              }
-              
-              if (data.content) {
-                console.log('Received content chunk:', data.content);
-                finalAnswer += data.content;
-                setCurrentAnswer(prev => prev + data.content);
-                
-                // Update the typing message with content
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
-                  if (typingMessage) {
-                    typingMessage.content = finalAnswer;
-                    typingMessage.isTyping = false;
-                  }
-                  return newMessages;
-                });
-              }
-              
-              if (data.done) {
-                console.log('Streaming completed. Final answer:', finalAnswer);
-                // Update the typing message with final answer and sources
-                setMessages(prev => {
-                  const newMessages = [...prev];
-                  const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
-                  if (typingMessage) {
-                    typingMessage.content = finalAnswer;
-                    typingMessage.sources = finalSources;
-                    typingMessage.isTyping = false;
-                  }
-                  return newMessages;
-                });
-                setCurrentAnswer('');
-                setIsAsking(false);
-                questionInputRef.current?.focus();
-              }
-            } catch (e) {
-              console.error('Error parsing streaming data:', e, 'Line:', line);
-              // Ignore parsing errors for incomplete chunks
-            }
-          }
-        }
-      }
+      setInsights(analysis);
     } catch (error) {
-      console.error('Error asking question:', error);
-      
-      // Remove the typing indicator if there's an error
-      setMessages(prev => {
-        return prev.filter(msg => msg.id !== typingMessageId);
-      });
-      
-      addMessage({
-        type: 'system',
-        content: `Error asking question: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
-      setIsAsking(false);
+      console.error('Analysis error:', error);
+      setAnalysisError('Failed to analyze document. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (isAsking || !question.trim()) return;
-      askQuestion();
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setAnalysisError(null);
+      setInsights(null);
+      setProcessingStatus(null);
     }
   };
 
-  const getRiskColor = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'critical': return 'text-red-600 bg-red-100';
-      case 'high': return 'text-red-600 bg-red-100';
-      case 'medium': return 'text-yellow-600 bg-yellow-100';
-      case 'low': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
+  const getComplianceColor = (score: number) => {
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-yellow-600';
+    return 'text-red-600';
   };
 
-  const getImportanceColor = (importance: string) => {
-    switch (importance) {
-      case 'high': return 'text-red-600 bg-red-100';
-      case 'medium': return 'text-yellow-600 bg-yellow-100';
-      case 'low': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
-    }
+  const getComplianceBgColor = (score: number) => {
+    if (score >= 80) return 'bg-green-100';
+    if (score >= 60) return 'bg-yellow-100';
+    return 'bg-red-100';
   };
 
   return (
@@ -449,7 +185,7 @@ export default function LegalContractAnalyzerDemo() {
             Legal Contract Analyzer
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
-            Upload legal documents and instantly identify potential risks, key terms, and get AI-powered analysis of complex legal language.
+            Upload any legal document and get comprehensive AI-powered analysis with risk assessment, compliance scoring, and actionable insights.
           </p>
           <Link
             href="/challenges/legal-contract-analyzer"
@@ -459,374 +195,240 @@ export default function LegalContractAnalyzerDemo() {
           </Link>
         </div>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Left Column - Document Upload */}
-          <div className="space-y-6">
-            <div className="card p-6 lg:p-8">
-              <div className="flex items-center mb-8">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                  <DocumentArrowUpIcon className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Upload Legal Document</h2>
-                  <p className="text-sm text-gray-600">PDF, Word, or text files supported</p>
-                </div>
+        {/* Main Content - Single Column */}
+        <div className="max-w-4xl mx-auto space-y-8">
+          {/* Document Upload Section */}
+          <div className="card p-6 lg:p-8">
+            <div className="flex items-center mb-6 sm:mb-8">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
+                <DocumentArrowUpIcon className="w-5 h-5 text-blue-600" />
               </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label htmlFor="file" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Legal Document *
-                  </label>
-                  
-                  {/* Drag and Drop Area */}
-                  <div 
-                    className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                      selectedFile 
-                        ? 'border-gray-300 bg-gray-50' 
-                        : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
-                    }`}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.add('border-blue-400', 'bg-blue-50');
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50');
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50');
-                      const files = e.dataTransfer.files;
-                      if (files.length > 0) {
-                        handleFileSelect({ target: { files } } as React.ChangeEvent<HTMLInputElement>);
-                      }
-                    }}
-                  >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      id="file"
-                      accept=".pdf,.doc,.docx,.txt"
-                      onChange={handleFileSelect}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      disabled={isProcessing}
-                    />
-                    
-                    <div className="space-y-2">
-                      <DocumentArrowUpIcon className="w-8 h-8 text-gray-400 mx-auto" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          Drop your legal document here
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          or click to browse files
-                        </p>
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        Supports PDF, Word, and text files (max 10MB)
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Selected File Display */}
-                {selectedFile && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <DocumentTextIcon className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedFile(null)}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 hover:border-red-300 transition-all duration-200"
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <ProcessingButton
-                  isLoading={isProcessing}
-                  onClick={processDocument}
-                  disabled={!selectedFile}
-                >
-                  <span className="flex items-center justify-center">
-                    Analyze Document
-                  </span>
-                </ProcessingButton>
-
-                {/* Processing Status */}
-                {processingStatus && (
-                  <StatusIndicator
-                    status={processingStatus.status}
-                    message={processingStatus.message}
-                    progress={processingStatus.progress}
-                    documentsCount={processingStatus.pages_count}
-                  />
-                )}
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Upload Legal Document</h2>
+                <p className="text-sm text-gray-600">Upload PDF, Word, or text files for comprehensive analysis</p>
               </div>
             </div>
 
-            {/* Risk Analysis */}
-            {riskAnalysis.length > 0 && (
-              <div className="card p-6 lg:p-8">
-                <div className="flex items-center mb-6">
-                  <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-4">
-                    <ShieldExclamationIcon className="w-5 h-5 text-red-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Risk Analysis</h2>
-                    <p className="text-sm text-gray-600">Potential risks identified in the document</p>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  {riskAnalysis.map((risk, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(risk.risk_level)}`}>
-                          {risk.risk_level.toUpperCase()}
-                        </span>
-                        <span className="text-sm text-gray-500">{risk.category}</span>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 mb-2">{risk.description}</h3>
-                      <p className="text-sm text-gray-600 mb-2">{risk.clause}</p>
-                      <p className="text-sm text-blue-600 font-medium">{risk.recommendation}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="space-y-4 sm:space-y-6">
+              <FileUpload
+                selectedFile={selectedFile}
+                onFileSelect={handleFileSelect}
+                onFileRemove={() => {
+                  setSelectedFile(null);
+                  setAnalysisError(null);
+                  setInsights(null);
+                  setProcessingStatus(null);
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                  }
+                }}
+                disabled={isProcessing}
+                placeholder="Drop your legal document here"
+                description="Supports PDF, Word, and text files (max 10MB)"
+              />
 
-            {/* Key Terms */}
-            {keyTerms.length > 0 && (
-              <div className="card p-6 lg:p-8">
-                <div className="flex items-center mb-6">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
-                    <KeyIcon className="w-5 h-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Key Terms</h2>
-                    <p className="text-sm text-gray-600">Important legal terms and definitions</p>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  {keyTerms.map((term, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-semibold text-gray-900">{term.term}</h3>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getImportanceColor(term.importance)}`}>
-                          {term.importance.toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 mb-2">{term.definition}</p>
-                      <p className="text-xs text-gray-500">{term.clause}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+              <ProcessingButton
+                isLoading={isProcessing}
+                onClick={processDocument}
+                disabled={!selectedFile}
+              >
+                <span className="flex items-center justify-center">
+                  Process Document
+                </span>
+              </ProcessingButton>
+
+              {/* Processing Status */}
+              {processingStatus && (
+                <StatusIndicator
+                  status={processingStatus.status}
+                  message={processingStatus.message}
+                  progress={processingStatus.progress}
+                  documentsCount={processingStatus.pages_count}
+                />
+              )}
+            </div>
           </div>
 
-          {/* Right Column - Chat */}
-          <div className="space-y-6">
-            <div className="card p-6 lg:p-8 min-h-[600px]">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                    <DocumentTextIcon className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">Ask About Your Document</h2>
-                    <p className="text-sm text-gray-500">Get AI-powered analysis of your legal document</p>
-                  </div>
+          {/* Analysis Results Section */}
+          <div className="card p-6 lg:p-8">
+            <div className="flex items-center justify-between mb-6 sm:mb-8">
+              <div className="flex items-center">
+                <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-4">
+                  <ChartBarIcon className="w-5 h-5 text-green-600" />
                 </div>
-                {processingStatus && processingStatus.status === 'completed' && (
-                  <div className="flex items-center space-x-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    <span>Ready</span>
-                  </div>
-                )}
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Analysis Results</h2>
+                  <p className="text-sm text-gray-500">Comprehensive legal document insights</p>
+                </div>
               </div>
+              {insights && (
+                <div className="flex items-center space-x-2 bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-medium">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span>Analysis Complete</span>
+                </div>
+              )}
+            </div>
 
-              {messages.length === 0 && !currentAnswer && (
-                <div className="text-center text-gray-500 py-12">
-                  <DocumentTextIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                  <p className="text-lg font-medium">Welcome to Legal Contract Analyzer!</p>
-                  <p className="text-sm">Upload a legal document above and I&apos;ll analyze it for risks, key terms, and answer your questions.</p>
+            {/* Analysis Content */}
+            <div className="space-y-6">
+              {analysisError && (
+                <AlertMessage type="error" message={analysisError} />
+              )}
+
+              {isAnalyzing && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Running comprehensive legal analysis...</p>
+                  </div>
                 </div>
               )}
 
-              <div className="space-y-6 max-h-96 overflow-y-auto pr-2">
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} group`}
-                  >
-                    <div className={`flex items-start space-x-3 max-w-[85%] ${message.type === 'user' ? 'flex-row-reverse space-x-reverse' : ''}`}>
-                      {/* Avatar */}
-                      <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                        message.type === 'user' 
-                          ? 'bg-blue-100' 
-                          : message.type === 'assistant'
-                          ? 'bg-green-100'
-                          : 'bg-amber-100'
-                      }`}>
-                        {message.type === 'user' ? (
-                          <span className="text-blue-600 text-sm font-semibold">U</span>
-                        ) : message.type === 'assistant' ? (
-                          <span className="text-green-600 text-sm font-semibold">AI</span>
-                        ) : (
-                          <InformationCircleIcon className="w-4 h-4 text-amber-600" />
-                        )}
-                      </div>
+                {insights && (
+                  <div className="space-y-6">
+                    {/* Executive Summary */}
+                    <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
+                        <InformationCircleIcon className="w-5 h-5 text-blue-600 mr-2" />
+                        Executive Summary
+                      </h3>
+                      <p className="text-gray-700 leading-relaxed">{insights.executive_summary || 'No summary available'}</p>
+                    </div>
 
-                      {/* Message Bubble */}
-                      <div className={`relative ${
-                        message.type === 'user' ? 'ml-2' : 'mr-2'
-                      }`}>
-                        <div
-                          className={`px-4 py-3 rounded-lg shadow-sm ${
-                        message.type === 'user'
-                              ? 'bg-blue-600 text-white rounded-br-md'
-                              : message.type === 'assistant'
-                              ? 'bg-white text-gray-900 border border-gray-200 rounded-bl-md'
-                              : 'bg-amber-50 text-amber-800 border border-amber-200 rounded-bl-md'
-                          }`}
-                        >
-                          {message.isTyping ? (
-                            <div className="flex items-center space-x-3">
-                              <div className="flex space-x-1">
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                    {/* Risk Overview & Compliance Score */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                      {/* Risk Overview */}
+                      <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
+                          <ShieldExclamationIcon className="w-5 h-5 text-red-600 mr-2" />
+                          Risk Overview
+                        </h3>
+                        <div className="space-y-2 sm:space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Total Risks</span>
+                            <span className="font-semibold text-gray-900">{insights.risk_overview?.total_risks || 0}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-red-600">High Risk</span>
+                            <span className="font-semibold text-red-600">{insights.risk_overview?.high_risk_count || 0}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-yellow-600">Medium Risk</span>
+                            <span className="font-semibold text-yellow-600">{insights.risk_overview?.medium_risk_count || 0}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-green-600">Low Risk</span>
+                            <span className="font-semibold text-green-600">{insights.risk_overview?.low_risk_count || 0}</span>
+                          </div>
+                          {insights.risk_overview?.critical_areas && insights.risk_overview.critical_areas.length > 0 && (
+                            <div className="mt-3 sm:mt-4">
+                              <p className="text-sm font-medium text-gray-700 mb-2">Critical Areas:</p>
+                              <div className="flex flex-wrap gap-1 sm:gap-2">
+                                {insights.risk_overview.critical_areas.map((area, index) => (
+                                  <span key={index} className="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
+                                    {area}
+                                  </span>
+                                ))}
                               </div>
-                              <span className="text-sm text-gray-500">AI is analyzing...</span>
-                          </div>
-                          ) : (
-                            <>
-                              {message.type === 'system' && (
-                                <div className="flex items-start space-x-2 mb-3">
-                                  {message.content.includes('Successfully') || message.content.includes('completed') ? (
-                                    <CheckBadgeIcon className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-                                  ) : message.content.includes('Error') || message.content.includes('Failed') || message.content.includes('⚠️') ? (
-                                    <ExclamationCircleIcon className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-                                  ) : (
-                                    <InformationCircleIcon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                                  )}
-                          </div>
-                        )}
-                              
-                              <div className="prose prose-sm max-w-none">
-                                <div
-                                  className={`leading-relaxed [&>p]:mb-3 [&>p:last-child]:mb-0 [&>ul]:list-disc [&>ul]:list-inside [&>ul]:mb-3 [&>ul]:space-y-2 [&>ol]:list-decimal [&>ol]:list-inside [&>ol]:mb-3 [&>ol]:space-y-2 [&>li]:text-gray-700 [&>strong]:font-semibold [&>strong]:text-gray-900 [&>em]:italic [&>em]:text-gray-800 [&>code]:bg-gray-100 [&>code]:px-2 [&>code]:py-1 [&>code]:rounded-md [&>code]:text-sm [&>code]:font-mono [&>pre]:bg-gray-100 [&>pre]:p-3 [&>pre]:rounded-lg [&>pre]:text-sm [&>pre]:font-mono [&>pre]:overflow-x-auto [&>h1]:text-lg [&>h1]:font-bold [&>h1]:text-gray-900 [&>h1]:mb-3 [&>h2]:text-base [&>h2]:font-bold [&>h2]:text-gray-900 [&>h2]:mb-3 [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mb-2 [&>blockquote]:border-l-4 [&>blockquote]:border-gray-300 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-gray-600 [&>blockquote]:mb-3 ${
-                                    message.type === 'user' 
-                                      ? 'text-white [&>strong]:text-white [&>em]:text-blue-100 [&>li]:text-blue-100 [&>h1]:text-white [&>h2]:text-white [&>h3]:text-white [&>blockquote]:text-blue-100 [&>code]:bg-blue-700 [&>code]:text-blue-100 [&>pre]:bg-blue-700 [&>pre]:text-blue-100'
-                                      : 'text-gray-800'
-                                  }`}
-                                  dangerouslySetInnerHTML={{
-                                    __html: marked(message.content, { breaks: true, gfm: true }) as string
-                                  }}
-                                />
-                          </div>
-                          
-                          {message.sources && message.sources.length > 0 && (
-                                <div className="mt-4 pt-3 border-t border-gray-200">
-                                  <button
-                                    onClick={() => toggleSource(message.id)}
-                                    className="flex items-center text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors group/source"
-                                  >
-                                    <span className="mr-2 transition-transform group-hover/source:scale-110">
-                                      {expandedSources.has(message.id) ? '▼' : '▶'}
-                                    </span>
-                                    <span className="bg-gray-100 px-2 py-1 rounded-full">
-                                      {message.sources.length} source{message.sources.length !== 1 ? 's' : ''}
-                                    </span>
-                                  </button>
-                                  {expandedSources.has(message.id) && (
-                                    <div className="mt-3 space-y-3 animate-in slide-in-from-top-2 duration-200">
-                                      {message.sources.map((source, index) => (
-                                        <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-3 hover:bg-gray-100 transition-colors">
-                                          <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Source {index + 1}</span>
-                                            <span className="text-xs text-gray-400">{source.url}</span>
-                                          </div>
-                                          <div className="text-sm text-gray-700 leading-relaxed">{source.content}</div>
-                                </div>
-                              ))}
                             </div>
-                                  )}
-                                </div>
-                              )}
-                            </>
                           )}
                         </div>
-                        
-                        {/* Timestamp */}
-                        <div className={`text-xs text-gray-400 mt-1 ${message.type === 'user' ? 'text-right' : 'text-left'}`}>
-                          {message.timestamp.toLocaleTimeString()}
+                      </div>
+
+                      {/* Compliance Score */}
+                      <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
+                          <CheckBadgeIcon className="w-5 h-5 text-green-600 mr-2" />
+                          Compliance Score
+                        </h3>
+                        <div className="text-center">
+                          <div className={`inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full ${getComplianceBgColor(insights.compliance_score || 0)} mb-3 sm:mb-4`}>
+                            <span className={`text-xl sm:text-2xl font-bold ${getComplianceColor(insights.compliance_score || 0)}`}>
+                              {insights.compliance_score || 0}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600">out of 100</p>
                         </div>
                       </div>
                     </div>
+
+                    {/* Key Insights */}
+                    <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
+                        <LightBulbIcon className="w-5 h-5 text-yellow-600 mr-2" />
+                        Key Insights
+                      </h3>
+                      <ul className="space-y-2 sm:space-y-3">
+                        {(insights.key_insights || []).map((insight, index) => (
+                          <li key={index} className="flex items-start">
+                            <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                            <span className="text-gray-700 text-sm sm:text-base">{insight}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Action Items */}
+                    <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
+                        <ClipboardDocumentListIcon className="w-5 h-5 text-orange-600 mr-2" />
+                        Action Items
+                      </h3>
+                      <ul className="space-y-2 sm:space-y-3">
+                        {(insights.action_items || []).map((item, index) => (
+                          <li key={index} className="flex items-start">
+                            <div className="w-2 h-2 bg-orange-600 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                            <span className="text-gray-700 text-sm sm:text-base">{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Recommendations */}
+                    <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4 flex items-center">
+                        <ChartBarIcon className="w-5 h-5 text-green-600 mr-2" />
+                        Recommendations
+                      </h3>
+                      <ul className="space-y-2 sm:space-y-3">
+                        {(insights.recommendations || []).map((recommendation, index) => (
+                          <li key={index} className="flex items-start">
+                            <div className="w-2 h-2 bg-green-600 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                            <span className="text-gray-700 text-sm sm:text-base">{recommendation}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
-                ))}
+                )}
 
-              <div ref={messagesEndRef} />
-            </div>
-
-          {/* Question Input */}
-              <div className="border-t border-gray-100 pt-6">
-                <div className="space-y-4">
-                  <ChatInput
-                    value={question}
-                    onChange={setQuestion}
-                    onSend={askQuestion}
-                    onKeyPress={handleKeyPress}
-                    disabled={isAsking || !processingStatus || processingStatus.status !== 'completed'}
-                    isLoading={isAsking}
-                    placeholder="Ask me about risks, terms, or any legal questions..."
-                  />
-                  
-                  {(!processingStatus || processingStatus.status !== 'completed') && (
-                    <AlertMessage
-                      type="warning"
-                      message="Please upload and process a document first before asking questions."
-                    />
-                  )}
-                  
-                  {isAsking && (
-                    <AlertMessage
-                      type="info"
-                      message="AI is analyzing your document and will respond shortly..."
-                    />
-                  )}
+              {!insights && !isAnalyzing && !analysisError && processingStatus?.status === 'completed' && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <ScaleIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready for Analysis</h3>
+                    <p className="text-gray-600 mb-4">Your document has been processed successfully.</p>
+                    <button
+                      onClick={() => runComprehensiveAnalysis()}
+                      className="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Run Comprehensive Analysis
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {!insights && !isAnalyzing && !analysisError && !processingStatus && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <DocumentTextIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Upload a Document</h3>
+                    <p className="text-gray-600">Upload a legal document to get started with comprehensive analysis.</p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-8 text-center text-sm text-gray-500">
-          <p>
-            This AI analyzer can identify potential risks, extract key terms, and answer questions about your legal documents.
-            <br />
-            Try asking questions like &quot;What are the main risks in this contract?&quot; or &quot;Explain the termination clause&quot;
-          </p>
         </div>
       </div>
     </div>

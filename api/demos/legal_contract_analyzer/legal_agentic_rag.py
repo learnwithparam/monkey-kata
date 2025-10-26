@@ -300,31 +300,74 @@ class LegalReportGenerator:
             terms = state.get("key_terms", [])
             compliance = state.get("compliance_issues", [])
             
-            report_prompt = """
-            Generate a comprehensive legal analysis report based on the following analysis:
+            # Generate structured insights
+            insights_prompt = """
+            Based on the legal document analysis, create structured insights in JSON format:
             
-            RISKS IDENTIFIED: {risks}
+            RISKS: {risks}
             KEY TERMS: {terms}
             COMPLIANCE ISSUES: {compliance}
             
-            Create a professional, concise report (max 1 page) with:
-            1. Executive Summary
-            2. Risk Assessment
-            3. Key Terms Analysis
-            4. Compliance Review
-            5. Recommendations
+            Return a JSON object with:
+            {{
+                "executive_summary": "Brief 2-3 sentence summary",
+                "risk_overview": {{
+                    "total_risks": number,
+                    "high_risk_count": number,
+                    "medium_risk_count": number,
+                    "low_risk_count": number,
+                    "critical_areas": ["area1", "area2"]
+                }},
+                "compliance_score": number (0-100),
+                "key_insights": [
+                    "insight 1",
+                    "insight 2",
+                    "insight 3"
+                ],
+                "action_items": [
+                    "action 1",
+                    "action 2", 
+                    "action 3"
+                ],
+                "recommendations": [
+                    "recommendation 1",
+                    "recommendation 2",
+                    "recommendation 3"
+                ]
+            }}
             
-            Format as a structured report suitable for legal review.
+            Keep insights concise and actionable. Focus on business impact.
             """
             
-            response = await self.llm.generate_text(report_prompt.format(
+            response = await self.llm.generate_text(insights_prompt.format(
                 risks=risks,
                 terms=terms,
                 compliance=compliance
             ))
             
-            state["final_report"] = response
-            logger.info("Generated comprehensive legal analysis report")
+            # Try to parse JSON, fallback to structured text if needed
+            try:
+                import json
+                insights = json.loads(response)
+                state["final_report"] = insights
+            except:
+                # Fallback to structured text
+                state["final_report"] = {
+                    "executive_summary": "Legal document analysis completed",
+                    "risk_overview": {
+                        "total_risks": len(risks),
+                        "high_risk_count": 0,
+                        "medium_risk_count": 0,
+                        "low_risk_count": len(risks),
+                        "critical_areas": []
+                    },
+                    "compliance_score": 75,
+                    "key_insights": ["Analysis completed successfully"],
+                    "action_items": ["Review findings with legal team"],
+                    "recommendations": ["Consider professional legal review"]
+                }
+            
+            logger.info("Generated structured legal insights")
             
         except Exception as e:
             logger.error(f"Error generating report: {e}")

@@ -15,6 +15,7 @@ import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import ChatInput from '@/components/demos/ChatInput';
 import AlertMessage from '@/components/demos/AlertMessage';
+import FileUpload from '@/components/demos/FileUpload';
 
 interface Message {
   id: string;
@@ -58,7 +59,6 @@ export default function LegalContractAnalyzerDemo() {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const questionInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -437,90 +437,14 @@ export default function LegalContractAnalyzerDemo() {
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <label htmlFor="file" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Document *
-                  </label>
-                  
-                  {/* Drag and Drop Area */}
-                  <div 
-                    className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                      selectedFile 
-                        ? 'border-gray-300 bg-gray-50' 
-                        : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
-                    }`}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.add('border-blue-400', 'bg-blue-50');
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50');
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50');
-                      const files = e.dataTransfer.files;
-                      if (files.length > 0) {
-                        handleFileSelect({ target: { files } } as React.ChangeEvent<HTMLInputElement>);
-                      }
-                    }}
-                  >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      id="file"
-                      accept=".pdf,.doc,.docx,.txt"
-                      onChange={handleFileSelect}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      disabled={isProcessing}
-                    />
-                    
-                    <div className="space-y-2">
-                      <DocumentArrowUpIcon className="w-8 h-8 text-gray-400 mx-auto" />
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">
-                          Drop your document here
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          or click to browse files
-                        </p>
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        Supports PDF, Word, and text files (max 10MB)
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Selected File Display */}
-                {selectedFile && (
-                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                          <DocumentTextIcon className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{selectedFile.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedFile(null)}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 hover:border-red-300 transition-all duration-200"
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                )}
+                <FileUpload
+                  selectedFile={selectedFile}
+                  onFileSelect={handleFileSelect}
+                  onFileRemove={() => setSelectedFile(null)}
+                  disabled={isProcessing}
+                  placeholder="Drop your document here"
+                  description="Supports PDF, Word, and text files (max 10MB)"
+                />
 
                 <ProcessingButton
                   isLoading={isProcessing}

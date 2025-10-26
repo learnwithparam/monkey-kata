@@ -18,7 +18,8 @@ import {
   BeakerIcon,
   TruckIcon,
   PhoneIcon,
-  EyeIcon
+  EyeIcon,
+  BriefcaseIcon
 } from '@heroicons/react/24/outline';
 
 export interface Demo {
@@ -70,6 +71,13 @@ export const weeksData: WeekData[] = [
         description: "Instantly identify potential risks and key terms in legal documents",
         demoHref: "/demos/legal-contract-analyzer",
         challengeHref: "/challenges/legal-contract-analyzer"
+      },
+      {
+        icon: <BriefcaseIcon className="w-8 h-8 text-indigo-600 mr-4" />,
+        title: "CV Analyzer & Improvement Suggester",
+        description: "AI-powered CV analysis with personalized improvement suggestions to land your dream job",
+        demoHref: "/demos/cv-analyzer",
+        challengeHref: "/challenges/cv-analyzer"
       }
     ]
   },

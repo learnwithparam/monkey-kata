@@ -7,3 +7,4 @@ export { default as SubmitButton } from './SubmitButton';
 export { default as MessageBubble } from './MessageBubble';
 export { default as LoadingSpinner } from './LoadingSpinner';
 export { default as ErrorMessage } from './ErrorMessage';
+export { default as FileUpload } from './FileUpload';
