@@ -17,8 +17,7 @@
     "next": "15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-markdown": "^9.1.0",
-    "remark-gfm": "^4.0.1"
+    "react-markdown": "^9.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

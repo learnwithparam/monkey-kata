@@ -1,52 +1,40 @@
-import { marked } from 'marked';
-import { useEffect, useRef } from 'react';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { processMarkdown } from '@/lib/markdown';
+import MermaidRenderer from './MermaidRenderer';
+import ImageZoomHandler from './ImageZoomHandler';
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
 }
 
-// Extend window interface for mermaid
-declare global {
-  interface Window {
-    mermaid?: {
-      init: (config?: unknown, elements?: NodeListOf<Element>) => void;
-    };
-  }
-}
-
 export default function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
-  const contentRef = useRef<HTMLDivElement>(null);
+  const [processedContent, setProcessedContent] = useState<string>('');
 
   useEffect(() => {
-    if (contentRef.current) {
-      // Render markdown
-      const html = marked(content) as string;
-      contentRef.current.innerHTML = html;
-
-      // Handle mermaid diagrams
-      const mermaidElements = contentRef.current.querySelectorAll('pre code.language-mermaid');
-      mermaidElements.forEach((element) => {
-        const mermaidCode = element.textContent;
-        if (mermaidCode) {
-          const mermaidDiv = document.createElement('div');
-          mermaidDiv.className = 'mermaid';
-          mermaidDiv.textContent = mermaidCode;
-          element.parentElement?.replaceWith(mermaidDiv);
-        }
-      });
-
-      // Render mermaid diagrams
-      if (window.mermaid) {
-        window.mermaid.init(undefined, contentRef.current.querySelectorAll('.mermaid'));
+    const processContent = async () => {
+      try {
+        const html = await processMarkdown(content);
+        setProcessedContent(html);
+      } catch (error) {
+        console.error('Error processing markdown:', error);
+        setProcessedContent(content); // Fallback to raw content
       }
-    }
+    };
+
+    processContent();
   }, [content]);
 
   return (
-    <div 
-      ref={contentRef}
-      className={`prose prose-lg max-w-none ${className}`}
-    />
+    <div className={`prose prose-lg sm:prose-xl max-w-none ${className}`}>
+      <div
+        className="challenge-content blog-content"
+        dangerouslySetInnerHTML={{ __html: processedContent }}
+      />
+      {processedContent && <MermaidRenderer />}
+      <ImageZoomHandler />
+    </div>
   );
 }

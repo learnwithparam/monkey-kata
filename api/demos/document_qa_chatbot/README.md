@@ -2,17 +2,18 @@
 
 Learn document processing and AI-powered Q&A by building a system that analyzes any document type for insights and answers questions intelligently.
 
-## 🎯 Learning Objectives
+## Learning Objectives
 
-Master the fundamentals of **Document Analysis & Q&A** through hands-on implementation:
+Master the fundamentals of **Retrieval-Augmented Generation (RAG)** and document analysis through hands-on implementation:
 
-- **Universal Document Parsing** - Parse various document types (PDF, Word, text) with different structures
-- **Intelligent Content Analysis** - Extract key insights and important information from any document
-- **Smart Q&A System** - Build RAG pipelines for document-specific question answering
-- **Content Summarization** - Generate summaries and identify key points
-- **Multi-Format Support** - Handle different document formats and structures
+- **Universal Document Parsing:** Process various document types (PDF, Word, text).
+- **Text Pre-processing:** Implement effective text splitting and chunking strategies.
+- **Vector Embeddings:** Convert text chunks into semantic vector representations.
+- **Vector Storage & Retrieval:** Build and query a vector index to find relevant information.
+- **RAG Pipeline:** Construct a full Q&A pipeline that combines retrieved context with an LLM prompt.
+- **Source Attribution:** Make your chatbot trustworthy by citing its sources.
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```mermaid
 graph TD
@@ -26,19 +27,22 @@ graph TD
     H --> I[Similarity Search]
     F --> I
     I --> J[Retrieve Relevant Chunks]
-    J --> K[Document RAG Pipeline]
-    K --> L[Content Analysis]
-    K --> M[Key Insights Extraction]
-    K --> N[Intelligent Q&A Response]
+    J --> K[RAG Prompt Engineering]
+    G --> K
+    
+    K --> L[LLM Generation]
+    L --> M[Intelligent Q&A Response]
+    J --> N[Source Attribution]
+    N --> M
     
     style A fill:#e1f5fe
     style G fill:#e8f5e8
-    style L fill:#fff3e0
-    style M fill:#f3e5f5
-    style N fill:#e8f5e8
+    style F fill:#fce4ec
+    style K fill:#e8f5e8
+    style M fill:#fff3e0
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Start the demo
@@ -47,49 +51,155 @@ make dev
 # Visit: http://localhost:4020/demos/document-qa-chatbot
 ```
 
-## 🧪 Learning Challenges
+-----
 
-### **Challenge 1: Document Parsing Quality**
-**Goal**: Understand how parsing affects Q&A accuracy across document types
+## Your Learning Path: Incremental Challenges
 
-**Experiment**:
-- Test with PDF, Word, and text documents
-- Compare parsing accuracy for different content structures
-- Analyze how parsing quality impacts answer quality
+Follow these incremental challenges to build your application. Each one adds a new layer of functionality and learning.
 
-**Question**: How does document parsing quality affect Q&A accuracy across different document types?
+### Challenge 1: The "Naive" Q&A (Basic Parsing)
 
-### **Challenge 2: Chunking Strategy Impact**
-**Goal**: Compare different chunking approaches for document analysis
+**Goal:** Get your first end-to-end answer, but see *why* RAG is necessary.
 
-**Experiment**:
-- Test semantic vs fixed-size chunking
-- Compare chunk overlap strategies
-- Analyze context preservation across chunks
+- **Your Task:**
 
-**Question**: What chunking strategy works best for different types of documents and questions?
+  1. Implement file upload for a **simple `.txt` file** only.
 
-### **Challenge 3: RAG vs Direct LLM Performance**
-**Goal**: Compare document-specific RAG with general LLM responses
+  2. Read the *entire* text content of the file into a single string.
 
-**Experiment**:
-- Ask questions about uploaded document content
-- Compare RAG responses with ChatGPT responses
-- Test accuracy and specificity of answers
+  3. Create a **simple prompt** that "stuffs" the entire document text into the context, along with the user's question.
 
-**Question**: When does document RAG outperform general LLM for document-specific questions?
+     - *Example:* `"Here is a document:\n---{document_text}---\n\nBased on this document, answer the following question:\n{user_question}"`
 
-### **Challenge 4: Multi-Document Analysis**
-**Goal**: Handle questions across multiple uploaded documents
+  4. Send this to the LLM and display the answer.
 
-**Experiment**:
-- Upload multiple related documents
-- Ask questions that span across documents
-- Test cross-document information retrieval
+- **Experiment:** Try uploading a document that is *longer* than the LLM's context window (e.g., a 50-page text file). What happens? You've just discovered the core problem that RAG solves.
 
-**Question**: How can you effectively analyze and answer questions across multiple documents?
+- **Key Concepts:** Basic File I/O, LLM Context Window, Prompt Engineering.
 
-## 🔧 Configuration
+-----
+
+### Challenge 2: The "Universal" Parser (Handling Any File)
+
+**Goal:** Ingest and extract clean text from multiple common file types.
+
+- **Your Task:**
+
+  1. Integrate a document parsing library (e.g., `unstructured.io` or a combination of `PyPDF2` and `python-docx`).
+
+  2. Update your ingestion logic to handle `.pdf`, `.docx`, and `.txt` files.
+
+  3. Ensure the output is always clean, extracted text, regardless of the input file type.
+
+- **Key Concepts:** Document Parsing, Content Extraction, Handling MIME types, Library Integration.
+
+-----
+
+### Challenge 3: Building the "Brain" (Chunking & Embedding)
+
+**Goal:** Implement the "R" (Retrieval) part of RAG by creating a searchable vector index.
+
+- **Your Task:**
+
+  1. Take the extracted text from Challenge 2 and implement a **text chunking strategy** (e.g., `RecursiveCharacterTextSplitter` with a set chunk size and overlap).
+
+  2. Using the `EMBEDDING_MODEL`, generate a **vector embedding** for every single chunk.
+
+  3. Store these embeddings in a simple **in-memory vector store** (like FAISS, ChromaDB in-memory, or even a simple NumPy array). This is your document's "memory."
+
+- **Key Concepts:** Text Chunking (Splitting), Embedding Models, Vector Databases, In-memory Indexing.
+
+-----
+
+### Challenge 4: The *Smart* Answer (Full RAG Pipeline)
+
+**Goal:** Connect your retrieval system to the LLM to generate context-aware answers.
+
+- **Your Task:**
+
+  1. When a user asks a question, first generate an embedding for the **question itself**.
+
+  2. Perform a **similarity search** with the question's embedding against your vector store to find the `top-k` (e.g., top 3) most relevant text chunks.
+
+  3. **Engineer a RAG prompt:** Create a new prompt that includes *only* these relevant chunks as context.
+
+     - *Example:* `"Use the following pieces of context to answer the question. If you don't know the answer from the context, say so.\n\nContext:\n{chunk_1}\n{chunk_2}\n\nQuestion: {user_question}"`
+
+  4. Send this *new prompt* to the LLM and display the answer.
+
+- **Key Concepts:** RAG Pipeline, Similarity Search (`k-NN`), RAG Prompt Engineering.
+
+-----
+
+### Challenge 5: The *Better* Answer (Optimizing RAG)
+
+**Goal:** Improve the quality and relevance of your RAG pipeline by tuning its components.
+
+- **Your Task:**
+
+  1. **Experiment with Chunking:** Change your chunking strategy. What happens if the `chunk_size` is very small (like 100 chars)? What if it's very large (2000 chars)? What about `chunk_overlap`?
+
+  2. **Experiment with Retrieval:** Change the number of retrieved chunks (`k`). What is the difference in the final answer between `k=1` and `k=10`?
+
+  3. Observe how these parameters create a trade-off between **context precision** (small, focused chunks) and **context completeness** (large, broad chunks).
+
+- **Key Concepts:** Hyperparameter Tuning, Chunking Strategies, Precision vs. Recall.
+
+-----
+
+### Challenge 6: The *Trustworthy* Answer (Source Attribution)
+
+**Goal:** Make your chatbot trustworthy by showing the user *where* in the document it found the answer.
+
+- **Your Task:**
+
+  1. When you create your chunks (Challenge 3), add **metadata** to them (e.g., `source: "my_doc.pdf"`, `page_number: 5`, or `chunk_id: 12`).
+
+  2. After the LLM generates an answer (Challenge 4), retrieve the metadata from the `top-k` chunks that were used as context.
+
+  3. Display this metadata alongside the answer (e.g., "This answer was based on content from `my_doc.pdf`, page 5.").
+
+- **Key Concepts:** Metadata, Source Attribution, Verifiability, Trust & Safety.
+
+-----
+
+### Challenge 7: The *Summarizer* (Beyond Q&A)
+
+**Goal:** Re-use your RAG components to add a new, powerful feature: document summarization.
+
+- **Your Task:**
+
+  1. Add a "Summarize Document" button to your UI.
+
+  2. Instead of running the Q&A pipeline, implement a **summarization pipeline**.
+
+  3. A common pattern is "Map-Reduce":
+
+     - **Map:** Send *each* text chunk to the LLM with a prompt like `"Summarize this text: {chunk}"`.
+
+     - **Reduce:** Take all the individual chunk summaries and send them *together* to the LLM in a final prompt: `"Summarize these summaries: {all_chunk_summaries}"`.
+
+- **Key Concepts:** Summarization, LLM Chains, Map-Reduce, Batch Processing.
+
+-----
+
+### Challenge 8 (Bonus): The *Multi-Doc* Chatbot (Advanced RAG)
+
+**Goal:** Scale your system to allow the user to upload and chat with *multiple* documents at once.
+
+- **Your Task:**
+
+  1. Allow the user to upload multiple documents, which all feed into the *same* vector store.
+
+  2. Ensure your chunk metadata (Challenge 6) clearly identifies **which document** each chunk came from.
+
+  3. When you perform the similarity search, it will now retrieve chunks from *any* of the uploaded documents.
+
+  4. Your RAG prompt and source attribution logic should work seamlessly, pulling context and citing sources from across the entire document collection.
+
+- **Key Concepts:** Multi-document RAG, Scalable Vector Stores, Metadata Filtering.
+
+## Configuration
 
 ```bash
 # .env
@@ -98,66 +208,43 @@ FIREWORKS_MODEL=accounts/fireworks/models/qwen3-235b-a22b-instruct-2507
 EMBEDDING_MODEL=all-MiniLM-L6-v2  # Fast & cheap
 ```
 
-## 🎓 Key Document AI Concepts
+## Key Document AI Concepts
 
 ### **What You'll Discover:**
-1. **Document Diversity** - Different document types require different processing approaches
-2. **Content Structure** - How document structure affects information extraction
-3. **Context Preservation** - Maintaining context across document chunks
-4. **Answer Quality** - Balancing accuracy with comprehensiveness
-5. **Source Attribution** - Properly citing document sources in responses
+
+1. **Parsing is Hard:** Different document types (especially PDFs) have complex structures (tables, images) that make text extraction a major challenge.
+2. **Chunking is an Art:** Your chunking strategy is one of the *most important* factors for RAG quality.
+3. **Context is Everything:** The quality of the retrieved chunks directly determines the quality of the LLM's answer. Garbage in, garbage out.
+4. **RAG vs. Fine-Tuning:** RAG is for providing *knowledge* at query-time. Fine-tuning is for teaching *skills* or *style* at training-time.
+5. **Source Attribution Builds Trust:** Users will not trust a "black box" answer. Citing sources is non-negotiable for production systems.
 
 ### **Production Considerations:**
-- Document security and privacy
-- Performance optimization for large documents
-- Error handling for parsing failures
-- Multi-format document support
-- Scalable document storage and retrieval
 
-## 🚀 Advanced Challenges
+- Document security, privacy, and access control.
+- Performance optimization for large documents (e.g., using a real database, async processing).
+- Error handling for parsing failures or corrupted documents.
+- Scalable and persistent vector storage (e.g., Pinecone, Weaviate, managed Chroma).
+- Handling images, tables, and other complex document elements (Multi-modal RAG).
 
-### **Challenge 5: Document Summarization**
-**Goal**: Generate intelligent summaries of uploaded documents
-
-**Learning Focus**: Abstractive vs extractive summarization, key point identification, and summary quality evaluation.
-
-### **Challenge 6: Cross-Document Comparison**
-**Goal**: Compare information across multiple documents
-
-**Learning Focus**: Document similarity analysis, information synthesis, and comparative insights generation.
-
-### **Challenge 7: Document Classification**
-**Goal**: Automatically classify and categorize uploaded documents
-
-**Learning Focus**: Document type detection, content categorization, and metadata extraction.
-
-### **Challenge 8: Real-time Document Updates**
-**Goal**: Handle dynamic documents that change over time
-
-**Learning Focus**: Incremental processing, change detection, and maintaining consistency across updates.
-
-## 🤔 Critical Thinking Questions
+## Critical Thinking Questions
 
 1. **What if the document is in a different language?** How would you handle multilingual document analysis?
-2. **How would you handle very large documents?** What strategies would you use for scalability?
-3. **What if the document contains sensitive information?** How would you ensure privacy and security?
-4. **How would you measure document analysis quality?** What metrics matter most for Q&A systems?
-5. **What if the document is corrupted or incomplete?** How would you handle edge cases?
-6. **How would you handle documents with images, tables, or complex formatting?** What parsing strategies would you use?
+2. **How would you handle very large documents (e.g., a 1,000-page book)?** What strategies would you use for scalability beyond an in-memory store?
+3. **What if the document contains sensitive information (PII)?** How would you ensure privacy and security?
+4. **How would you measure the *quality* of your RAG system?** What metrics matter most?
+5. **What if the document is corrupted or is a scanned image (not text)?** How would you handle these edge cases?
+6. **How would you handle tables?** A simple text chunk will destroy a table's structure. What's a better approach?
 
-## 📚 Further Learning
+## Further Learning
 
 **Essential Reading:**
-- [Document Processing Best Practices](https://docs.unstructured.io/) - Advanced document parsing
-- [RAG System Design](https://docs.langchain.com/) - Building robust RAG pipelines
+
+- [Unstructured.io Docs](https://docs.unstructured.io/) - Advanced document parsing
+- [LangChain RAG Docs](https://python.langchain.com/docs/use_cases/question_answering/) - Building robust RAG pipelines
 
 **Next Steps:**
-- Implement document-specific embedding models
-- Add multi-language document support
-- Build document comparison features
-- Scale with document databases
-- Add real-time document processing
 
----
-
-*This demo teaches you document AI by doing. Experiment with different document types, break things, and learn what makes document Q&A systems work effectively.*
+- Implement a persistent vector database (like Chroma or Weaviate).
+- Add support for Optical Character Recognition (OCR) for scanned images (e.g., using `pytesseract`).
+- Build a "chat history" so the LLM can remember the last few questions.
+- Explore more advanced RAG techniques like re-ranking.

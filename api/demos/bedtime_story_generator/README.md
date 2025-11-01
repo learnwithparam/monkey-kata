@@ -2,7 +2,7 @@
 
 Learn prompt engineering and LLM integration by building an AI story generator that creates personalized bedtime stories.
 
-## 🎯 Learning Objectives
+## Learning Objectives
 
 Master the core concepts of **Large Language Model (LLM) integration** through a hands-on, project-based approach:
 
@@ -12,24 +12,24 @@ Master the core concepts of **Large Language Model (LLM) integration** through a
 - **Application Robustness:** Implement input validation, error handling, and content safety guardrails.
 - **LLM Pipelines:** Build pre- and post-processing steps to enhance input quality and generated output.
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```mermaid
 graph TD
-    A[User Input] --> B[Character Details]
-    A --> C[Story Theme]
-    A --> D[Story Length]
+    A["User Input"] --> B["Character Details"]
+    A --> C["Story Theme"]
+    A --> D["Story Length"]
     
-    B --> E[Pre-Processing & Validation]
+    B --> E["Pre-Processing & Validation"]
     C --> E
     D --> E
     
-    E --> F[Prompt Engineering]
-    F --> G[LLM Generation (w/ Parameters)]
-    G --> H[Streaming Response]
-    H --> I[Post-Processing & Safety Check]
-    I --> J[Real-time Display]
-    J --> K[Formatted Story]
+    E --> F["Prompt Engineering"]
+    F --> G["LLM Generation (w/ Parameters)"]
+    G --> H["Streaming Response"]
+    H --> I["Post-Processing & Safety Check"]
+    I --> J["Real-time Display"]
+    J --> K["Formatted Story"]
     
     style A fill:#e1f5fe
     style F fill:#e8f5e8
@@ -38,7 +38,7 @@ graph TD
     style I fill:#fce4ec
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Start the demo
@@ -49,7 +49,7 @@ make dev
 
 -----
 
-## 🚀 Your Learning Path: Incremental Challenges
+## Your Learning Path: Incremental Challenges
 
 Follow these incremental challenges to build your application. Each one adds a new layer of functionality and learning.
 
@@ -69,7 +69,7 @@ Follow these incremental challenges to build your application. Each one adds a n
 
   4. Display the entire story at once when it returns.
 
-- **🎓 Key Concepts:** Basic API integration, Zero-Shot Prompting.
+- **Key Concepts:** Basic API integration, Zero-Shot Prompting.
 
 -----
 
@@ -87,9 +87,9 @@ Follow these incremental challenges to build your application. Each one adds a n
 
   4. **Use Examples (Few-Shot):** Provide 1-2 examples of a good input/output pair within your prompt to guide the model's structure.
 
-- **🎓 Key Concepts:** Prompt Engineering, Role Prompting, Few-Shot vs. Zero-Shot, Instruction Following.
+- **Key Concepts:** Prompt Engineering, Role Prompting, Few-Shot vs. Zero-Shot, Instruction Following.
 
-- **🧪 Experiment:** Compare the outputs from Challenge 1's prompt to your new prompt. Note the difference in quality, consistency, and tone.
+- **Experiment:** Compare the outputs from Challenge 1's prompt to your new prompt. Note the difference in quality, consistency, and tone.
 
 -----
 
@@ -109,7 +109,7 @@ Follow these incremental challenges to build your application. Each one adds a n
 
   3. Observe the differences. Choose a default value that feels right for a "bedtime story."
 
-- **🎓 Key Concepts:** **Temperature** (creativity vs. determinism), `max_tokens` (output length), `top_p`.
+- **Key Concepts:** **Temperature** (creativity vs. determinism), `max_tokens` (output length), `top_p`.
 
 -----
 
@@ -125,9 +125,9 @@ Follow these incremental challenges to build your application. Each one adds a n
 
   3. Append the new tokens to the display in real-time, "typing" the story out for the user.
 
-- **🎓 Key Concepts:** Streaming vs. Batch processing, Asynchronous JavaScript, User Experience (Perceived Performance).
+- **Key Concepts:** Streaming vs. Batch processing, Asynchronous JavaScript, User Experience (Perceived Performance).
 
-- **🤔 Food for Thought:** Notice how this immediately *feels* faster and more interactive for the user, even if the total generation time is the same.
+- **Food for Thought:** Notice how this immediately *feels* faster and more interactive for the user, even if the total generation time is the same.
 
 -----
 
@@ -151,7 +151,7 @@ Follow these incremental challenges to build your application. Each one adds a n
 
   3. Test this by entering "a scary monster" or "a battle" as the theme. Does the LLM obey your safety instruction?
 
-- **🎓 Key Concepts:** Input Validation, Sanitization, Content Moderation, Prompt-based Guardrails, Edge Case Testing.
+- **Key Concepts:** Input Validation, Sanitization, Content Moderation, Prompt-based Guardrails, Edge Case Testing.
 
 -----
 
@@ -167,7 +167,7 @@ Follow these incremental challenges to build your application. Each one adds a n
 
   3. Instruct the model to **include dialogue** between the two characters.
 
-- **🎓 Key Concepts:** Advanced Prompt Design, Handling multiple inputs, Dialogue Generation, State Management.
+- **Key Concepts:** Advanced Prompt Design, Handling multiple inputs, Dialogue Generation, State Management.
 
 -----
 
@@ -187,7 +187,7 @@ Follow these incremental challenges to build your application. Each one adds a n
 
   2. *Example:* Does the story end with a complete sentence? If not (due to `max_tokens`), can you either filter it or (as an advanced step) make a second, smaller LLM call to "write a conclusion for this story"?
 
-- **🎓 Key Concepts:** LLM Pipelines, Pre-processing, Post-processing, Output Validation, Chaining LLM calls.
+- **Key Concepts:** LLM Pipelines, Pre-processing, Post-processing, Output Validation, Chaining LLM calls.
 
 -----
 
@@ -203,11 +203,11 @@ Follow these incremental challenges to build your application. Each one adds a n
 
   3. This time, your prompt must include the **entire previously generated story** as context, followed by an instruction like `"Now, write the next chapter of this story."`
 
-- **🎓 Key Concepts:** Context Window Management, Chat History, Maintaining State.
+- **Key Concepts:** Context Window Management, Chat History, Maintaining State.
 
-- **⚠️ Challenge:** What happens when the story gets too long for the model's context window? How would you handle that? (This leads to concepts like summarization and RAG).
+- **Challenge:** What happens when the story gets too long for the model's context window? How would you handle that? (This leads to concepts like summarization and RAG).
 
-## 🔧 Configuration
+## Configuration
 
 ```bash
 # .env
@@ -219,7 +219,7 @@ GEMINI_API_KEY=your_key_here
 OPENAI_API_KEY=your_key_here
 ```
 
-## 🤔 Critical Thinking Questions
+## Critical Thinking Questions
 
 1. **How would you handle inappropriate content?** What *other* safety measures could you add?
 2. **How would you personalize stories more?** What *additional* inputs could you use?
@@ -227,7 +227,7 @@ OPENAI_API_KEY=your_key_here
 4. **How would you handle multiple languages?** What localization challenges exist?
 5. **What if parents want to customize story themes?** How would you implement that?
 
-## 📚 Further Learning
+## Further Learning
 
 **Essential Reading:**
 

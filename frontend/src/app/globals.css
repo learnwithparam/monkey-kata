@@ -241,3 +241,334 @@ body {
 .demo-button {
   @apply bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-200 text-sm sm:text-base;
 }
+
+/* Challenge/Content styles - matching blog */
+.challenge-content {
+  @apply text-gray-800 leading-relaxed;
+}
+
+.challenge-content h1 {
+  @apply text-3xl font-bold text-gray-900 mb-6 mt-8;
+}
+
+.challenge-content h2 {
+  @apply text-2xl font-bold text-gray-900 mb-4 mt-6;
+}
+
+.challenge-content h3 {
+  @apply text-xl font-semibold text-gray-900 mb-3 mt-5;
+}
+
+.challenge-content h4 {
+  @apply text-lg font-semibold text-gray-900 mb-2 mt-4;
+}
+
+.challenge-content p {
+  @apply mb-4 leading-relaxed;
+}
+
+.challenge-content ul {
+  @apply mb-6 pl-0 list-none;
+}
+
+.challenge-content ol {
+  @apply mb-6 pl-8;
+  list-style-type: decimal;
+  list-style-position: outside;
+}
+
+.challenge-content ol ol {
+  @apply mt-2 ml-4;
+  list-style-type: lower-alpha;
+}
+
+.challenge-content ol ol ol {
+  list-style-type: lower-roman;
+}
+
+.challenge-content li {
+  @apply mb-3 leading-relaxed;
+}
+
+/* Ordered list items - proper numbering, no bullets */
+.challenge-content ol > li {
+  @apply pl-2;
+  list-style-type: decimal;
+  list-style-position: outside;
+  display: list-item;
+  position: relative;
+}
+
+/* Ensure ol li doesn't inherit ul li::before */
+.challenge-content ol > li::before {
+  content: none !important;
+  display: none !important;
+}
+
+.challenge-content ol ol > li {
+  @apply mt-1 ml-4;
+  list-style-type: lower-alpha;
+  list-style-position: outside;
+}
+
+.challenge-content ol ol ol > li {
+  list-style-type: lower-roman;
+  list-style-position: outside;
+}
+
+/* Unordered list items - custom bullets */
+.challenge-content ul > li {
+  @apply relative pl-6;
+  list-style: none;
+  display: list-item;
+}
+
+.challenge-content ul > li::before {
+  content: "•";
+  @apply absolute left-0 text-gray-400 font-bold;
+}
+
+.challenge-content ul ul {
+  @apply mt-2 ml-4;
+}
+
+.challenge-content ul ul > li::before {
+  content: "◦";
+  @apply text-gray-300;
+}
+
+.challenge-content ul ul ul > li::before {
+  content: "▪";
+  @apply text-gray-300;
+}
+
+.challenge-content blockquote {
+  @apply border-l-4 border-gray-400 pl-4 py-2 mb-4 bg-gray-50 italic text-gray-700;
+}
+
+.challenge-content blockquote > *:last-child {
+  @apply mb-0;
+}
+
+.challenge-content blockquote p:last-child {
+  @apply mb-0;
+}
+
+.challenge-content blockquote > p:empty,
+.challenge-content blockquote > *:last-child:empty {
+  display: none;
+}
+
+.challenge-content code {
+  @apply bg-gray-100 text-gray-800 px-2 py-1 rounded text-sm font-mono;
+}
+
+.challenge-content pre {
+  @apply bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto mb-4;
+}
+
+.challenge-content pre code {
+  @apply bg-transparent text-gray-100 p-0;
+}
+
+.challenge-content a {
+  @apply hover:underline transition-colors duration-200;
+  color: var(--brand-purple);
+}
+
+.challenge-content a:hover {
+  color: var(--brand-teal);
+}
+
+.challenge-content img {
+  @apply rounded-lg shadow-md mb-4 cursor-pointer transition-opacity;
+}
+
+.challenge-content img:hover {
+  @apply opacity-90;
+}
+
+.challenge-content table {
+  @apply w-full border-collapse border border-gray-300 mb-4;
+}
+
+.challenge-content th {
+  @apply border border-gray-300 bg-gray-100 px-4 py-2 text-left font-semibold;
+}
+
+.challenge-content td {
+  @apply border border-gray-300 px-4 py-2;
+}
+
+.challenge-content hr {
+  @apply my-8 border-0 border-t border-gray-200;
+}
+
+.heading-link {
+  @apply no-underline text-gray-900 hover:text-gray-600 transition-colors duration-200;
+}
+
+.heading-link:before {
+  content: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+h1 .heading-link,
+h2 .heading-link,
+h3 .heading-link,
+h4 .heading-link,
+h5 .heading-link,
+h6 .heading-link {
+  @apply text-inherit no-underline;
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
+h1 .heading-link:hover,
+h2 .heading-link:hover,
+h3 .heading-link:hover,
+h4 .heading-link:hover,
+h5 .heading-link:hover,
+h6 .heading-link:hover {
+  @apply text-gray-600 no-underline;
+  color: #6b7280 !important;
+  text-decoration: none !important;
+}
+
+/* Mermaid diagram styles */
+.challenge-content .mermaid {
+  @apply my-8 text-center bg-white rounded-lg p-4 border border-gray-200 mx-auto cursor-pointer transition-opacity;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+
+.challenge-content .mermaid:hover {
+  @apply opacity-90;
+}
+
+.challenge-content .mermaid svg {
+  @apply max-w-full h-auto mx-auto;
+  display: block !important;
+}
+
+.mermaid-zoom-container {
+  @apply overflow-auto;
+  max-width: 95vw;
+  max-height: 95vh;
+  touch-action: pan-x pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mermaid-zoom-container svg {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+pre[data-mermaid="true"] {
+  @apply hidden;
+}
+
+/* Code highlighting styles */
+.challenge-content .hljs {
+  @apply bg-gray-900 text-gray-100;
+}
+
+.challenge-content .hljs-comment,
+.challenge-content .hljs-quote {
+  @apply text-gray-500;
+}
+
+.challenge-content .hljs-keyword,
+.challenge-content .hljs-selector-tag,
+.challenge-content .hljs-subst {
+  @apply text-purple-400;
+}
+
+.challenge-content .hljs-number,
+.challenge-content .hljs-literal,
+.challenge-content .hljs-variable,
+.challenge-content .hljs-template-variable,
+.challenge-content .hljs-tag .hljs-attr {
+  @apply text-blue-400;
+}
+
+.challenge-content .hljs-string,
+.challenge-content .hljs-doctag {
+  @apply text-green-400;
+}
+
+.challenge-content .hljs-title,
+.challenge-content .hljs-section,
+.challenge-content .hljs-selector-id {
+  @apply text-yellow-400;
+}
+
+.challenge-content .hljs-type,
+.challenge-content .hljs-class .hljs-title {
+  @apply text-orange-400;
+}
+
+.challenge-content .hljs-tag,
+.challenge-content .hljs-name,
+.challenge-content .hljs-attribute {
+  @apply text-red-400;
+}
+
+.challenge-content .hljs-regexp,
+.challenge-content .hljs-link {
+  @apply text-pink-400;
+}
+
+.challenge-content .hljs-symbol,
+.challenge-content .hljs-bullet {
+  @apply text-cyan-400;
+}
+
+.challenge-content .hljs-built_in,
+.challenge-content .hljs-builtin-name {
+  @apply text-indigo-400;
+}
+
+.challenge-content .hljs-meta {
+  @apply text-gray-400;
+}
+
+.challenge-content .hljs-deletion {
+  @apply bg-red-900;
+}
+
+.challenge-content .hljs-addition {
+  @apply bg-green-900;
+}
+
+.challenge-content .hljs-emphasis {
+  @apply italic;
+}
+
+.challenge-content .hljs-strong {
+  @apply font-bold;
+}
+
+/* Custom scrollbar for Table of Contents */
+.toc-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.toc-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.toc-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+
+.toc-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* Brand colors - use CSS variables directly in components via inline styles */
