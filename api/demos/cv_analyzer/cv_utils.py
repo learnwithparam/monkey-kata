@@ -1,9 +1,29 @@
 """
 CV Document Processing Utilities
-===============================
+==================================
 
-Utilities for processing CV documents using LlamaIndex.
-Focused on CV-specific parsing and analysis.
+🎯 LEARNING OBJECTIVES:
+This module teaches CV-specific document processing:
+
+1. CV Parsing - Extract text from CV documents (PDF, Word, text)
+2. Section Detection - Identify CV sections (Experience, Education, Skills, etc.)
+3. CV-Specific Chunking - Split CVs intelligently by sections
+4. Embeddings - Convert CV chunks to vectors for semantic search
+5. CV Structure Understanding - How to parse structured resume formats
+
+📚 LEARNING FLOW:
+Follow this code from top to bottom:
+
+Step 1: Document Parsing - How to extract text from CV files
+Step 2: Section Detection - How to identify CV sections automatically
+Step 3: CV-Specific Chunking - How to chunk CVs by sections
+Step 4: Embeddings - How to convert CV chunks to vectors
+Step 5: Similarity Search - How to find relevant CV sections
+
+Key Difference from Generic Document Processing:
+- CVs have specific sections (Experience, Education, Skills, etc.)
+- Section-aware chunking preserves context better
+- CV sections have different importance levels
 """
 
 import asyncio
@@ -33,17 +53,45 @@ Settings.embed_model = None
 Settings.llm = None
 logger.info("LlamaIndex configured with fallback embeddings")
 
+
+# ============================================================================
+# STEP 1: DATA STRUCTURES
+# ============================================================================
+"""
+DocumentChunk:
+Represents a chunk of CV text with section metadata. This helps us:
+- Track which CV section each chunk came from (Experience, Education, etc.)
+- Maintain section context during chunking
+- Retrieve chunks with their section information
+"""
 @dataclass
 class DocumentChunk:
     """Represents a chunk of CV text with metadata"""
     content: str
     document_id: str
     chunk_index: int
-    section: str
+    section: str  # CV section: Experience, Education, Skills, etc.
     metadata: Dict[str, Any]
 
+# ============================================================================
+# STEP 2: DOCUMENT PARSING
+# ============================================================================
+"""
+Document Parsing:
+The first step in CV processing is extracting text from files.
+
+Key Concepts:
+- File Type Detection: Different formats need different parsers
+- Text Extraction: Get clean text from PDFs, Word docs, text files
+- Error Handling: Handle corrupted or unsupported files
+
+Supported Formats:
+- PDF: Extracts text from PDF CVs
+- Word (.doc, .docx): Extracts text from Microsoft Word CVs
+- Text (.txt): Reads plain text CVs
+"""
 class CVDocumentProcessor:
-    """LlamaIndex-based document processor for CVs"""
+    """Document processor for CVs with section detection"""
     
     def __init__(self):
         self.index = None
@@ -51,23 +99,30 @@ class CVDocumentProcessor:
     
     async def parse_document(self, file_path: str) -> Optional[Dict[str, Any]]:
         """
-        Parse a CV document using LlamaIndex
+        Parse a CV document and extract text content
+        
+        Process:
+        1. Detect file type (PDF, Word, text)
+        2. Use document parser (handles all formats)
+        3. Extract text content from all pages
+        4. Get page count
+        5. Return structured data with metadata
         
         Args:
-            file_path: Path to the document file
+            file_path: Path to the CV document file
             
         Returns:
-            Dictionary with parsed content and metadata
+            Dictionary with title, content, pages, and metadata
         """
         try:
-            logger.info(f"Parsing CV document with LlamaIndex: {file_path}")
+            logger.info(f"Parsing CV document: {file_path}")
             
-            # Create a temporary directory for LlamaIndex
+            # Create a temporary directory for document parsing
             temp_dir = tempfile.mkdtemp()
             temp_file = os.path.join(temp_dir, os.path.basename(file_path))
             shutil.copy2(file_path, temp_file)
             
-            # Use LlamaIndex SimpleDirectoryReader
+            # Use document reader (handles PDF, Word, text files)
             reader = SimpleDirectoryReader(input_dir=temp_dir)
             documents = reader.load_data()
             
@@ -98,9 +153,34 @@ class CVDocumentProcessor:
             logger.error(f"Error parsing CV document {file_path}: {e}")
             return None
     
+    # ============================================================================
+    # STEP 3: CV-SPECIFIC SECTION DETECTION & CHUNKING
+    # ============================================================================
+    """
+    CV-Specific Chunking:
+    Unlike generic documents, CVs have specific sections that should be preserved.
+    
+    Why CV-Specific Chunking?
+    - CVs have structured sections (Experience, Education, Skills, etc.)
+    - Section-aware chunking preserves context better
+    - Makes it easier to analyze CV structure
+    - Better for agentic analysis (agents can focus on specific sections)
+    
+    How It Works:
+    1. Detect CV sections using pattern matching
+    2. Chunk within each section (preserves section context)
+    3. Use sentence-based chunking for better semantic preservation
+    4. Maintain section metadata for each chunk
+    """
     def chunk_cv_document(self, document_content: Dict[str, Any], chunk_size: int = 300, chunk_overlap: int = 50) -> List[Dict[str, Any]]:
         """
         Split CV document into semantic chunks based on sections
+        
+        This is CV-specific chunking that:
+        1. Detects CV sections (Experience, Education, Skills, etc.)
+        2. Chunks within each section (preserves context)
+        3. Uses sentence-based splitting (preserves meaning)
+        4. Maintains section metadata
         
         Args:
             document_content: Parsed document content
@@ -108,7 +188,7 @@ class CVDocumentProcessor:
             chunk_overlap: Number of characters to overlap between chunks
             
         Returns:
-            List of document chunks with metadata
+            List of document chunks with section metadata
         """
         content = document_content['content']
         pages = document_content.get('pages', 1)
@@ -159,7 +239,21 @@ class CVDocumentProcessor:
         return chunks
     
     def _detect_cv_sections(self, content: str) -> Dict[str, str]:
-        """Detect CV sections based on common patterns"""
+        """
+        Detect CV sections based on common patterns
+        
+        CV Sections We Look For:
+        - Personal Info: Name, contact information
+        - Summary: Professional summary or objective
+        - Experience: Work history and employment
+        - Education: Academic background
+        - Skills: Technical and soft skills
+        - Projects: Portfolio and work samples
+        - Certifications: Professional certifications
+        - Achievements: Awards and recognition
+        
+        This uses regex pattern matching to identify section headers.
+        """
         sections = {}
         
         # Common CV section patterns
@@ -208,7 +302,14 @@ class CVDocumentProcessor:
         return sections
     
     def _split_into_sentences(self, text: str) -> List[str]:
-        """Split text into sentences using NLTK or fallback"""
+        """
+        Split text into sentences using NLTK or fallback
+        
+        Why sentence-based splitting?
+        - Preserves meaning better than character-based splitting
+        - Sentences are natural semantic units
+        - Better for embeddings (sentences have clearer meaning)
+        """
         try:
             from nltk.tokenize import sent_tokenize
             return sent_tokenize(text)
@@ -219,15 +320,35 @@ class CVDocumentProcessor:
         sentences = re.split(r'[.!?]+', text)
         return [s.strip() for s in sentences if s.strip()]
     
+    # ============================================================================
+    # STEP 4: EMBEDDINGS
+    # ============================================================================
+    """
+    Embeddings Generation:
+    Converts CV chunks into vectors for semantic search.
+    
+    Uses the same approach as other demos (sentence-transformers):
+    - Local model (no API costs)
+    - Fast and efficient
+    - Semantic understanding of CV content
+    
+    Each embedding is a vector representing the text's meaning.
+    Similar meanings → similar vectors.
+    """
     async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
-        Generate embeddings using sentence-transformers (same as other demos)
+        Generate embeddings for a list of CV chunk texts
+        
+        Uses the same approach as other demos:
+        - SentenceTransformer for semantic embeddings
+        - Local model (no API costs)
+        - Fast and efficient
         
         Args:
-            texts: List of text strings to embed
+            texts: List of CV chunk text strings to embed
             
         Returns:
-            List of embedding vectors
+            List of embedding vectors (one per text)
         """
         try:
             # Use the same approach as other demos
@@ -255,7 +376,12 @@ class CVDocumentProcessor:
             return self._generate_fallback_embeddings(texts)
     
     def _generate_fallback_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate simple hash-based embeddings as fallback"""
+        """
+        Generate simple hash-based embeddings as fallback
+        
+        If sentence-transformers fails, this creates simple hash-based embeddings.
+        Not as good as semantic embeddings, but ensures the system keeps working.
+        """
         import hashlib
         
         embeddings = []
@@ -286,7 +412,12 @@ class CVDocumentProcessor:
         return embeddings
     
     def cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        """Calculate cosine similarity between two vectors"""
+        """
+        Calculate cosine similarity between two vectors
+        
+        Used for finding similar CV sections or matching CV content to job descriptions.
+        Returns a value between -1 and 1, where 1 means identical meaning.
+        """
         try:
             vec1 = np.array(vec1)
             vec2 = np.array(vec2)
@@ -302,6 +433,40 @@ class CVDocumentProcessor:
         except Exception as e:
             logger.error(f"Error calculating cosine similarity: {e}")
             return 0.0
+
+# ============================================================================
+# LEARNING CHECKLIST
+# ============================================================================
+"""
+After reading this code, you should understand:
+
+✓ How to parse CV documents (PDF, Word, text)
+✓ How CV-specific section detection works (Experience, Education, Skills, etc.)
+✓ How CV chunking preserves section context
+✓ How embeddings convert CV chunks to vectors
+✓ Why section-aware chunking improves CV analysis quality
+✓ The complete CV document processing pipeline
+
+Key CV Processing Concepts:
+- CV sections: Experience, Education, Skills, Projects, etc.
+- Section detection: Pattern matching to identify sections
+- Section-aware chunking: Chunk within sections (preserves context)
+- Embeddings: Convert CV sections to searchable vectors
+
+Next Steps:
+1. Experiment with different chunk sizes for CV sections
+2. Try different section detection patterns
+3. Add support for more CV formats
+4. Improve section detection accuracy
+5. Add support for parsing CVs with tables or complex formatting
+
+Questions to Consider:
+- How would you handle CVs with non-standard section names?
+- What if a CV doesn't have clear sections?
+- How would you improve chunking for technical CVs vs creative CVs?
+- How would you handle CVs in different languages?
+- What are the trade-offs between section-aware chunking and generic chunking?
+"""
 
 # Example usage and testing
 if __name__ == "__main__":
