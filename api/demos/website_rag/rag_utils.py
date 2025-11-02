@@ -423,33 +423,26 @@ class SimpleRAGPipeline:
         
         # Build context from relevant chunks
         context_parts = []
-        for i, chunk in enumerate(relevant_chunks, 1):
-            context_parts.append(f"Source {i} (from {chunk.url}):\n{chunk.content}")
+        for chunk in relevant_chunks:
+            context_parts.append(chunk.content)
         
         context = "\n\n".join(context_parts)
         
-        # Create RAG prompt
-        prompt = f"""You are a helpful chatbot that answers questions based on website content.
+        # Create simple RAG prompt - just answer the question naturally
+        prompt = f"""Based on this website content, answer the question.
 
-Context from the website:
+Website content:
 {context}
 
-User Question: {question}
+Question: {question}
 
-Instructions:
-1. Answer the question using ONLY information from the context above
-2. Be concise and helpful
-3. If the context doesn't contain relevant information, say so
-4. Do not make up information that's not in the context
-5. Focus on what the website offers and how it can help
-
-Answer:"""
+Answer directly and concisely:"""
         
         # Stream answer from LLM
         async for chunk in self.llm_provider.generate_stream(
             prompt,
-            temperature=0.1,  # Low temperature for factual accuracy
-            max_tokens=300
+            temperature=0.1,
+            max_tokens=200
         ):
             yield chunk
 

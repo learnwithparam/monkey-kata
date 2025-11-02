@@ -1,103 +1,168 @@
 """
-Legal Document Processing Utilities
-==================================
-
-Advanced utilities for legal document analysis including:
-- Document parsing with docling/unstructured
-- Risk analysis and identification
-- Key terms extraction
-- Legal-specific RAG pipeline
+Document Processing Utilities
+=============================
 
 🎯 LEARNING OBJECTIVES:
-- Understanding legal document structure
-- Implementing risk analysis algorithms
-- Working with legal embeddings and search
-- Building production-ready legal AI systems
+This module teaches the core components of document RAG:
+
+1. Document Parsing - Extract text from PDFs, Word docs, text files
+2. Text Chunking - Split documents into searchable pieces
+3. Embeddings - Convert text to vectors for similarity search
+4. Vector Search - Find relevant information in documents
+5. RAG Prompting - Combine document context with questions
+
+📚 LEARNING FLOW:
+Follow this code from top to bottom:
+
+Step 1: Document Parsing - How to extract text from different file types
+Step 2: Text Chunking - How to split documents intelligently
+Step 3: Embeddings - How to convert text to numbers
+Step 4: Similarity Search - How to find relevant chunks
+Step 5: RAG Generation - How to create prompts with document context
 """
 
-import asyncio
-import re
 import os
+import uuid
 import numpy as np
-from typing import List, Dict, Any, Tuple, Optional, AsyncGenerator
+from typing import List, Dict, Any, Optional, AsyncGenerator
 from dataclasses import dataclass
 from datetime import datetime
-import logging
 import tempfile
 import shutil
 
-# LlamaIndex imports
-from llama_index.core import (
-    VectorStoreIndex, 
-    SimpleDirectoryReader, 
-    StorageContext,
-    load_index_from_storage,
-    Settings
-)
-from llama_index.core.node_parser import SentenceSplitter
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.llms.openai import OpenAI
-from llama_index.core.retrievers import VectorIndexRetriever
-from llama_index.core.query_engine import RetrieverQueryEngine
-from llama_index.core.postprocessor import SimilarityPostprocessor
+# LlamaIndex for document parsing
+from llama_index.core import SimpleDirectoryReader
 
-# Configure logging first
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Sentence transformers for embeddings (same as website_rag)
+from sentence_transformers import SentenceTransformer
 
-# Configure LlamaIndex settings with simple approach
-# Don't configure embeddings here - use the existing sentence-transformers approach
-Settings.embed_model = None
-Settings.llm = None
-logger.info("LlamaIndex configured with fallback embeddings")
+# Vector Store - Using Chroma as an example implementation
+# Other vector stores: Pinecone (cloud), Weaviate, FAISS, Qdrant
+import chromadb
 
+# NLTK for sentence tokenization
+import nltk
+try:
+    nltk.data.find('tokenizers/punkt_tab')
+except LookupError:
+    nltk.download('punkt_tab', quiet=True)
+
+
+# ============================================================================
+# STEP 1: DATA STRUCTURES
+# ============================================================================
+"""
+DocumentChunk:
+Represents a piece of document text with metadata. This helps us:
+- Track where each chunk came from (document_id, page_number)
+- Store additional context (title, chunk index)
+- Retrieve chunks with their source information
+"""
 @dataclass
 class DocumentChunk:
-    """Represents a chunk of legal text with metadata"""
+    """Represents a chunk of document text with metadata"""
     content: str
     document_id: str
     chunk_index: int
     page_number: int
     metadata: Dict[str, Any]
 
-class LegalDocumentProcessor:
-    """LlamaIndex-based document processor for legal documents"""
+
+# ============================================================================
+# STEP 2: DOCUMENT PARSING
+# ============================================================================
+"""
+Document Parsing:
+The first step in document RAG is extracting text from files.
+
+Key Concepts:
+- File Type Detection: Different formats need different parsers
+- Text Extraction: Get clean text from PDFs, Word docs, text files
+- Error Handling: Handle corrupted or unsupported files
+- LlamaIndex: Uses robust parsers for various document types
+
+Supported Formats:
+- PDF: Extracts text from PDF documents
+- Word (.doc, .docx): Extracts text from Microsoft Word files
+- Text (.txt): Reads plain text files
+"""
+class DocumentProcessor:
+    """Parses documents and generates embeddings"""
     
     def __init__(self):
-        self.index = None
-        self.documents = []
+        self.embedding_model = None
+        self._load_embedding_model()
+    
+    def _load_embedding_model(self):
+        """Load the embedding model (same as website_rag demo)"""
+        model_name = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+        self.embedding_model = SentenceTransformer(model_name)
     
     async def parse_document(self, file_path: str) -> Optional[Dict[str, Any]]:
         """
-        Parse a legal document using LlamaIndex
+        Parse a document and extract text content
+        
+        Process:
+        1. Detect file type
+        2. Use appropriate parser (LlamaIndex handles this)
+        3. Extract text content
+        4. Get accurate page count
+        5. Return structured data with metadata
         
         Args:
             file_path: Path to the document file
             
         Returns:
-            Dictionary with parsed content and metadata
+            Dictionary with title, content, and metadata
         """
         try:
-            logger.info(f"Parsing document with LlamaIndex: {file_path}")
+            # First, try to get actual page count for PDFs
+            actual_page_count = None
+            if file_path.lower().endswith('.pdf'):
+                try:
+                    import PyPDF2
+                    with open(file_path, 'rb') as pdf_file:
+                        pdf_reader = PyPDF2.PdfReader(pdf_file)
+                        actual_page_count = len(pdf_reader.pages)
+                except Exception:
+                    pass  # Fall back to estimation
             
-            # Create a temporary directory for LlamaIndex
+            # Create temporary directory for LlamaIndex
             temp_dir = tempfile.mkdtemp()
             temp_file = os.path.join(temp_dir, os.path.basename(file_path))
             shutil.copy2(file_path, temp_file)
             
-            # Use LlamaIndex SimpleDirectoryReader
+            # Use LlamaIndex SimpleDirectoryReader (handles PDF, Word, text)
             reader = SimpleDirectoryReader(input_dir=temp_dir)
             documents = reader.load_data()
             
             if not documents:
                 raise Exception("No content extracted from document")
             
-            # Create vector index
-            self.index = VectorStoreIndex.from_documents(documents)
-            self.documents = documents
-            
-            # Extract content for metadata
+            # Extract text content
             content = "\n".join([doc.text for doc in documents])
+            
+            # Determine page count
+            if actual_page_count:
+                # Use actual page count from PDF metadata
+                page_count = actual_page_count
+            else:
+                # Try to get page count from document metadata
+                page_numbers = set()
+                for doc in documents:
+                    metadata = getattr(doc, 'metadata', {}) or {}
+                    page_label = metadata.get('page_label') or metadata.get('page_number') or metadata.get('page')
+                    if page_label:
+                        try:
+                            page_numbers.add(int(page_label))
+                        except (ValueError, TypeError):
+                            pass
+                
+                if page_numbers:
+                    page_count = max(page_numbers)
+                else:
+                    # Estimate: assume roughly 2-3 nodes per page for PDFs
+                    page_count = max(1, len(documents) // 2)
             
             # Clean up temp directory
             shutil.rmtree(temp_dir)
@@ -105,154 +170,54 @@ class LegalDocumentProcessor:
             return {
                 'title': os.path.basename(file_path),
                 'content': content,
-                'pages': len(documents),
-                'page_numbers': list(range(1, len(documents) + 1)),
+                'pages': page_count,
+                'document_nodes': len(documents),  # Actual number of document nodes from LlamaIndex
                 'parsed_at': datetime.now().isoformat(),
-                'content_length': len(content),
-                'method': 'llamaindex'
+                'content_length': len(content)
             }
                 
         except Exception as e:
-            logger.error(f"Error parsing document {file_path}: {e}")
             return None
     
-    def chunk_document(self, document_content: Dict[str, Any], chunk_size: int = 500, chunk_overlap: int = 50) -> List[Dict[str, Any]]:
+    def chunk_document(
+        self, 
+        document_content: Dict[str, Any], 
+        chunk_size: int = 500, 
+        chunk_overlap: int = 50
+    ) -> List[Dict[str, Any]]:
         """
-        Split legal document into semantic chunks using LlamaIndex
+        Split document content into overlapping chunks
+        
+        Why Chunking?
+        - Documents are too large for LLM context windows
+        - Smaller chunks are easier to search
+        - Overlap preserves context across boundaries
+        
+        How It Works:
+        1. Split text into sentences (preserves meaning)
+        2. Build chunks by adding sentences
+        3. When chunk would exceed size, start new chunk
+        4. Use overlap to preserve context
         
         Args:
-            document_content: Parsed document content
-            chunk_size: Maximum size of each chunk
-            chunk_overlap: Number of characters to overlap between chunks
+            document_content: Dictionary with 'content'
+            chunk_size: Maximum characters per chunk
+            chunk_overlap: Characters to overlap between chunks
             
         Returns:
-            List of document chunks with metadata
-        """
-        if not self.index:
-            return []
-        
-        # Get nodes from the index
-        nodes = self.index.docstore.get_nodes(list(self.index.docstore.docs.keys()))
-        
-        chunks = []
-        for i, node in enumerate(nodes):
-            chunks.append({
-                'content': node.text,
-                'page_number': getattr(node, 'metadata', {}).get('page_label', 1)
-            })
-        
-        logger.info(f"Created {len(chunks)} chunks from document")
-        return chunks
-    
-    async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """
-        Generate embeddings using sentence-transformers (same as website-rag demo)
-        
-        Args:
-            texts: List of text strings to embed
-            
-        Returns:
-            List of embedding vectors
-        """
-        try:
-            # Use the same approach as website-rag demo
-            from sentence_transformers import SentenceTransformer
-            
-            model_name = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
-            logger.info(f"Loading embedding model: {model_name}")
-            model = SentenceTransformer(model_name)
-            
-            # Generate embeddings
-            embeddings = model.encode(texts, convert_to_tensor=False)
-            
-            # Convert to list of lists
-            if len(embeddings.shape) == 1:
-                embeddings = [embeddings.tolist()]
-            else:
-                embeddings = embeddings.tolist()
-            
-            logger.info(f"Generated {len(embeddings)} embeddings using sentence-transformers")
-            return embeddings
-            
-        except Exception as e:
-            logger.error(f"Error generating embeddings: {e}")
-            # Fallback to simple hash-based embeddings
-            return self._generate_fallback_embeddings(texts)
-    
-    def _generate_fallback_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate simple hash-based embeddings as fallback"""
-        import hashlib
-        
-        embeddings = []
-        for text in texts:
-            # Create a simple hash-based embedding
-            hash_obj = hashlib.md5(text.encode())
-            hash_bytes = hash_obj.digest()
-            
-            # Convert to 128-dimensional vector
-            embedding = []
-            for i in range(0, len(hash_bytes), 4):
-                chunk = hash_bytes[i:i+4]
-                if len(chunk) == 4:
-                    # Convert 4 bytes to float
-                    value = int.from_bytes(chunk, byteorder='big') / (2**32)
-                    embedding.append(value)
-                else:
-                    embedding.append(0.0)
-            
-            # Pad or truncate to 128 dimensions
-            while len(embedding) < 128:
-                embedding.append(0.0)
-            embedding = embedding[:128]
-            
-            embeddings.append(embedding)
-        
-        logger.info(f"Generated {len(embeddings)} fallback embeddings")
-        return embeddings
-    
-    def cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        """Calculate cosine similarity between two vectors"""
-        try:
-            vec1 = np.array(vec1)
-            vec2 = np.array(vec2)
-            
-            dot_product = np.dot(vec1, vec2)
-            norm1 = np.linalg.norm(vec1)
-            norm2 = np.linalg.norm(vec2)
-            
-            if norm1 == 0 or norm2 == 0:
-                return 0.0
-            
-            return dot_product / (norm1 * norm2)
-        except Exception as e:
-            logger.error(f"Error calculating cosine similarity: {e}")
-            return 0.0
-    
-    def chunk_document(self, document_content: Dict[str, Any], chunk_size: int = 500, chunk_overlap: int = 50) -> List[Dict[str, Any]]:
-        """
-        Split legal document into semantic chunks
-        
-        Args:
-            document_content: Parsed document content
-            chunk_size: Maximum size of each chunk
-            chunk_overlap: Number of characters to overlap between chunks
-            
-        Returns:
-            List of document chunks with metadata
+            List of document chunks with page numbers
         """
         content = document_content['content']
-        pages = document_content.get('pages', 1)
-        page_numbers = document_content.get('page_numbers', [1])
         
-        # Split into sentences first
+        # Split into sentences (preserves meaning better than character splitting)
         sentences = self._split_into_sentences(content)
         
         chunks = []
         current_chunk = ""
-        current_page = 1
+        current_page = 1  # Simple page tracking
         
         for sentence in sentences:
-            # If adding this sentence would exceed chunk size, start a new chunk
+            # If adding this sentence would exceed chunk size, finalize current chunk
             if len(current_chunk) + len(sentence) > chunk_size and current_chunk:
                 chunks.append({
                     'content': current_chunk.strip(),
@@ -278,362 +243,81 @@ class LegalDocumentProcessor:
         # Filter out very short chunks
         chunks = [chunk for chunk in chunks if len(chunk['content']) > 50]
         
-        logger.info(f"Created {len(chunks)} chunks from document of length {len(content)}")
         return chunks
     
     def _split_into_sentences(self, text: str) -> List[str]:
-        """Split text into sentences using NLTK or fallback"""
-        try:
-            from nltk.tokenize import sent_tokenize
-            return sent_tokenize(text)
-        except Exception as e:
-            logger.warning(f"NLTK sentence tokenization failed: {e}. Using simple split.")
-        
-        # Fallback to simple sentence splitting
-        sentences = re.split(r'[.!?]+', text)
-        return [s.strip() for s in sentences if s.strip()]
+        """Split text into sentences using NLTK"""
+        from nltk.tokenize import sent_tokenize
+        return sent_tokenize(text)
     
     async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
         Generate embeddings for a list of texts
         
-        Args:
-            texts: List of text strings to embed
-            
-        Returns:
-            List of embedding vectors
+        Uses the same approach as website_rag demo:
+        - SentenceTransformer for semantic embeddings
+        - Local model (no API costs)
+        - Fast and efficient
+        
+        Each embedding is a vector representing the text's meaning.
+        Similar meanings → similar vectors.
         """
-        try:
-            if not self.embedding_model:
-                # Fallback to simple hash-based embeddings
-                logger.warning("Using fallback hash-based embeddings")
-                return self._generate_fallback_embeddings(texts)
-            
-            # Generate embeddings
-            embeddings = self.embedding_model.encode(texts, convert_to_tensor=False)
-            
-            # Convert to list of lists
-            if len(embeddings.shape) == 1:
-                embeddings = [embeddings.tolist()]
-            else:
-                embeddings = embeddings.tolist()
-            
-            logger.info(f"Generated {len(embeddings)} embeddings")
-            return embeddings
-            
-        except Exception as e:
-            logger.error(f"Error generating embeddings: {e}")
-            # Fallback to simple hash-based embeddings
-            return self._generate_fallback_embeddings(texts)
-    
-    def _generate_fallback_embeddings(self, texts: List[str]) -> List[List[float]]:
-        """Generate simple hash-based embeddings as fallback"""
-        import hashlib
+        # Generate embeddings
+        embeddings = self.embedding_model.encode(texts, convert_to_tensor=False)
         
-        embeddings = []
-        for text in texts:
-            # Create a simple hash-based embedding
-            hash_obj = hashlib.md5(text.encode())
-            hash_bytes = hash_obj.digest()
-            
-            # Convert to 128-dimensional vector
-            embedding = []
-            for i in range(0, len(hash_bytes), 4):
-                chunk = hash_bytes[i:i+4]
-                if len(chunk) == 4:
-                    # Convert 4 bytes to float
-                    value = int.from_bytes(chunk, byteorder='big') / (2**32)
-                    embedding.append(value)
-                else:
-                    embedding.append(0.0)
-            
-            # Pad or truncate to 128 dimensions
-            while len(embedding) < 128:
-                embedding.append(0.0)
-            embedding = embedding[:128]
-            
-            embeddings.append(embedding)
-        
-        logger.info(f"Generated {len(embeddings)} fallback embeddings")
-        return embeddings
+        # Convert numpy array to list of lists
+        if len(embeddings.shape) == 1:
+            return [embeddings.tolist()]
+        else:
+            return embeddings.tolist()
     
-    def cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        """Calculate cosine similarity between two vectors"""
-        try:
-            vec1 = np.array(vec1)
-            vec2 = np.array(vec2)
-            
-            dot_product = np.dot(vec1, vec2)
-            norm1 = np.linalg.norm(vec1)
-            norm2 = np.linalg.norm(vec2)
-            
-            if norm1 == 0 or norm2 == 0:
-                return 0.0
-            
-            return dot_product / (norm1 * norm2)
-        except Exception as e:
-            logger.error(f"Error calculating cosine similarity: {e}")
-            return 0.0
 
-class RiskAnalyzer:
-    """Analyzer for identifying legal risks in documents"""
-    
-    def __init__(self, llm_provider):
-        self.llm_provider = llm_provider
-        self.risk_keywords = {
-            'high': [
-                'liability', 'indemnification', 'breach', 'termination', 'penalty',
-                'damages', 'warranty', 'guarantee', 'force majeure', 'default'
-            ],
-            'medium': [
-                'confidentiality', 'non-disclosure', 'intellectual property', 'copyright',
-                'trademark', 'patent', 'proprietary', 'exclusive', 'non-compete'
-            ],
-            'low': [
-                'governing law', 'jurisdiction', 'dispute resolution', 'arbitration',
-                'mediation', 'notice', 'assignment', 'severability'
-            ]
-        }
-    
-    async def analyze_risks(self, document_content: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Analyze document for potential risks
-        
-        Args:
-            document_content: Parsed document content
-            
-        Returns:
-            List of identified risks with analysis
-        """
-        try:
-            content = document_content['content']
-            
-            # Use LLM for advanced risk analysis
-            risk_prompt = f"""
-            Analyze this legal document for potential risks and issues. Focus on:
-            1. High-risk clauses (liability, termination, penalties)
-            2. Unfavorable terms for either party
-            3. Missing important protections
-            4. Ambiguous language that could cause disputes
-            
-            Document content:
-            {content[:3000]}  # Limit content for prompt
-            
-            Provide analysis in this format:
-            RISK_LEVEL: [low/medium/high/critical]
-            CATEGORY: [Financial/Legal/Operational/Compliance]
-            DESCRIPTION: [Brief description of the risk]
-            CLAUSE: [Relevant text from document]
-            RECOMMENDATION: [Suggested action]
-            
-            Identify up to 5 key risks.
-            """
-            
-            response = await self.llm_provider.generate(risk_prompt, temperature=0.1, max_tokens=1000)
-            
-            # Parse the response into structured risks
-            risks = self._parse_risk_response(response)
-            
-            # Add keyword-based risk detection
-            keyword_risks = self._detect_keyword_risks(content)
-            risks.extend(keyword_risks)
-            
-            # Remove duplicates and limit to top 5
-            unique_risks = self._deduplicate_risks(risks)
-            
-            logger.info(f"Identified {len(unique_risks)} risks in document")
-            return unique_risks[:5]
-            
-        except Exception as e:
-            logger.error(f"Error analyzing risks: {e}")
-            return []
-    
-    def _parse_risk_response(self, response: str) -> List[Dict[str, Any]]:
-        """Parse LLM response into structured risk data"""
-        risks = []
-        lines = response.split('\n')
-        
-        current_risk = {}
-        for line in lines:
-            line = line.strip()
-            if line.startswith('RISK_LEVEL:'):
-                if current_risk:
-                    risks.append(current_risk)
-                current_risk = {'risk_level': line.split(':', 1)[1].strip().lower()}
-            elif line.startswith('CATEGORY:'):
-                current_risk['category'] = line.split(':', 1)[1].strip()
-            elif line.startswith('DESCRIPTION:'):
-                current_risk['description'] = line.split(':', 1)[1].strip()
-            elif line.startswith('CLAUSE:'):
-                current_risk['clause'] = line.split(':', 1)[1].strip()
-            elif line.startswith('RECOMMENDATION:'):
-                current_risk['recommendation'] = line.split(':', 1)[1].strip()
-        
-        if current_risk:
-            risks.append(current_risk)
-        
-        return risks
-    
-    def _detect_keyword_risks(self, content: str) -> List[Dict[str, Any]]:
-        """Detect risks based on keyword analysis"""
-        risks = []
-        content_lower = content.lower()
-        
-        for risk_level, keywords in self.risk_keywords.items():
-            for keyword in keywords:
-                if keyword in content_lower:
-                    # Find the sentence containing the keyword
-                    sentences = re.split(r'[.!?]+', content)
-                    for sentence in sentences:
-                        if keyword in sentence.lower():
-                            risks.append({
-                                'risk_level': risk_level,
-                                'category': 'Keyword Detection',
-                                'description': f'Document contains "{keyword}" which may indicate potential risks',
-                                'clause': sentence.strip(),
-                                'recommendation': f'Review clauses containing "{keyword}" for potential issues'
-                            })
-                            break
-        
-        return risks
-    
-    def _deduplicate_risks(self, risks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Remove duplicate risks based on description similarity"""
-        unique_risks = []
-        seen_descriptions = set()
-        
-        for risk in risks:
-            description_key = risk.get('description', '').lower()
-            if description_key not in seen_descriptions:
-                unique_risks.append(risk)
-                seen_descriptions.add(description_key)
-        
-        return unique_risks
 
-class KeyTermsExtractor:
-    """Extractor for identifying key legal terms and definitions"""
-    
-    def __init__(self, llm_provider):
-        self.llm_provider = llm_provider
-        self.legal_terms = [
-            'agreement', 'contract', 'party', 'parties', 'obligation', 'liability',
-            'indemnification', 'warranty', 'guarantee', 'breach', 'termination',
-            'confidentiality', 'intellectual property', 'copyright', 'trademark',
-            'patent', 'proprietary', 'exclusive', 'non-compete', 'governing law',
-            'jurisdiction', 'dispute resolution', 'arbitration', 'mediation'
-        ]
-    
-    async def extract_key_terms(self, document_content: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """
-        Extract key legal terms and their definitions
-        
-        Args:
-            document_content: Parsed document content
-            
-        Returns:
-            List of key terms with definitions and importance
-        """
-        try:
-            content = document_content['content']
-            
-            # Use LLM for term extraction
-            terms_prompt = f"""
-            Extract key legal terms and their definitions from this document. Focus on:
-            1. Important legal concepts and definitions
-            2. Technical terms specific to the agreement
-            3. Terms that define rights, obligations, or procedures
-            
-            Document content:
-            {content[:3000]}  # Limit content for prompt
-            
-            Provide terms in this format:
-            TERM: [term name]
-            DEFINITION: [definition or explanation]
-            IMPORTANCE: [low/medium/high]
-            CLAUSE: [relevant text from document]
-            
-            Extract up to 10 key terms.
-            """
-            
-            response = await self.llm_provider.generate(terms_prompt, temperature=0.1, max_tokens=1000)
-            
-            # Parse the response into structured terms
-            terms = self._parse_terms_response(response)
-            
-            # Add keyword-based term detection
-            keyword_terms = self._detect_keyword_terms(content)
-            terms.extend(keyword_terms)
-            
-            # Remove duplicates and limit to top 10
-            unique_terms = self._deduplicate_terms(terms)
-            
-            logger.info(f"Extracted {len(unique_terms)} key terms from document")
-            return unique_terms[:10]
-            
-        except Exception as e:
-            logger.error(f"Error extracting key terms: {e}")
-            return []
-    
-    def _parse_terms_response(self, response: str) -> List[Dict[str, Any]]:
-        """Parse LLM response into structured term data"""
-        terms = []
-        lines = response.split('\n')
-        
-        current_term = {}
-        for line in lines:
-            line = line.strip()
-            if line.startswith('TERM:'):
-                if current_term:
-                    terms.append(current_term)
-                current_term = {'term': line.split(':', 1)[1].strip()}
-            elif line.startswith('DEFINITION:'):
-                current_term['definition'] = line.split(':', 1)[1].strip()
-            elif line.startswith('IMPORTANCE:'):
-                current_term['importance'] = line.split(':', 1)[1].strip().lower()
-            elif line.startswith('CLAUSE:'):
-                current_term['clause'] = line.split(':', 1)[1].strip()
-        
-        if current_term:
-            terms.append(current_term)
-        
-        return terms
-    
-    def _detect_keyword_terms(self, content: str) -> List[Dict[str, Any]]:
-        """Detect terms based on keyword analysis"""
-        terms = []
-        content_lower = content.lower()
-        
-        for term in self.legal_terms:
-            if term in content_lower:
-                # Find the sentence containing the term
-                sentences = re.split(r'[.!?]+', content)
-                for sentence in sentences:
-                    if term in sentence.lower():
-                        terms.append({
-                            'term': term.title(),
-                            'definition': f'Legal term related to {term}',
-                            'importance': 'medium',
-                            'clause': sentence.strip()
-                        })
-                        break
-        
-        return terms
-    
-    def _deduplicate_terms(self, terms: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Remove duplicate terms based on term name"""
-        unique_terms = []
-        seen_terms = set()
-        
-        for term in terms:
-            term_key = term.get('term', '').lower()
-            if term_key not in seen_terms:
-                unique_terms.append(term)
-                seen_terms.add(term_key)
-        
-        return unique_terms
+# ============================================================================
+# STEP 3: RAG PIPELINE (With Vector Store)
+# ============================================================================
+"""
+Vector Stores - The Concept:
+Instead of manually calculating cosine similarity for every chunk,
+vector stores are specialized databases optimized for similarity search.
 
-class LegalRAGPipeline:
-    """RAG pipeline specifically designed for legal document analysis"""
+Why Vector Stores Instead of Manual Cosine Similarity?
+- Faster: Optimized algorithms (indexing, approximate search)
+- Scalable: Handle millions of vectors efficiently
+- Metadata Support: Store and filter by document_id, page_number, etc.
+- Production-Ready: Built for real-world use cases
+- Better Accuracy: Advanced indexing techniques improve results
+
+What is a Vector Store?
+A vector store (also called vector database) is a database designed
+specifically for storing and searching high-dimensional vectors.
+
+Common Vector Stores:
+- Chroma: Open-source, Python-friendly (what we use here)
+- Pinecone: Managed cloud service
+- Weaviate: Open-source with GraphQL API
+- FAISS: Facebook's library for similarity search
+- Qdrant: Fast vector database
+
+Key Concepts:
+- Index: Data structure optimized for fast similarity search
+- Query: Search for vectors similar to your query vector
+- Metadata: Additional data stored with each vector
+- Collections/Tables: Groups of vectors with the same structure
+
+The Complete Flow:
+1. User asks a question about a document
+2. Generate embedding for the question
+3. Use vector store to find top-K similar chunks (fast & accurate)
+4. Build prompt with question + relevant document chunks
+5. Generate answer using LLM
+
+This is incremental learning:
+- Website RAG: Learned manual cosine similarity (understand the math)
+- Document RAG: Learn vector stores (production-ready approach)
+"""
+class RAGPipeline:
+    """Complete RAG pipeline: retrieval + generation with vector store"""
     
     def __init__(self, llm_provider):
         self.llm_provider = llm_provider
@@ -646,139 +330,171 @@ class LegalRAGPipeline:
         max_chunks: int = 5
     ) -> List[DocumentChunk]:
         """
-        Retrieve the most relevant document chunks for a legal query
+        Find the most relevant document chunks using a vector store
         
-        Args:
-            query_embedding: Embedding vector for the query
-            document_embeddings: List of embedding vectors for documents
-            documents: List of document chunks
-            max_chunks: Maximum number of chunks to return
-            
-        Returns:
-            List of most relevant document chunks
+        Process:
+        1. Create vector store index with document embeddings
+        2. Query for top-K similar chunks
+        3. Return relevant chunks with metadata
+        
+        This uses a vector store for efficient similarity search - much faster
+        and more scalable than manual cosine similarity calculations.
         """
-        try:
-            if not document_embeddings or not documents:
-                return []
-            
-            # Calculate similarities
-            similarities = []
-            for i, doc_embedding in enumerate(document_embeddings):
-                similarity = self._cosine_similarity(query_embedding, doc_embedding)
-                similarities.append((similarity, i))
-            
-            # Sort by similarity (descending)
-            similarities.sort(key=lambda x: x[0], reverse=True)
-            
-            # Get top chunks
-            top_indices = [idx for _, idx in similarities[:max_chunks]]
-            relevant_chunks = [documents[i] for i in top_indices]
-            
-            logger.info(f"Retrieved {len(relevant_chunks)} relevant chunks out of {len(documents)} total")
-            return relevant_chunks
-            
-        except Exception as e:
-            logger.error(f"Error retrieving relevant chunks: {e}")
+        if not document_embeddings or not documents:
             return []
-    
-    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        """Calculate cosine similarity between two vectors"""
-        try:
-            vec1 = np.array(vec1)
-            vec2 = np.array(vec2)
-            
-            dot_product = np.dot(vec1, vec2)
-            norm1 = np.linalg.norm(vec1)
-            norm2 = np.linalg.norm(vec2)
-            
-            if norm1 == 0 or norm2 == 0:
-                return 0.0
-            
-            return dot_product / (norm1 * norm2)
-        except Exception as e:
-            logger.error(f"Error calculating cosine similarity: {e}")
-            return 0.0
-    
-    async def generate_answer_stream(self, question: str, relevant_chunks: List[DocumentChunk]) -> AsyncGenerator[str, None]:
-        """
-        Generate a streaming document analysis using the LLM and relevant chunks
         
-        Args:
-            question: The user's question
-            relevant_chunks: Relevant document chunks
-            
-        Yields:
-            Chunks of the generated document analysis
+        # Use vector store for efficient similarity search
+        # We're using Chroma here, but you could swap it with Pinecone, Weaviate, etc.
+        return self._retrieve_with_vector_store(query_embedding, document_embeddings, documents, max_chunks)
+    
+    def _retrieve_with_vector_store(
+        self,
+        query_embedding: List[float],
+        document_embeddings: List[List[float]],
+        documents: List[DocumentChunk],
+        max_chunks: int
+    ) -> List[DocumentChunk]:
         """
-        try:
-            if not relevant_chunks:
-                yield "I don't have enough information to answer your question. Please make sure the document has been processed and contains relevant content."
-                return
-            
-            # Prepare context from relevant chunks
-            context_parts = []
-            for i, chunk in enumerate(relevant_chunks, 1):
-                context_parts.append(f"Source {i} (Page {chunk.page_number}):\n{chunk.content}")
-            
-            context = "\n\n".join(context_parts)
-            
-            # Create concise chatbot prompt
-            prompt = f"""You are a helpful chatbot analyzing a document. Give concise, direct answers.
+        Use vector store for efficient similarity search
+        
+        How Vector Stores Work:
+        1. Create an index (like a database table)
+        2. Add all document embeddings to the index
+        3. Query the index with your question embedding
+        4. Get back the most similar chunks
+        
+        We're using Chroma here as an example, but the same concept
+        applies to any vector store (Pinecone, Weaviate, FAISS, etc.)
+        """
+        # Create in-memory vector store client (Chroma implementation)
+        client = chromadb.EphemeralClient()
+        
+        # Create a collection (similar to a database table)
+        collection_name = f"chunks_{uuid.uuid4().hex[:8]}"
+        collection = client.create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"}  # Use cosine similarity
+        )
+        
+        # Add document embeddings to the vector store with metadata
+        ids = []
+        metadatas = []
+        for i, doc in enumerate(documents):
+            ids.append(str(i))
+            metadatas.append({
+                "document_id": doc.document_id,
+                "chunk_index": doc.chunk_index,
+                "page_number": doc.page_number
+            })
+        
+        # Store embeddings in vector store
+        collection.add(
+            embeddings=document_embeddings,
+            ids=ids,
+            metadatas=metadatas
+        )
+        
+        # Query vector store for similar chunks
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=min(max_chunks, len(documents))
+        )
+        
+        # Extract indices from results
+        if results['ids'] and len(results['ids']) > 0:
+            top_indices = [int(idx) for idx in results['ids'][0]]
+            return [documents[i] for i in top_indices if i < len(documents)]
+        
+        return []
+    
+    async def generate_answer_stream(
+        self, 
+        question: str, 
+        relevant_chunks: List[DocumentChunk]
+    ) -> AsyncGenerator[str, None]:
+        """
+        Generate streaming answer using LLM with retrieved document context
+        
+        This is the "G" (Generation) part of RAG.
+        
+        Process:
+        1. Build context from relevant document chunks
+        2. Create RAG prompt with context + question
+        3. Stream answer from LLM
+        
+        RAG Prompt Structure:
+        - Context from retrieved document chunks
+        - User question
+        - Instructions to use only the document context
+        """
+        if not relevant_chunks:
+            yield "I don't have enough information to answer your question from the document."
+            return
+        
+        # Build context from relevant chunks
+        context_parts = []
+        for chunk in relevant_chunks:
+            context_parts.append(chunk.content)
+        
+        context = "\n\n".join(context_parts)
+        
+        # Create simple RAG prompt - just answer the question naturally
+        prompt = f"""Based on this document content, answer the question.
 
-Document Context:
+Document content:
 {context}
 
 Question: {question}
 
-Instructions:
-1. Answer in MAX 100 words - be concise and direct
-2. ONLY use information from the document context above
-3. If no relevant info, say "I don't have that information in the document."
-4. Focus on answering the question directly
-5. Use simple, conversational language
-6. Include specific details from the document when relevant
-
-Answer:"""
-            
-            # Generate streaming answer
-            async for chunk in self.llm_provider.generate_stream(prompt, temperature=0.1, max_tokens=150):
-                yield chunk
+Answer directly and concisely:"""
+        
+        # Stream answer from LLM
+        async for chunk in self.llm_provider.generate_stream(
+            prompt,
+            temperature=0.1,
+            max_tokens=100
+        ):
+            yield chunk
                 
-        except Exception as e:
-            logger.error(f"Error generating streaming document analysis: {e}")
-            yield f"Sorry, I encountered an error while analyzing your question: {str(e)}"
 
-# Example usage and testing
-if __name__ == "__main__":
-    async def test_legal_pipeline():
-        """Test the legal analysis pipeline with sample data"""
-        from utils.llm_provider import get_llm_provider
-        
-        # Initialize components
-        llm_provider = get_llm_provider()
-        document_processor = LegalDocumentProcessor()
-        risk_analyzer = RiskAnalyzer(llm_provider)
-        key_terms_extractor = KeyTermsExtractor(llm_provider)
-        legal_rag_pipeline = LegalRAGPipeline(llm_provider)
-        
-        # Test document processing
-        print("Testing legal document processing...")
-        
-        # Test risk analysis
-        print("Testing risk analysis...")
-        sample_content = {
-            'content': 'This agreement contains liability limitations and termination clauses...',
-            'title': 'Sample Contract'
-        }
-        risks = await risk_analyzer.analyze_risks(sample_content)
-        print(f"Identified {len(risks)} risks")
-        
-        # Test key terms extraction
-        print("Testing key terms extraction...")
-        terms = await key_terms_extractor.extract_key_terms(sample_content)
-        print(f"Extracted {len(terms)} key terms")
-        
-        print("Legal analysis pipeline test completed!")
-    
-    # Run test
-    asyncio.run(test_legal_pipeline())
+# ============================================================================
+# LEARNING CHECKLIST
+# ============================================================================
+"""
+After reading this code, you should understand:
+
+✓ How to parse different document types (PDF, Word, text)
+✓ How to chunk documents intelligently (sentence-based, with overlap)
+✓ How embeddings convert text to vectors
+✓ How vector stores enable efficient similarity search
+✓ Why vector stores are better than manual cosine similarity
+✓ How to build a RAG prompt with document context
+✓ The complete document RAG pipeline flow
+
+Key Document RAG Concepts:
+- Ingestion: Upload → parse → chunk → embed → store in vector store
+- Query: Question → embed → vector store search → context → answer
+- Why Document RAG works: Relevant sections + LLM understanding = accurate answers
+
+Vector Store Concepts:
+- Vector stores are specialized databases for similarity search
+- Much faster than calculating cosine similarity manually
+- Can handle millions of vectors efficiently
+- Support metadata filtering (by document_id, page_number, etc.)
+- Examples: Chroma (used here), Pinecone, Weaviate, FAISS, Qdrant
+
+Next Steps:
+1. Experiment with different chunk sizes
+2. Try different embedding models
+3. Upload multiple documents and see cross-document retrieval
+4. Try a different vector store (Pinecone, Weaviate, FAISS)
+5. Add support for tables and images in documents
+6. Make the vector store persistent (save/load indexes)
+
+Questions to Consider:
+- What's the optimal chunk size for documents? (too small = lost context, too large = less precise)
+- How does overlap affect retrieval quality?
+- What happens if no relevant chunks are found in the document?
+- How would you handle documents with tables or images?
+- How would you improve chunking for technical or legal documents?
+"""
