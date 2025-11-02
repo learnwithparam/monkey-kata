@@ -1,242 +1,324 @@
 """
-Bedtime Story Generator API
-===========================
+Bedtime Story Generator
+=======================
 
-🎯 LEARNING OBJECTIVES FOR BOOTCAMP STUDENTS:
+🎯 LEARNING OBJECTIVES:
+This demo teaches you how to build an AI-powered application step by step:
 
-This demo teaches core AI engineering concepts:
+1. LLM Integration - How to connect and use AI models
+2. Prompt Engineering - How to craft effective prompts
+3. Streaming Responses - How to create real-time, ChatGPT-like experiences
+4. Input Validation - How to ensure data quality
+5. API Design - How to build clean, RESTful endpoints
 
-1. STREAMING RESPONSES (Server-Sent Events)
-   - How to create real-time streaming APIs like ChatGPT
-   - Using async generators for word-by-word streaming
-   - Proper SSE formatting with data: prefix
+📚 LEARNING FLOW:
+Follow this code from top to bottom to understand how each piece works:
 
-2. LLM INTEGRATION
-   - How to integrate with different LLM providers (Gemini, OpenAI)
-   - Prompt engineering for structured JSON output
-   - Error handling and fallback strategies
+Step 1: Setup - Import libraries and configure the router
+Step 2: Data Models - Define request structure with validation
+Step 3: Prompt Engineering - Craft the instruction for the AI
+Step 4: Story Generation - Stream the AI's response in real-time
+Step 5: API Endpoints - Expose functionality via HTTP
 
-3. JSON PARSING & ERROR HANDLING
-   - Robust JSON extraction from LLM responses
-   - Graceful fallbacks when parsing fails
-   - Multiple error handling layers
-
-4. FASTAPI BEST PRACTICES
-   - Pydantic models for request validation
-   - Proper async/await patterns
-   - Router organization and tags
-
-Key Files to Study:
-- main.py (this file) - API endpoints and streaming logic
-- utils/llm_provider.py - LLM integration patterns
-- frontend/page.tsx - How to consume streaming APIs
-
-🚀 Try This:
-1. Start the API: docker compose up
-2. Visit: http://localhost:4020/demos/bedtime-story
-3. Watch the network tab to see streaming in action!
+Let's start building!
 """
 
 # ============================================================================
-# IMPORTS
+# STEP 1: SETUP & IMPORTS
 # ============================================================================
+"""
+Understanding the Imports:
+- FastAPI: Web framework for building APIs
+- StreamingResponse: Enables real-time streaming (like ChatGPT)
+- BaseModel: Provides automatic data validation
+- AsyncGenerator: Allows streaming data piece by piece
+- json: Formats data for Server-Sent Events (SSE)
+- get_llm_provider: Helper to connect to AI models (Gemini, OpenAI, etc.)
+"""
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import AsyncGenerator
-import asyncio
 import json
+
 from utils.llm_provider import get_llm_provider
 
-# ============================================================================
-# ROUTER SETUP
-# ============================================================================
-# Create a router with prefix and tags for organization
-# This groups all bedtime story endpoints under /bedtime-story
+# Create a router - groups all endpoints under /bedtime-story
 router = APIRouter(prefix="/bedtime-story", tags=["bedtime-story"])
 
-# Initialize LLM provider (Gemini, OpenAI, or Mock based on environment)
+# Initialize the AI provider (automatically selects based on your API keys)
 llm_provider = get_llm_provider()
 
-# ============================================================================
-# DATA MODELS
-# ============================================================================
-class StoryRequest(BaseModel):
-    """
-    Pydantic model for story generation requests
-    
-    This ensures type safety and automatic validation of incoming data.
-    FastAPI will automatically validate that:
-    - character_name is a string
-    - character_age is an integer  
-    - story_theme is a string
-    - story_length is a string
-    
-    If validation fails, FastAPI returns a 422 error with details.
-    """
-    character_name: str
-    character_age: int
-    story_theme: str
-    story_length: str
 
 # ============================================================================
-# PROMPT ENGINEERING
+# STEP 2: DATA MODELS (Request Validation)
 # ============================================================================
-def create_simple_prompt(request: StoryRequest) -> str:
+"""
+What is a Data Model?
+- Defines the structure of incoming requests
+- Automatically validates data (type checking, required fields)
+- Provides clear error messages if validation fails
+- Think of it as a "contract" for what your API expects
+
+Example: If someone sends character_age as "five" instead of 5,
+FastAPI will automatically return a 422 error with a helpful message.
+"""
+class StoryRequest(BaseModel):
+    """Defines what data we need to generate a story"""
+    
+    character_name: str = Field(
+        ..., 
+        min_length=1, 
+        max_length=50,
+        description="The name of the story's main character"
+    )
+    
+    character_age: int = Field(
+        ..., 
+        ge=1, 
+        le=18,
+        description="Age of the character (1-18 years)"
+    )
+    
+    story_theme: str = Field(
+        ..., 
+        min_length=1, 
+        max_length=100,
+        description="The theme or topic of the story (e.g., 'friendship', 'adventure')"
+    )
+    
+    story_length: str = Field(
+        ...,
+        description="Desired length: 'short', 'medium', or 'long'"
+    )
+
+
+# ============================================================================
+# STEP 3: PROMPT ENGINEERING
+# ============================================================================
+"""
+What is Prompt Engineering?
+- The art of writing instructions that guide AI to produce desired output
+- Good prompts are: clear, specific, and structured
+- This is where you teach the AI what you want
+
+Key Prompt Engineering Techniques Used Here:
+1. Role-Setting: Tell the AI who it is ("bedtime storyteller")
+2. Context: Provide user inputs (character name, age, theme)
+3. Instructions: Specify format, length, style
+4. Constraints: Set boundaries (age-appropriate, specific word count)
+
+💡 Try This: Modify this prompt and see how the story quality changes!
+"""
+def build_story_prompt(request: StoryRequest) -> str:
     """
-    Create a well-structured prompt for the LLM
+    Builds a well-structured prompt for the AI
     
-    🎯 KEY PROMPT ENGINEERING CONCEPTS:
-    
-    1. CLEAR INSTRUCTIONS: Be specific about what you want
-    2. STRUCTURED OUTPUT: Request JSON format for easy parsing
-    3. LENGTH CONTROL: Use user input to control output length
-    4. FORMATTING INSTRUCTIONS: Tell the LLM how to format the output
-    5. CONTEXT: Include character details for personalization
-    
-    This is a simple prompt - in production, you'd use more sophisticated
-    techniques like few-shot examples, chain-of-thought, etc.
+    This function takes user inputs and combines them into a clear
+    instruction that tells the AI exactly what kind of story to write.
     """
-    # Define length requirements based on user selection
-    length_requirements = {
-        "short": "3-5 paragraphs, about 40-60 words",
-        "medium": "5-7 paragraphs, about 100-150 words", 
-        "long": "8-12 paragraphs, about 200-300 words"
+    # Define length requirements - maps user selection to specific instructions
+    length_map = {
+        "short": "3-5 paragraphs, approximately 40-60 words",
+        "medium": "5-7 paragraphs, approximately 100-150 words",
+        "long": "8-12 paragraphs, approximately 200-300 words"
     }
     
-    return f"""Write a personalized bedtime story for a {request.character_age}-year-old named {request.character_name} about {request.story_theme}.
+    # Build the prompt step by step for clarity
+    prompt = f"""You are a creative and gentle bedtime storyteller.
 
-Make it {length_requirements[request.story_length]} and write in proper paragraphs with clear breaks between them.
+Write a personalized bedtime story with these details:
+- Main character: {request.character_name}, age {request.character_age}
+- Theme: {request.story_theme}
+- Length: {length_map.get(request.story_length, length_map['medium'])}
 
-Start with an engaging title that captures the adventure, then tell the story naturally. End with a gentle moral lesson that emphasizes the importance of kindness, bravery, or friendship. Let the title and moral flow organically within the narrative without explicit labels."""
+Requirements:
+1. Start with an engaging title
+2. Write in clear paragraphs with natural breaks
+3. Make it age-appropriate for a {request.character_age}-year-old
+4. End with a gentle moral lesson about kindness, bravery, or friendship
+5. Keep the tone warm, comforting, and suitable for bedtime
+
+Begin the story now:"""
+
+    return prompt
+
 
 # ============================================================================
-# STREAMING GENERATOR
+# STEP 4: STORY GENERATION (Streaming Logic)
 # ============================================================================
+"""
+What is Streaming?
+- Instead of waiting for the entire story, send it piece by piece
+- Creates a "typing" effect like ChatGPT
+- Feels faster and more interactive to users
+
+How Streaming Works:
+1. AI generates text in small chunks (tokens)
+2. Each chunk is sent immediately to the frontend
+3. Frontend displays chunks as they arrive
+4. User sees story appear in real-time
+
+Technical Details:
+- Uses async generators (async functions with 'yield')
+- Formats as Server-Sent Events (SSE) with "data: {json}\n\n"
+- Keeps connection alive until story is complete
+"""
 async def generate_story_stream(request: StoryRequest) -> AsyncGenerator[str, None]:
     """
-    Generate story with real-time streaming using Server-Sent Events (SSE)
+    Generates and streams a story in real-time
     
-    🎯 KEY CONCEPTS FOR BOOTCAMP STUDENTS:
-    
-    1. ASYNC GENERATORS: Use 'yield' to stream data in real-time
-    2. SERVER-SENT EVENTS: Format data as "data: {json}\n\n"
-    3. ERROR HANDLING: Multiple fallback layers for robustness
-    4. JSON PARSING: Extract structured data from LLM responses
-    5. STREAMING UX: Word-by-word streaming for ChatGPT-like experience
-    
-    This function demonstrates how to create streaming APIs that feel
-    responsive and engaging to users.
+    This is an async generator - it yields chunks of data as they're generated.
+    Each yield sends data to the frontend immediately.
     """
+    # Step 1: Notify frontend that connection is established
+    yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting story generation...'})}\n\n"
+    
     try:
-        # Step 1: Send initial connection confirmation
-        yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting story generation...'})}\n\n"
+        # Step 2: Build the prompt from user inputs
+        prompt = build_story_prompt(request)
         
-        # Step 2: Create the prompt and get LLM response
-        prompt = create_simple_prompt(request)
-        
-        # Stream the story content directly from LLM
+        # Step 3: Stream the story content from the AI
+        # The AI generates text chunk by chunk, and we forward each chunk immediately
         story_content = ""
-        async for chunk in llm_provider.generate_stream(prompt, temperature=0.8, max_tokens=800):
+        async for chunk in llm_provider.generate_stream(
+            prompt,
+            temperature=0.8,  # Controls creativity (0.0 = deterministic, 1.0+ = creative)
+            max_tokens=800    # Limits story length
+        ):
             story_content += chunk
+            # Send each chunk to frontend as it arrives
             yield f"data: {json.dumps({'content': chunk})}\n\n"
         
-        # Send completion signal
+        # Step 4: Signal that generation is complete
         yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
         
     except Exception as e:
-        # Handle any unexpected errors gracefully
-        yield f"data: {json.dumps({'error': str(e), 'status': 'error'})}\n\n"
+        # Handle errors gracefully
+        error_message = f"Error generating story: {str(e)}"
+        yield f"data: {json.dumps({'error': error_message, 'status': 'error'})}\n\n"
+
 
 # ============================================================================
-# API ENDPOINTS
+# STEP 5: API ENDPOINTS
 # ============================================================================
+"""
+What is an API Endpoint?
+- A URL that clients can call to access functionality
+- Each endpoint does one specific thing
+- Uses HTTP methods (GET, POST, etc.) to indicate the action
 
+Endpoint Design Principles:
+1. Clear naming (/stream, /themes, /health)
+2. Single responsibility (each endpoint does one thing)
+3. Proper HTTP methods (POST for creating, GET for reading)
+4. Meaningful responses (status codes, clear data)
+
+Understanding the Code Flow:
+POST /bedtime-story/stream
+  → Validates request (automatic via Pydantic)
+  → Calls generate_story_stream()
+  → Returns StreamingResponse that sends data in real-time
+  → Frontend receives chunks and displays them
+"""
 @router.post("/stream")
 async def stream_story(request: StoryRequest):
     """
-    Main streaming endpoint for story generation
+    Main endpoint: Generates and streams a bedtime story
     
-    🎯 KEY CONCEPTS:
+    This endpoint:
+    1. Receives story parameters (character name, age, theme, length)
+    2. Validates the data automatically (via Pydantic model)
+    3. Streams the generated story in real-time
+    4. Returns a StreamingResponse for Server-Sent Events
     
-    1. STREAMING RESPONSE: Uses FastAPI's StreamingResponse for real-time data
-    2. MEDIA TYPE: "text/event-stream" is the standard for Server-Sent Events
-    3. HEADERS: Cache-Control and Connection headers for proper SSE behavior
-    4. ASYNC GENERATOR: Passes the async generator to StreamingResponse
-    
-    The frontend will receive a stream of data like:
-    data: {"status": "connected", "message": "Starting..."}
-    data: {"metadata": {"title": "Story Title", "moral": "Lesson"}}
-    data: {"content": "Once upon a time..."}
-    data: {"done": true, "status": "completed"}
+    Frontend Usage:
+    The frontend connects to this endpoint and listens for events:
+    - First event: {"status": "connected", "message": "..."}
+    - Following events: {"content": "Once upon a time..."}
+    - Final event: {"done": true, "status": "completed"}
     """
     return StreamingResponse(
         generate_story_stream(request),
-        media_type="text/event-stream",  # Changed to proper SSE media type
+        media_type="text/event-stream",  # Standard SSE format
         headers={
-            "Cache-Control": "no-cache",  # Prevent caching of streaming data
-            "Connection": "keep-alive",   # Keep connection alive for streaming
+            "Cache-Control": "no-cache",  # Prevent caching
+            "Connection": "keep-alive",    # Keep connection open
         }
     )
+
 
 @router.get("/themes")
 async def get_story_themes():
     """
-    Get available story themes
+    Returns available story themes
     
-    This endpoint provides the list of themes that users can select from.
-    In a production app, this might come from a database or config file.
+    This is a simple utility endpoint that provides the frontend
+    with a list of themes users can choose from.
+    
+    In a real application, this might:
+    - Come from a database
+    - Be user-customizable
+    - Include theme descriptions or images
     """
     return {
         "themes": [
-            "adventure", "friendship", "courage", "kindness", 
-            "imagination", "family", "animals", "magic", 
-            "space", "underwater", "forest", "castle"
+            "adventure",
+            "friendship",
+            "courage",
+            "kindness",
+            "imagination",
+            "family",
+            "animals",
+            "magic",
+            "space",
+            "underwater",
+            "forest",
+            "castle"
         ]
     }
+
 
 @router.get("/health")
 async def health_check():
     """
     Health check endpoint
     
-    This is useful for:
-    - Monitoring system health
-    - Load balancer health checks
+    Useful for:
+    - Monitoring system status
+    - Load balancer checks
     - Debugging connection issues
+    
+    Returns a simple status to confirm the API is running.
     """
     return {
         "status": "healthy",
-        "service": "bedtime-story-generator",
-        "description": "Simple AI bedtime story generator for learning"
+        "service": "bedtime-story-generator"
     }
 
+
+# ============================================================================
+# LEARNING CHECKLIST
+# ============================================================================
 """
-LEARNING NOTES FOR STUDENTS:
-===========================
+After reading this code, you should understand:
 
-1. SIMPLE PROMPT ENGINEERING:
-   - Clear, specific instructions
-   - Tell AI exactly what format you want (JSON)
-   - Specify requirements clearly
+✓ How to validate incoming data with Pydantic models
+✓ How to build effective prompts for AI models
+✓ How streaming works (async generators, SSE format)
+✓ How to structure API endpoints with FastAPI
+✓ How to handle errors gracefully
 
-2. STREAMING:
-   - Split response into chunks and stream them
-   - Creates "typing" effect in frontend
-   - Shows real-time AI processing
+Next Steps:
+1. Modify the prompt to change story style
+2. Experiment with temperature values (0.2 vs 0.8 vs 1.2)
+3. Add a new input field (e.g., secondary character)
+4. Add post-processing (e.g., format validation, content filtering)
+5. Try implementing a "continue story" feature
 
-3. ERROR HANDLING:
-   - Try to parse JSON, but have fallbacks
-   - Always handle errors gracefully
-   - Never crash the application
-
-4. API DESIGN:
-   - Simple endpoints that do one thing
-   - Clear request/response models
-   - Good HTTP status codes
-
-5. CODE ORGANIZATION:
-   - Functions have single responsibilities
-   - Clear variable names
-   - Comments explain the "why"
+Questions to Consider:
+- What happens if the API key is invalid?
+- How would you add content safety checks?
+- How could you save stories to a database?
+- What metrics would you track in production?
 """

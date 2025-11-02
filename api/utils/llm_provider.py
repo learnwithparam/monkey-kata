@@ -2,76 +2,122 @@
 LLM Provider
 ============
 
-A flexible provider that supports multiple LLM APIs:
-- Google Gemini (free tier available)
-- OpenAI GPT models
-- Easy to extend for other providers
+🎯 LEARNING OBJECTIVES:
+This module teaches you how to build a flexible AI provider system:
 
-Usage:
-    from utils.llm_provider import LLMProvider
-    
-    provider = LLMProvider()
-    response = await provider.generate_text("Hello, world!")
-    async for chunk in provider.generate_stream("Tell me a story"):
-        print(chunk)
+1. Abstraction Patterns - How to design interchangeable components
+2. Provider Pattern - How to support multiple AI services
+3. API Compatibility - How OpenAI-compatible APIs work
+4. Streaming - How to implement real-time text generation
+5. Factory Pattern - How to select providers based on configuration
+
+📚 LEARNING FLOW:
+Follow this code from top to bottom:
+
+Step 1: Abstract Base Class - Define the contract all providers must follow
+Step 2: Cloud Providers - Learn how to integrate commercial AI APIs
+Step 3: Factory Pattern - Automatically select the right provider
+
+Key Concept: This uses the "Provider Pattern" - all providers implement
+the same interface, so you can swap them without changing your code!
 """
 
 import os
-import asyncio
 from abc import ABC, abstractmethod
-from typing import AsyncGenerator, Dict, Any, Optional
-from enum import Enum
+from typing import AsyncGenerator
 import json
 
-# OpenAI imports
-try:
-    from openai import AsyncOpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
+# ============================================================================
+# STEP 1: ABSTRACT BASE CLASS
+# ============================================================================
+"""
+What is an Abstract Base Class?
+- Defines the "contract" that all providers must follow
+- Ensures all providers have the same methods (generate_text, generate_stream)
+- Makes code interchangeable - you can swap providers easily
 
-# Google Gemini imports
-try:
-    import google.generativeai as genai
-    GEMINI_AVAILABLE = True
-except ImportError:
-    GEMINI_AVAILABLE = False
-
-class LLMProviderType(Enum):
-    """Supported LLM providers"""
-    GEMINI = "gemini"
-    OPENAI = "openai"
-    FIREWORKS = "fireworks"
-    MOCK = "mock"
-
+Benefits:
+- Type safety: Code expects specific methods
+- Consistency: All providers work the same way
+- Flexibility: Add new providers without breaking existing code
+"""
 class LLMProvider(ABC):
-    """Abstract base class for LLM providers"""
+    """
+    Abstract base class for all LLM providers
+    
+    This defines the interface that every provider (Gemini, OpenAI, OpenRouter, etc.)
+    must implement. This is what makes the "Provider Pattern" work!
+    """
     
     @abstractmethod
     async def generate_text(self, prompt: str, **kwargs) -> str:
-        """Generate text from a prompt"""
+        """
+        Generate complete text from a prompt (non-streaming)
+        
+        Returns the full response as a single string.
+        Use this when you don't need real-time streaming.
+        """
         pass
     
     @abstractmethod
     async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
-        """Generate streaming text from a prompt"""
+        """
+        Generate streaming text from a prompt (real-time)
+        
+        Returns text chunk by chunk as an async generator.
+        Use this for ChatGPT-like experiences.
+        """
         pass
 
-class GeminiProvider(LLMProvider):
-    """Google Gemini provider"""
-    
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash-lite"):
-        if not GEMINI_AVAILABLE:
-            raise ImportError("google-generativeai package not installed")
+
+# ============================================================================
+# STEP 2: CLOUD PROVIDERS (Commercial AI APIs)
+# ============================================================================
+"""
+Commercial Cloud Providers:
+These connect to paid/free APIs from major AI companies.
+Each provider has different API formats, but they all implement
+the same interface we defined in LLMProvider.
+
+Key Concepts:
+- API Keys: Authentication tokens for accessing services
+- Rate Limits: Commercial APIs often have usage limits
+- Cost: Pay per token/request (except some free tiers)
+- OpenAI-Compatible: Some APIs follow OpenAI's format for easy migration
+"""
+
+# Google Gemini Provider
+try:
+    import google.generativeai as genai
+    import asyncio
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    genai = None
+
+if GEMINI_AVAILABLE:
+    class GeminiProvider(LLMProvider):
+        """
+        Google Gemini Provider
         
-        self.api_key = api_key
-        self.model_name = model
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model)
-    
-    async def generate_text(self, prompt: str, **kwargs) -> str:
-        """Generate text using Gemini"""
-        try:
+        Pros: Free tier available, good quality
+        Cons: Requires internet connection, rate limits
+        
+        How it works:
+        1. Configure with API key
+        2. Create GenerativeModel instance
+        3. Call generate_content() with prompt
+        4. Stream chunks as they arrive
+        """
+        
+        def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
+            self.api_key = api_key
+            self.model_name = model
+            genai.configure(api_key=api_key)
+            self.model = genai.GenerativeModel(model)
+        
+        async def generate_text(self, prompt: str, **kwargs) -> str:
+            """Generate text using Gemini"""
             response = await asyncio.to_thread(
                 self.model.generate_content,
                 prompt,
@@ -80,155 +126,53 @@ class GeminiProvider(LLMProvider):
                     max_output_tokens=kwargs.get('max_tokens', 1000),
                 )
             )
-            # Check if response is blocked or empty
-            if not response.text:
-                print(f"Gemini response blocked or empty. Finish reason: {getattr(response, 'candidates', [{}])[0].get('finish_reason', 'unknown')}")
-                # Return a simple fallback story
-                return """{
-    "title": "A Gentle Adventure",
-    "story": "Once upon a time, there was a kind character who learned about friendship and kindness. They had a wonderful day and went to sleep happy.",
-    "moral": "Being kind and friendly makes everyone happy"
-}"""
-            
             return response.text
-        except Exception as e:
-            print(f"Gemini API error details: {str(e)}")
-            print(f"Using model: {self.model_name}")
-            # Return a fallback instead of raising an error
-            return """{
-    "title": "A Gentle Adventure", 
-    "story": "Once upon a time, there was a kind character who learned about friendship and kindness. They had a wonderful day and went to sleep happy.",
-    "moral": "Being kind and friendly makes everyone happy"
-}"""
-    
-    async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
-        """Generate streaming text using Gemini"""
-        try:
-            # Use Gemini's streaming API
+        
+        async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
+            """Stream text using Gemini"""
             response = await asyncio.to_thread(
                 self.model.generate_content,
                 prompt,
                 generation_config=genai.types.GenerationConfig(
-                    temperature=kwargs.get('temperature', 0.3),
+                    temperature=kwargs.get('temperature', 0.8),
                     max_output_tokens=kwargs.get('max_tokens', 1000),
                 ),
                 stream=True
             )
             
-            # Stream the response chunks
             for chunk in response:
                 if chunk.text:
                     yield chunk.text
-                    
-        except Exception as e:
-            yield f"Error: {str(e)}"
 
-class FireworksAIProvider(LLMProvider):
-    """FireworksAI provider"""
-    
-    def __init__(self, api_key: str, model: str = "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"):
-        self.api_key = api_key
-        self.model = model
-        self.base_url = "https://api.fireworks.ai/inference/v1/chat/completions"
-    
-    async def generate_text(self, prompt: str, **kwargs) -> str:
-        """Generate text using FireworksAI API"""
-        import aiohttp
-        import json
-        
-        payload = {
-            "model": self.model,
-            "max_tokens": kwargs.get('max_tokens', 1000),
-            "top_p": 1,
-            "top_k": 40,
-            "presence_penalty": 0,
-            "frequency_penalty": 0,
-            "temperature": kwargs.get('temperature', 0.7),
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        }
-        
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(self.base_url, headers=headers, data=json.dumps(payload)) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return result['choices'][0]['message']['content']
-                else:
-                    error_text = await response.text()
-                    raise Exception(f"FireworksAI API error {response.status}: {error_text}")
-    
-    async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
-        """Generate streaming text using FireworksAI API"""
-        import aiohttp
-        import json
-        
-        payload = {
-            "model": self.model,
-            "max_tokens": kwargs.get('max_tokens', 1000),
-            "top_p": 1,
-            "top_k": 40,
-            "presence_penalty": 0,
-            "frequency_penalty": 0,
-            "temperature": kwargs.get('temperature', 0.7),
-            "stream": True,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        }
-        
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(self.base_url, headers=headers, data=json.dumps(payload)) as response:
-                if response.status == 200:
-                    async for line in response.content:
-                        line = line.decode('utf-8').strip()
-                        if line.startswith('data: '):
-                            data = line[6:]  # Remove 'data: ' prefix
-                            if data == '[DONE]':
-                                break
-                            try:
-                                chunk = json.loads(data)
-                                if 'choices' in chunk and len(chunk['choices']) > 0:
-                                    delta = chunk['choices'][0].get('delta', {})
-                                    if 'content' in delta:
-                                        yield delta['content']
-                            except json.JSONDecodeError:
-                                continue
-                else:
-                    error_text = await response.text()
-                    raise Exception(f"FireworksAI API error {response.status}: {error_text}")
 
-class OpenAIProvider(LLMProvider):
-    """OpenAI provider"""
-    
-    def __init__(self, api_key: str, model: str = "gpt-3.5-turbo"):
-        if not OPENAI_AVAILABLE:
-            raise ImportError("openai package not installed")
+# OpenAI Provider
+try:
+    from openai import AsyncOpenAI
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    AsyncOpenAI = None
+
+if OPENAI_AVAILABLE:
+    class OpenAIProvider(LLMProvider):
+        """
+        OpenAI Provider (GPT-3.5, GPT-4, etc.)
         
-        self.client = AsyncOpenAI(api_key=api_key)
-        self.model = model
-    
-    async def generate_text(self, prompt: str, **kwargs) -> str:
-        """Generate text using OpenAI"""
-        try:
+        Pros: Industry standard, very high quality
+        Cons: Paid service, requires API key
+        
+        How it works:
+        1. Create AsyncOpenAI client with API key
+        2. Call chat.completions.create() with messages
+        3. For streaming, set stream=True and iterate chunks
+        """
+        
+        def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
+            self.client = AsyncOpenAI(api_key=api_key)
+            self.model = model
+        
+        async def generate_text(self, prompt: str, **kwargs) -> str:
+            """Generate text using OpenAI"""
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
@@ -236,12 +180,9 @@ class OpenAIProvider(LLMProvider):
                 max_tokens=kwargs.get('max_tokens', 1000),
             )
             return response.choices[0].message.content
-        except Exception as e:
-            raise Exception(f"OpenAI API error: {str(e)}")
-    
-    async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
-        """Generate streaming text using OpenAI"""
-        try:
+        
+        async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
+            """Stream text using OpenAI"""
             stream = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
@@ -253,103 +194,270 @@ class OpenAIProvider(LLMProvider):
             async for chunk in stream:
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
-        except Exception as e:
-            yield f"Error: {str(e)}"
 
-class MockProvider(LLMProvider):
-    """Mock provider for demos and testing"""
-    
-    def __init__(self):
-        self.mock_responses = {
-            "story": "Once upon a time, there was a brave little character who went on amazing adventures. They learned about courage, kindness, and the importance of believing in themselves. The end.",
-            "analysis": "This is a mock analysis. In a real implementation, this would contain detailed insights and recommendations.",
-            "qa": "This is a mock answer. The actual response would be generated based on the provided context and question.",
-            "default": "This is a mock response. Set up your API keys to get real AI-generated content!"
-        }
-    
-    async def generate_text(self, prompt: str, **kwargs) -> str:
-        """Generate mock text"""
-        # Simple keyword matching for different types of responses
-        prompt_lower = prompt.lower()
-        
-        if any(word in prompt_lower for word in ["story", "tale", "adventure", "bedtime"]):
-            return self.mock_responses["story"]
-        elif any(word in prompt_lower for word in ["analyze", "analysis", "document", "contract"]):
-            return self.mock_responses["analysis"]
-        elif any(word in prompt_lower for word in ["question", "answer", "what", "how", "why"]):
-            return self.mock_responses["qa"]
-        else:
-            return self.mock_responses["default"]
-    
-    async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
-        """Generate mock streaming text - instant response for demos"""
-        response = await self.generate_text(prompt, **kwargs)
-        # Return the full response immediately for mock provider
-        yield response
 
-class LLMProviderFactory:
-    """Factory for creating LLM providers based on environment configuration"""
-    
-    @staticmethod
-    def create_provider() -> LLMProvider:
-        """Create LLM provider based on environment variables"""
-        
-        # Check for provider preference
-        provider_type = os.getenv("LLM_PROVIDER", "").lower()
-        
-        # Check for FireworksAI
-        fireworks_key = os.getenv("FIREWORKS_API_KEY")
-        if fireworks_key and (provider_type == "fireworks" or not provider_type):
-            model = os.getenv("FIREWORKS_MODEL", "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507")
-            print(f"🤖 Using FireworksAI provider with model: {model}")
-            return FireworksAIProvider(api_key=fireworks_key, model=model)
-        
-        # Check for Gemini (free tier)
-        gemini_key = os.getenv("GEMINI_API_KEY")
-        if gemini_key and (provider_type == "gemini" or not provider_type):
-            model = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite")
-            print(f"🤖 Using Google Gemini provider with model: {model}")
-            return GeminiProvider(api_key=gemini_key, model=model)
-        
-        # Check for OpenAI
-        openai_key = os.getenv("OPENAI_API_KEY")
-        if openai_key and (provider_type == "openai" or not provider_type):
-            model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
-            print(f"🤖 Using OpenAI provider with model: {model}")
-            return OpenAIProvider(api_key=openai_key, model=model)
-        
-        # Fall back to mock provider
-        print("🤖 Using Mock provider (set FIREWORKS_API_KEY, GEMINI_API_KEY, or OPENAI_API_KEY for real AI)")
-        return MockProvider()
-    
-    @staticmethod
-    def get_available_providers() -> Dict[str, bool]:
-        """Get information about available providers"""
-        return {
-            "fireworks": True,  # FireworksAI uses aiohttp which is always available
-            "gemini": GEMINI_AVAILABLE,
-            "openai": OPENAI_AVAILABLE,
-            "mock": True
-        }
+# OpenRouter Provider (OpenAI-Compatible API)
+try:
+    from openai import AsyncOpenAI
+    OPENROUTER_AVAILABLE = True
+except ImportError:
+    OPENROUTER_AVAILABLE = False
+    AsyncOpenAI = None
 
-# Convenience function for easy usage
+if OPENROUTER_AVAILABLE:
+    class OpenRouterProvider(LLMProvider):
+        """
+        OpenRouter Provider
+        
+        Pros: Access to many models (Claude, GPT-4, Llama, etc.), unified API
+        Cons: Requires internet connection, paid service
+        
+        How it works:
+        - Uses OpenAI-compatible API format
+        - Same code structure as OpenAI provider
+        - Just change the base URL and API key
+        - This demonstrates API compatibility patterns!
+        
+        Key Learning: OpenAI-compatible APIs let you use the same code
+        to access different AI providers. This is called "API compatibility".
+        """
+        
+        def __init__(self, api_key: str, model: str = "minimax/minimax-m2:free"):
+            self.api_key = api_key
+            self.model = model
+            # OpenRouter uses OpenAI-compatible format with different base URL
+            # Prepare custom headers for OpenRouter
+            default_headers = {
+                "HTTP-Referer": os.getenv("OPENROUTER_HTTP_REFERER", ""),
+                "X-Title": os.getenv("OPENROUTER_APP_NAME", "AI Bootcamp for Software Engineers")
+            }
+            # Filter out empty values
+            headers = {k: v for k, v in default_headers.items() if v}
+            
+            self.client = AsyncOpenAI(
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1",
+                default_headers=headers
+            )
+        
+        async def generate_text(self, prompt: str, **kwargs) -> str:
+            """Generate text using OpenRouter"""
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=kwargs.get('temperature', 0.8),
+                max_tokens=kwargs.get('max_tokens', 1000),
+            )
+            return response.choices[0].message.content
+        
+        async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
+            """Stream text using OpenRouter"""
+            stream = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=kwargs.get('temperature', 0.8),
+                max_tokens=kwargs.get('max_tokens', 1000),
+                stream=True
+            )
+            
+            async for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
+
+# FireworksAI Provider
+try:
+    import aiohttp
+    FIREWORKS_AVAILABLE = True
+except ImportError:
+    FIREWORKS_AVAILABLE = False
+    aiohttp = None
+
+if FIREWORKS_AVAILABLE:
+    class FireworksAIProvider(LLMProvider):
+        """
+        FireworksAI Provider
+        
+        Pros: Fast inference, good pricing
+        Cons: Requires internet connection
+        
+        How it works:
+        1. Send HTTP POST request to FireworksAI API
+        2. Use OpenAI-compatible format
+        3. Parse streaming response chunks
+        """
+        
+        def __init__(self, api_key: str, model: str = "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"):
+            self.api_key = api_key
+            self.model = model
+            self.base_url = "https://api.fireworks.ai/inference/v1/chat/completions"
+        
+        async def generate_text(self, prompt: str, **kwargs) -> str:
+            """Generate text using FireworksAI"""
+            payload = {
+                "model": self.model,
+                "max_tokens": kwargs.get('max_tokens', 1000),
+                "temperature": kwargs.get('temperature', 0.7),
+                "messages": [{"role": "user", "content": prompt}]
+            }
+            
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(self.base_url, headers=headers, data=json.dumps(payload)) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        return result['choices'][0]['message']['content']
+                    else:
+                        error_text = await response.text()
+                        raise Exception(f"FireworksAI API error {response.status}: {error_text}")
+        
+        async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
+            """Stream text using FireworksAI"""
+            payload = {
+                "model": self.model,
+                "max_tokens": kwargs.get('max_tokens', 1000),
+                "temperature": kwargs.get('temperature', 0.7),
+                "stream": True,
+                "messages": [{"role": "user", "content": prompt}]
+            }
+            
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(self.base_url, headers=headers, data=json.dumps(payload)) as response:
+                    if response.status == 200:
+                        async for line in response.content:
+                            line = line.decode('utf-8').strip()
+                            if line.startswith('data: '):
+                                data = line[6:]
+                                if data == '[DONE]':
+                                    break
+                                try:
+                                    chunk = json.loads(data)
+                                    if 'choices' in chunk and len(chunk['choices']) > 0:
+                                        delta = chunk['choices'][0].get('delta', {})
+                                        if 'content' in delta:
+                                            yield delta['content']
+                                except json.JSONDecodeError:
+                                    continue
+                    else:
+                        error_text = await response.text()
+                        raise Exception(f"FireworksAI API error {response.status}: {error_text}")
+
+
+# ============================================================================
+# STEP 3: FACTORY PATTERN (Automatic Provider Selection)
+# ============================================================================
+"""
+Factory Pattern:
+- Automatically selects the right provider based on environment
+- Checks for API keys in priority order
+- Makes configuration simple and automatic
+
+Priority Order:
+1. FireworksAI (if FIREWORKS_API_KEY set)
+2. OpenRouter (if OPENROUTER_API_KEY set)
+3. Gemini (if GEMINI_API_KEY set)
+4. OpenAI (if OPENAI_API_KEY set)
+
+Configuration:
+Set environment variables to choose your provider:
+- FIREWORKS_API_KEY=your_key
+- OPENROUTER_API_KEY=your_key
+- GEMINI_API_KEY=your_key
+- OPENAI_API_KEY=your_key
+
+OpenRouter also supports:
+- OPENROUTER_MODEL=model-name (default: minimax/minimax-m2:free - free model)
+- OPENROUTER_HTTP_REFERER=your-url (optional)
+- OPENROUTER_APP_NAME=your-app-name (optional)
+"""
 def get_llm_provider() -> LLMProvider:
-    """Get the configured LLM provider"""
-    return LLMProviderFactory.create_provider()
-
-# Example usage
-if __name__ == "__main__":
-    async def main():
-        provider = get_llm_provider()
-        
-        # Test text generation
-        response = await provider.generate_text("Tell me a short story about a robot")
-        print("Text response:", response)
-        
-        # Test streaming
-        print("\nStreaming response:")
-        async for chunk in provider.generate_stream("What is artificial intelligence?"):
-            print(chunk, end="", flush=True)
-        print()
+    """
+    Factory function: Automatically selects and creates the right provider
     
-    asyncio.run(main())
+    This is the main function you'll use in your code.
+    It automatically picks the best available provider based on:
+    1. Environment variables (API keys)
+    2. Provider preference (LLM_PROVIDER env var)
+    3. Availability of libraries
+    
+    Returns:
+        An instance of LLMProvider (FireworksAI, OpenRouter, Gemini, or OpenAI)
+    """
+    provider_type = os.getenv("LLM_PROVIDER", "").lower()
+    
+    # Priority 1: FireworksAI
+    fireworks_key = os.getenv("FIREWORKS_API_KEY")
+    if fireworks_key and FIREWORKS_AVAILABLE and (provider_type == "fireworks" or not provider_type):
+        model = os.getenv("FIREWORKS_MODEL", "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507")
+        print(f"🤖 Using FireworksAI provider with model: {model}")
+        return FireworksAIProvider(api_key=fireworks_key, model=model)
+    
+    # Priority 2: OpenRouter
+    openrouter_key = os.getenv("OPENROUTER_API_KEY")
+    if openrouter_key and OPENROUTER_AVAILABLE and (provider_type == "openrouter" or not provider_type):
+        model = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2:free")
+        print(f"🤖 Using OpenRouter provider with model: {model}")
+        return OpenRouterProvider(api_key=openrouter_key, model=model)
+    
+    # Priority 3: Gemini
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if gemini_key and GEMINI_AVAILABLE and (provider_type == "gemini" or not provider_type):
+        model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        print(f"🤖 Using Google Gemini provider with model: {model}")
+        return GeminiProvider(api_key=gemini_key, model=model)
+    
+    # Priority 4: OpenAI
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key and OPENAI_AVAILABLE and (provider_type == "openai" or not provider_type):
+        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        print(f"🤖 Using OpenAI provider with model: {model}")
+        return OpenAIProvider(api_key=openai_key, model=model)
+    
+    # No provider available
+    raise ValueError(
+        "No LLM provider configured. Please set one of:\n"
+        "- FIREWORKS_API_KEY\n"
+        "- OPENROUTER_API_KEY\n"
+        "- GEMINI_API_KEY\n"
+        "- OPENAI_API_KEY"
+    )
+
+
+# ============================================================================
+# LEARNING CHECKLIST
+# ============================================================================
+"""
+After reading this code, you should understand:
+
+✓ How abstraction works (ABC base class)
+✓ How to integrate cloud AI APIs (Gemini, OpenAI, FireworksAI)
+✓ How OpenAI-compatible APIs work (OpenRouter example)
+✓ How the Factory Pattern simplifies provider selection
+✓ How streaming works across different providers
+✓ The benefits of API compatibility
+
+Next Steps:
+1. Try different providers and compare results
+2. Experiment with different models on OpenRouter
+3. Add a new provider (e.g., Anthropic Claude directly)
+4. Understand how OpenAI-compatible APIs reduce code duplication
+5. Learn about API standardization benefits
+
+Questions to Consider:
+- Why is OpenAI-compatible API format useful?
+- What are the advantages of using OpenRouter vs direct APIs?
+- How does the Factory Pattern make code more maintainable?
+- How would you add caching to reduce API costs?
+- What security considerations exist for API keys?
+"""
