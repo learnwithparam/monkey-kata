@@ -19,7 +19,8 @@ import {
   TruckIcon,
   PhoneIcon,
   EyeIcon,
-  BriefcaseIcon
+  BriefcaseIcon,
+  MapPinIcon
 } from '@heroicons/react/24/outline';
 
 export interface Demo {
@@ -79,6 +80,13 @@ export const weeksData: WeekData[] = [
     weekTitle: "Building Reliable Conversational Systems",
     weekColor: "bg-blue-100 text-blue-800",
     demos: [
+      {
+        icon: <MapPinIcon className="w-8 h-8 text-blue-600 mr-4" />,
+        title: "AI Travel Planner with Multi-Agent Collaboration",
+        description: "Watch specialized AI agents collaborate in real-time to plan your perfect trip with itinerary, budget, and packing suggestions",
+        demoHref: "/demos/travel-planner",
+        challengeHref: "/challenges/travel-planner"
+      },
       {
         icon: <SpeakerWaveIcon className="w-8 h-8 text-green-600 mr-4" />,
         title: "24/7 Customer Support Bot with Human Escalation",

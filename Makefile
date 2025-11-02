@@ -16,18 +16,27 @@ install: ## Install all dependencies (Python + Node.js)
 	@cd frontend && npm install
 	@echo "✅ All dependencies installed for $(OS)!"
 
-dev: ## Start development servers (API + Frontend)
-	@echo "🚀 Starting development servers..."
+dev: ## Start development servers (API + Frontend) - uses Docker cache for faster rebuilds
+	@echo "🚀 Starting development servers (with Docker cache)..."
 	@docker compose up --build
+
+dev-no-cache: ## Start development servers without Docker cache (clean install)
+	@echo "🚀 Starting development servers (fresh install, no cache)..."
+	@docker compose build --no-cache
+	@docker compose up
 
 dev-local: ## Start development servers locally (without Docker)
 	@echo "🚀 Starting development servers locally..."
 	@concurrently "cd api && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000" "cd frontend && npm run dev"
 
 # Docker commands
-build: ## Build Docker images
-	@echo "🔨 Building Docker images..."
+build: ## Build Docker images (uses cache)
+	@echo "🔨 Building Docker images (with cache)..."
 	@docker compose build
+
+build-no-cache: ## Build Docker images without cache (clean install)
+	@echo "🔨 Building Docker images (fresh install, no cache)..."
+	@docker compose build --no-cache
 
 start: ## Start containers
 	@echo "🚀 Starting containers..."
