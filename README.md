@@ -1,11 +1,4 @@
-# AI Bootcamp Demos
-
-Production-ready API and frontend implementations for the AI Bootcamp for Software Engineers course. This repository contains interactive demos, API endpoints, and frontend applications showcasing real-world AI implementations.
-
-## 🎯 Repository Overview
-
-**Purpose**: API and Frontend demos for AI Bootcamp course  
-**Instructor**: Param Harrison | **Next Cohort**: November 2025
+# 🎯 Repository Overview
 
 ### What's Included
 - **API Server**: FastAPI backend with interactive demos
@@ -88,7 +81,7 @@ make test             # Run tests
 ## 📁 Project Structure
 
 ```
-ai-bootcamp-demos/
+monkey-kata/
 ├── 🔧 api/                         # FastAPI backend
 │   ├── main.py                     # Main FastAPI application
 │   ├── requirements.txt              # Python dependencies
@@ -115,42 +108,6 @@ ai-bootcamp-demos/
 ## 🔧 API Development
 
 The FastAPI backend (`api/`) includes:
-
-### **Demo Implementations**
-- **Bedtime Story Generator**: Interactive story creation with AI
-- **Website RAG**: Question-answering system for websites
-- **Legal Analysis**: Document analysis and legal insights
-- **Support KB**: Knowledge base search and retrieval
-
-### **Features**
-- **Multi-provider LLM support**: OpenAI, Gemini, Fireworks AI
-- **Vector databases**: ChromaDB, Qdrant, FAISS integration
-- **Streaming responses**: Real-time LLM outputs
-- **Error handling**: Comprehensive error management
-- **API documentation**: Auto-generated OpenAPI docs
-
-### **API Endpoints**
-- `GET /docs` - Interactive API documentation
-- `POST /api/demos/bedtime-story` - Story generation
-- `POST /api/demos/website-rag` - Website Q&A
-- `POST /api/demos/legal-analysis` - Legal document analysis
-- `POST /api/demos/support-kb` - Knowledge base search
-
-## ⚛️ Frontend Development
-
-The Next.js frontend (`frontend/`) provides:
-
-### **Interactive Demos**
-- **Real-time AI interactions**: Live response updates
-- **Streaming UI**: Progressive response display
-- **Component library**: Reusable UI components
-- **API integration**: Seamless backend communication
-
-### **Features**
-- **Modern UI**: Clean, responsive design
-- **Real-time updates**: WebSocket connections
-- **Error handling**: User-friendly error messages
-- **Loading states**: Smooth user experience
 
 ## 🐳 Docker Development
 
@@ -215,68 +172,6 @@ CHROMA_PERSIST_DIRECTORY=./chroma_db
 # Pinecone (cloud)
 PINECONE_API_KEY=your-pinecone-key-here
 ```
-
-## 📚 Learning Resources
-
-### **Course Materials**
-- [AI Bootcamp Course](https://learnwithparam.com) - Full 6-week program
-- [Course Syllabus](https://learnwithparam.com/ai-engineering-bootcamp) - Detailed curriculum
-- [Live Sessions](https://learnwithparam.com) - Weekly live instruction
-- [Notebooks Repository](https://github.com/learnwithparam/ai-bootcamp-notebooks) - Interactive learning materials
-
-### **Technical Documentation**
-- [FastAPI Documentation](https://fastapi.tiangolo.com/) - Backend development
-- [Next.js Documentation](https://nextjs.org/docs) - Frontend development
-- [OpenAI API Documentation](https://platform.openai.com/docs) - LLM integration
-- [Google AI Studio](https://aistudio.google.com/) - Gemini API
-- [Fireworks AI Documentation](https://readme.fireworks.ai/) - Fireworks API
-
-### **AI Engineering Resources**
-- [LangChain Documentation](https://python.langchain.com/) - LLM frameworks
-- [CrewAI Documentation](https://docs.crewai.com/) - Multi-agent systems
-- [LiveKit Documentation](https://docs.livekit.io/) - Real-time voice AI
-- [ChromaDB Documentation](https://docs.trychroma.com/) - Vector databases
-- [Qdrant Documentation](https://qdrant.tech/documentation/) - Vector search
-
-## 🎯 Development Guide
-
-### **Adding New Demos**
-
-#### **API Demo**
-1. Create `api/demos/[demo-name]/`
-2. Implement FastAPI routes
-3. Add to main application
-4. Update documentation
-
-#### **Frontend Demo**
-1. Create `frontend/src/app/demos/[demo-name]/`
-2. Add React components
-3. Integrate with API
-4. Add navigation
-
-#### **Full Stack Demo**
-1. Implement both API and frontend
-2. Add Docker configuration
-3. Update documentation
-4. Test end-to-end
-
-## 🤝 Contributing
-
-This is a learning project for the AI Bootcamp course. Contributions are welcome!
-
-### **How to Contribute**
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Make your changes
-4. Test thoroughly: `make test`
-5. Submit a pull request
-
-### **Contribution Guidelines**
-- Follow the existing code style
-- Add comprehensive documentation
-- Include tests for new features
-- Update README files as needed
-
 ## 📄 License
 
 **Access is restricted to enrolled participants only.**
@@ -291,4 +186,4 @@ This is a learning project for the AI Bootcamp course. Contributions are welcome
 
 ---
 
-Built with ❤️ for the AI Bootcamp for Software Engineers course.
+Built with ❤️ for the [learnwithparam.com](https://learnwithparam.com) community.
