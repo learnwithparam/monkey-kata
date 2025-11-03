@@ -7,6 +7,7 @@ services:
       - "4010:8000"
     volumes:
       - ./api:/app
+      # Exclude __pycache__ from bind mount to use Docker's layer caching
       - /app/__pycache__
     env_file:
       - ./api/.env
@@ -30,6 +31,7 @@ services:
       - "4020:3000"
     volumes:
       - ./frontend:/app
+      # Preserve node_modules and .next in anonymous volumes for faster rebuilds
       - /app/node_modules
       - /app/.next
     environment:

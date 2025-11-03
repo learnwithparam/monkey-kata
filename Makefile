@@ -17,17 +17,25 @@ install: ## Install all dependencies (Python + Node.js)
 	@echo "✅ All dependencies installed for $(OS)!"
 
 dev: ## Start development servers (API + Frontend)
-	@echo "🚀 Starting development servers..."
-	@docker compose up --build
+	@echo "🚀 Starting development servers with BuildKit..."
+	@DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker compose up --build
+
+dev-no-build: ## Start development servers without rebuilding
+	@echo "🚀 Starting development servers (no rebuild)..."
+	@docker compose up
 
 dev-local: ## Start development servers locally (without Docker)
 	@echo "🚀 Starting development servers locally..."
 	@concurrently "cd api && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000" "cd frontend && npm run dev"
 
 # Docker commands
-build: ## Build Docker images
-	@echo "🔨 Building Docker images..."
-	@docker compose build
+build: ## Build Docker images with BuildKit cache
+	@echo "🔨 Building Docker images with BuildKit..."
+	@DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker compose build
+
+build-no-cache: ## Build Docker images without cache (fresh build)
+	@echo "🔨 Building Docker images without cache..."
+	@DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker compose build --no-cache
 
 start: ## Start containers
 	@echo "🚀 Starting containers..."
@@ -63,6 +71,14 @@ clean: ## Clean up containers, images, and volumes
 	@docker compose down -v --remove-orphans
 	@docker system prune -f
 	@echo "✅ Cleanup complete!"
+
+clean-cache: ## Clean BuildKit cache (pip/npm caches)
+	@echo "🧹 Cleaning BuildKit cache..."
+	@docker builder prune -f
+	@echo "✅ BuildKit cache cleaned!"
+
+clean-all: clean clean-cache ## Clean everything including BuildKit cache
+	@echo "✅ Complete cleanup finished!"
 
 # Database commands (for future use)
 db-up: ## Start database (if needed)

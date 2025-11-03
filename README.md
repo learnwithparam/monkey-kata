@@ -62,12 +62,16 @@ make frontend         # Start only frontend server
 
 #### **Docker Commands**
 ```bash
-make build              # Build Docker images
+make build              # Build Docker images with BuildKit cache
+make build-no-cache     # Build Docker images without cache (fresh build)
 make start              # Start production containers
 make stop               # Stop all containers
 make restart            # Restart all containers
 make logs               # Show container logs
 make clean              # Clean up containers and images
+make clean-cache        # Clean BuildKit cache (pip/npm caches)
+make clean-all          # Clean everything including BuildKit cache
+make dev-no-build       # Start services without rebuilding (use existing images)
 ```
 
 #### **Utility Commands**
@@ -111,12 +115,25 @@ The FastAPI backend (`api/`) includes:
 
 ## 🐳 Docker Development
 
+### **Optimized Build System**
+
+The Docker setup uses **BuildKit cache mounts** for optimal development experience:
+
+- **pip cache**: Python packages are cached between builds (only installs once)
+- **npm cache**: Node.js packages are cached between builds (only installs once)
+- **Layer caching**: Docker layers are cached intelligently
+- **Fast rebuilds**: Only code changes trigger rebuilds, dependencies reuse cache
+
+**First build** will take time to download dependencies. **Subsequent builds** will be much faster!
+
 ```bash
 # Full stack development
-make dev              # Start all services
-make build            # Build images
+make dev              # Start all services with optimized BuildKit caching
+make build            # Build images with cache
+make dev-no-build     # Start without rebuilding (use existing images)
 make logs             # View logs
-make clean            # Clean up
+make clean-cache      # Clean BuildKit cache if needed
+make clean-all        # Complete cleanup
 ```
 
 ### **Services**
