@@ -100,9 +100,10 @@ export const weeksData: WeekData[] = [
       },
       {
         icon: <HeartIcon className="w-8 h-8 text-red-600 mr-4" />,
-        title: "Medical Triage Assistant",
-        description: "Intelligent patient intake that prioritizes cases and gathers symptoms",
-        isComingSoon: true
+        title: "Medical Office Triage Voice AI",
+        description: "Multi-agent voice AI system that routes patients to specialized departments with context preservation",
+        demoHref: "/demos/medical-office-triage",
+        challengeHref: "/challenges/medical-office-triage"
       }
     ]
   },

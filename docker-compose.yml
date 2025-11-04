@@ -92,6 +92,27 @@ services:
       - api
     restart: unless-stopped
 
+  # Medical Office Triage Voice Agent System
+  medical-triage-agent:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    working_dir: /app/demos/medical_office_triage
+    volumes:
+      - ./api:/app
+      - /app/__pycache__
+    env_file:
+      - ./api/.env
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    command: python triage_agent.py dev
+    networks:
+      - ai-bootcamp-network
+    depends_on:
+      - api
+    restart: unless-stopped
+
 
 
 volumes:

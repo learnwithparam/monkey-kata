@@ -29,3 +29,4 @@ langchain-core>=0.1.0
 # Includes Deepgram (STT/TTS), OpenAI plugin (for Fireworks LLM), and Silero (VAD)
 livekit-agents[deepgram,openai,silero]~=1.2
 livekit>=1.0.0  # LiveKit SDK for token generation in API
+pyyaml>=6.0  # For YAML prompt loading in Medical Office Triage demo

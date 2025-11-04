@@ -526,4 +526,5 @@ The CLI handles:
 
 
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+    # Register with explicit agent name for explicit dispatch (prevents conflicts with other agents)
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, agent_name="restaurant-agent"))
