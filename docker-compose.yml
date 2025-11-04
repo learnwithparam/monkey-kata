@@ -71,6 +71,27 @@ services:
       - ai-bootcamp-network
     restart: unless-stopped
 
+  # Restaurant Booking Voice Agent
+  restaurant-agent:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    working_dir: /app/demos/restaurant_booking
+    volumes:
+      - ./api:/app
+      - /app/__pycache__
+    env_file:
+      - ./api/.env
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    command: python restaurant_agent.py dev
+    networks:
+      - ai-bootcamp-network
+    depends_on:
+      - api
+    restart: unless-stopped
+
 
 
 volumes:

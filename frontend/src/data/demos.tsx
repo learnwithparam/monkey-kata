@@ -92,10 +92,11 @@ export const weeksData: WeekData[] = [
         isComingSoon: true
       },
       {
-        icon: <CakeIcon className="w-8 h-8 text-orange-600 mr-4" />,
-        title: "Voice Order Assistant",
-        description: "Take food orders naturally through voice conversation with AI",
-        isComingSoon: true
+        icon: <PhoneIcon className="w-8 h-8 text-orange-600 mr-4" />,
+        title: "Restaurant Booking Voice AI",
+        description: "Take food orders naturally through voice conversation with AI-powered restaurant assistant",
+        demoHref: "/demos/restaurant-booking",
+        challengeHref: "/challenges/restaurant-booking"
       },
       {
         icon: <HeartIcon className="w-8 h-8 text-red-600 mr-4" />,

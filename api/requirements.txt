@@ -24,3 +24,8 @@ transformers>=4.30.0
 sentence-transformers>=2.2.0
 langgraph>=0.1.0
 langchain-core>=0.1.0
+
+# LiveKit Agents (for Restaurant Booking Voice AI demo)
+# Includes Deepgram (STT/TTS), OpenAI plugin (for Fireworks LLM), and Silero (VAD)
+livekit-agents[deepgram,openai,silero]~=1.2
+livekit>=1.0.0  # LiveKit SDK for token generation in API
