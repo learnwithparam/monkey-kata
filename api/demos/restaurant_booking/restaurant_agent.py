@@ -1,19 +1,67 @@
 """
-Restaurant Booking Agent
-========================
+Restaurant Booking Voice Agent
+==============================
 
-This is a simple LiveKit voice agent for restaurant order booking.
+🎯 LEARNING OBJECTIVES:
+This demo teaches you how to build a LiveKit voice AI agent:
 
-The agent connects to LiveKit rooms and handles voice conversations with customers
-to take orders, answer menu questions, and manage the ordering process.
+1. Voice Agent Architecture - How to structure a LiveKit voice agent
+2. Speech-to-Text (STT) - How to configure STT for real-time transcription
+3. Text-to-Speech (TTS) - How to configure TTS for natural voice responses
+4. Tool Calling - How to give agents tools to perform actions (add items, view menu, place order)
+5. State Management - How to maintain conversation context and order state
+6. Voice Activity Detection (VAD) - How to detect when users are speaking
+7. Turn Detection - How to manage conversation flow and interruptions
+8. Personalization - How to greet customers by name and personalize interactions
 
-Run this agent separately from the API server:
-    python restaurant_agent.py dev
+📚 LEARNING FLOW:
+Follow this code from top to bottom:
 
-This will start the agent and it will automatically connect to rooms when
-customers join via the frontend.
+Step 1: Setup - Import libraries and load environment variables
+Step 2: Menu Data - Define restaurant menu structure
+Step 3: Order State - Initialize in-memory order storage
+Step 4: Tool Functions - Create agent tools for menu and order management
+Step 5: Agent Instructions - Build conversational prompts for the LLM
+Step 6: Agent Class - Configure STT, TTS, LLM, and tools
+Step 7: Entrypoint - Connect agent to LiveKit rooms
+
+Key Concept: LiveKit voice agents are worker processes that connect to LiveKit rooms
+and handle real-time audio streaming. They use STT to understand user speech, LLM to
+generate responses, and TTS to speak responses. Tools allow agents to perform actions
+like adding items to orders, viewing the menu, and placing orders.
 """
 
+# ============================================================================
+# STEP 1: SETUP & IMPORTS
+# ============================================================================
+"""
+Understanding the Imports:
+- dotenv: Loads environment variables from .env file
+- livekit.agents: Core LiveKit agents framework
+  - JobContext: Context for agent job execution
+  - WorkerOptions: Configuration for agent worker
+  - cli: Command-line interface for running agents
+  - function_tool: Decorator for creating agent tools
+  - get_job_context: Access current job context
+- livekit.agents.voice: Voice-specific agent components
+  - Agent: Base class for voice agents
+  - AgentSession: Manages agent's conversation session
+- livekit.plugins: Provider plugins for STT, TTS, LLM
+  - silero: Voice Activity Detection (VAD)
+  - deepgram: Speech-to-Text (STT) and Text-to-Speech (TTS)
+  - openai: LLM provider (supports Fireworks via .with_fireworks())
+- asyncio: For async operations
+
+Why Separate Processes?
+LiveKit agents run as separate worker processes that:
+1. Register with LiveKit server as available workers
+2. Wait for LiveKit to dispatch jobs (when users join rooms)
+3. Handle real-time audio streams continuously
+4. Run independently from your API server
+
+This is different from traditional API endpoints because real-time audio
+processing requires long-lived connections and LiveKit manages job dispatch.
+"""
 from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli, function_tool, get_job_context
 from livekit.agents.voice import Agent, AgentSession
@@ -22,7 +70,31 @@ import asyncio
 
 load_dotenv()
 
-# Simple menu structure (matches API)
+
+# ============================================================================
+# STEP 2: MENU DATA
+# ============================================================================
+"""
+Menu Structure:
+This is a simplified menu structure that matches the API's menu.
+
+In production, you would:
+- Load menu from a database
+- Fetch menu from an API endpoint
+- Support dynamic menu updates
+- Handle menu versioning
+
+The menu is organized by categories:
+- appetizers: Starter items
+- mains: Main course dishes
+- desserts: Sweet treats
+- drinks: Beverages
+
+Each item has:
+- id: Unique identifier (for matching orders)
+- name: Display name (used for matching user requests)
+- price: Price in USD (for order totals)
+"""
 MENU = {
     "appetizers": [
         {"id": "app_001", "name": "Caesar Salad", "price": 8.99},
@@ -46,8 +118,56 @@ MENU = {
     ],
 }
 
-# Order state (in production, use a database)
+# ============================================================================
+# STEP 3: ORDER STATE
+# ============================================================================
+"""
+Order State Management:
+This is a simple in-memory order storage. In production, you would:
+- Store orders in a database (PostgreSQL, MongoDB, etc.)
+- Track orders per user/session
+- Handle concurrent orders
+- Persist order history
+- Add order status tracking
+
+Current Implementation:
+- Single global order_items list
+- Cleared after order is placed
+- No user session tracking
+- No order history
+
+For production, consider:
+- Dictionary mapping session_id -> order_items
+- Database persistence
+- Order status (pending, confirmed, completed)
+- Payment integration
+"""
 order_items = []
+
+
+# ============================================================================
+# STEP 4: TOOL FUNCTIONS (Agent Capabilities)
+# ============================================================================
+"""
+Tool Functions:
+These are the "tools" or "functions" that the agent can call during conversation.
+Tools allow agents to perform actions beyond just generating text.
+
+How Tool Calling Works:
+1. User says something that triggers tool usage (e.g., "I'd like a Caesar Salad")
+2. LLM decides to call a tool (e.g., add_item_to_order)
+3. Tool function executes with provided parameters
+4. Tool returns result (e.g., "Added Caesar Salad to your order")
+5. LLM incorporates result into its response
+6. Agent speaks the response to the user
+
+Key Design Principles:
+- Tools should be async functions
+- Tools should return natural language strings (not markdown)
+- Tools should handle errors gracefully
+- Tools should be idempotent when possible
+- Tools should validate inputs
+"""
 
 
 @function_tool()
@@ -167,8 +287,32 @@ async def place_order() -> str:
     return f"Perfect! I've placed your order for: {items_list}. Your total is ${total:.2f}. Your order will be ready shortly. Thank you!"
 
 
+# ============================================================================
+# STEP 5: AGENT INSTRUCTIONS
+# ============================================================================
+"""
+Agent Instructions:
+This is the "system prompt" that tells the LLM how to behave as a restaurant assistant.
+
+Key Elements:
+- Role definition: "You are a friendly restaurant order assistant"
+- Menu context: Available items for the agent to reference
+- Behavioral guidelines: How to interact with customers
+- Tool usage instructions: When and how to use each tool
+- Response style: Keep responses short and natural for voice
+
+Voice-Specific Considerations:
+- Responses must be short (1-2 sentences, under 20 words)
+- No markdown formatting (TTS will read it literally)
+- Natural conversational language
+- Personalize using customer's name
+- Confirm orders before placing them
+
+The instructions are dynamically built to include the current menu items,
+making the agent aware of what's available without hardcoding.
+"""
 def build_instructions() -> str:
-    """Build agent instructions"""
+    """Build agent instructions with current menu context"""
     menu_summary = "Available items: "
     all_items = []
     for items in MENU.values():
@@ -197,8 +341,57 @@ Keep responses concise and natural. Speak conversationally, not robotically.
 """
 
 
+# ============================================================================
+# STEP 6: AGENT CLASS (Voice Agent Configuration)
+# ============================================================================
+"""
+RestaurantAgent Configuration:
+
+This class configures all the components needed for a voice AI agent:
+
+1. STT (Speech-to-Text):
+   - Provider: Deepgram Flux-General model
+   - Model: "flux-general-en" - Fast, accurate English transcription
+   - eager_eot_threshold: 0.3 - Lower threshold for faster end-of-turn detection
+     (Lower = agent responds faster, Higher = waits longer for user to finish)
+
+2. LLM (Large Language Model):
+   - Provider: Fireworks AI (via OpenAI plugin)
+   - Model: Qwen3-235B - Fast, efficient inference for voice conversations
+   - Temperature: 0.7 - Balanced creativity and consistency
+   - Note: max_tokens not supported by with_fireworks(), controlled via instructions
+
+3. TTS (Text-to-Speech):
+   - Provider: Deepgram Aura Asteria
+   - Model: "aura-asteria-en" - Natural, expressive English voice
+   - LiveKit handles text normalization automatically
+
+4. VAD (Voice Activity Detection):
+   - Provider: Silero
+   - Detects when user is speaking vs. silence
+   - Helps manage conversation flow and reduce unnecessary processing
+
+5. Tools:
+   - List of function tools the agent can call
+   - Tools are automatically available to the LLM during conversation
+
+6. Turn Detection:
+   - Handled by eager_eot_threshold in STT config
+   - Lower threshold = faster turn-taking
+   - Alternative: MultilingualModel (requires model download)
+"""
 class RestaurantAgent(Agent):
-    """Restaurant booking agent with order management tools."""
+    """
+    Restaurant booking voice agent with order management tools.
+    
+    This agent:
+    - Connects to LiveKit rooms when customers join
+    - Listens to customer speech (STT)
+    - Processes requests and generates responses (LLM)
+    - Speaks responses naturally (TTS)
+    - Calls tools to perform actions (add items, view menu, place order)
+    - Maintains conversation context and order state
+    """
     
     def __init__(self) -> None:
         super().__init__(
@@ -215,7 +408,24 @@ class RestaurantAgent(Agent):
         )
     
     async def on_enter(self):
-        """Called when agent enters the room - greet the customer by name"""
+        """
+        Called when agent enters the room - greet the customer by name.
+        
+        This is a lifecycle hook that runs when the agent first connects to a room.
+        It's the perfect place to:
+        - Greet the customer
+        - Get the customer's name from the room
+        - Initialize conversation
+        - Set up any session-specific state
+        
+        How to Access Room Information:
+        - Use get_job_context() to get the current job context
+        - Access ctx.room to get room information
+        - Use room.remote_participants to get participant names
+        
+        Note: This is called AFTER the user has already joined the room,
+        so we can safely access participant information.
+        """
         # Get participant name from room
         customer_name = None
         try:
@@ -239,8 +449,54 @@ class RestaurantAgent(Agent):
         await self.session.say(greeting, allow_interruptions=True)
 
 
+# ============================================================================
+# STEP 7: ENTRYPOINT (Job Execution)
+# ============================================================================
+"""
+Entrypoint Function:
+This is the main function that gets called when LiveKit dispatches a job to this agent.
+
+How It Works:
+1. LiveKit detects a user joined a room
+2. LiveKit dispatches job to available agent worker
+3. entrypoint() function is called with JobContext
+4. Agent connects to the room
+5. Agent session starts and begins voice conversation
+6. Conversation continues until user disconnects or agent stops
+
+JobContext:
+- Contains room information
+- Contains job metadata
+- Provides connection management
+- Handles cleanup on disconnect
+
+AgentSession:
+- Manages the conversation lifecycle
+- Handles STT/TTS streaming
+- Manages tool calling
+- Tracks conversation state
+"""
 async def entrypoint(ctx: JobContext):
-    """Main entrypoint for the restaurant agent"""
+    """
+    Main entrypoint for the restaurant agent.
+    
+    This function is called by LiveKit when a user joins a room that needs an agent.
+    
+    Flow:
+    1. Connect to the LiveKit room (ctx.connect())
+    2. Create an agent session (AgentSession())
+    3. Create the agent instance (RestaurantAgent())
+    4. Start the session with agent and room (session.start())
+    5. Voice conversation begins automatically
+    
+    The agent will automatically:
+    - Call on_enter() when it joins
+    - Listen to user speech (STT)
+    - Generate responses (LLM)
+    - Speak responses (TTS)
+    - Call tools when needed
+    - Handle disconnections gracefully
+    """
     await ctx.connect()
     
     # Create agent session and start the agent
@@ -250,6 +506,23 @@ async def entrypoint(ctx: JobContext):
         agent=agent,
         room=ctx.room
     )
+
+
+# ============================================================================
+# MAIN EXECUTION
+# ============================================================================
+"""
+How to Run:
+1. Development mode: python restaurant_agent.py dev
+2. Production mode: python restaurant_agent.py start
+
+The CLI handles:
+- Worker registration with LiveKit
+- Job dispatch and execution
+- Error handling and retries
+- Logging and monitoring
+- Graceful shutdown
+"""
 
 
 if __name__ == "__main__":

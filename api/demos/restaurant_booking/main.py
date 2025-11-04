@@ -6,24 +6,23 @@ Restaurant Booking Voice AI
 This demo teaches you how to build a voice-enabled AI agent for restaurant bookings:
 
 1. LiveKit Integration - How to connect voice AI agents to real-time audio
-2. Voice Agent Design - How to create conversational AI agents that handle orders
-3. Tool Calling - How to give agents tools to perform actions (add items, view menu, place order)
-4. State Management - How to maintain conversation context and order state
-5. Real-time Audio - How to process speech-to-text and text-to-speech in real-time
+2. Token Generation - How to create secure JWT tokens for LiveKit connections
+3. Voice Agent Architecture - How voice agents work separately from the API
+4. Real-time Audio - How speech-to-text and text-to-speech work in voice AI
+5. Tool Calling - How agents use tools to perform actions (add items, view menu)
 
 📚 LEARNING FLOW:
 Follow this code from top to bottom:
 
 Step 1: Setup - Import libraries and configure the router
-Step 2: Data Models - Define request structures
-Step 3: LiveKit Token Generation - Create secure tokens for voice connections
-Step 4: API Endpoints - Expose functionality via HTTP
-Step 5: Menu Data - Simple restaurant menu structure
+Step 2: Data Models - Define request structures with validation
+Step 3: Menu Data - Simple restaurant menu structure
+Step 4: Token Generation - Create LiveKit access tokens
+Step 5: API Endpoints - Expose functionality via HTTP
 
-Key Concept: Voice AI agents use LiveKit to handle real-time audio streaming,
-speech-to-text transcription, and text-to-speech responses. The agent runs
-separately and connects to LiveKit rooms, while the frontend connects to the
-same room to enable voice conversations.
+Key Concept: Voice AI agents use LiveKit to handle real-time audio streaming.
+The agent runs separately as a worker process and connects to LiveKit rooms,
+while the frontend connects to the same room to enable voice conversations.
 """
 
 # ============================================================================
@@ -33,8 +32,11 @@ same room to enable voice conversations.
 Understanding the Imports:
 - FastAPI: Web framework for building APIs
 - BaseModel: Provides automatic data validation
-- AccessToken: LiveKit SDK for generating secure connection tokens
-- VideoGrant: Defines permissions for LiveKit room access
+- timedelta: For token expiration times
+- os: Access to environment variables
+- secrets: Cryptographically secure random generation
+- string: String constants for random generation
+- livekit.api: SDK for generating secure JWT tokens
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -58,21 +60,25 @@ router = APIRouter(prefix="/restaurant-booking", tags=["restaurant-booking"])
 # STEP 2: DATA MODELS (Request Validation)
 # ============================================================================
 """
-Request Models:
-- ConnectionRequest: Optional user info for connecting to voice room
+What is a Data Model?
+- Defines the structure of incoming requests
+- Automatically validates data (type checking, required fields)
+- Provides clear error messages if validation fails
+- Think of it as a "contract" for what your API expects
+
+Models:
+- ConnectionRequest: User info for connecting to voice room
 - ConnectionResponse: Returns LiveKit connection details
 - MenuResponse: Returns available menu items
 - ServiceInfo: Health check information
-
-These models ensure type safety and automatic validation.
 """
 class ConnectionRequest(BaseModel):
-    """Optional request data for connection"""
+    """Defines what data we need to connect to voice room"""
     participant_name: Optional[str] = "Customer"
 
 
 class ConnectionResponse(BaseModel):
-    """LiveKit connection details"""
+    """LiveKit connection details returned to frontend"""
     server_url: str
     room_name: str
     participant_name: str
@@ -197,7 +203,7 @@ RESTAURANT_MENU = {
 
 
 # ============================================================================
-# STEP 4: LIVEKIT TOKEN GENERATION
+# STEP 4: TOKEN GENERATION
 # ============================================================================
 """
 What is LiveKit Token Generation?
@@ -234,14 +240,6 @@ def create_access_token(room_name: str, participant_identity: str, participant_n
     2. Creates a token with room permissions
     3. Sets token expiration (15 minutes)
     4. Returns JWT token string
-    
-    Args:
-        room_name: Name of the LiveKit room
-        participant_identity: Unique identifier for the participant
-        participant_name: Display name for the participant
-    
-    Returns:
-        JWT token string for LiveKit connection
     """
     # Get LiveKit credentials from environment
     api_key = os.getenv("LIVEKIT_API_KEY")
@@ -285,11 +283,16 @@ def create_access_token(room_name: str, participant_identity: str, participant_n
 # STEP 5: API ENDPOINTS
 # ============================================================================
 """
-API Endpoints:
-- POST /connection: Generate LiveKit connection token
-- GET /menu: Get available menu items
-- GET /health: Health check
-- GET /learning-objectives: Get learning objectives
+What is an API Endpoint?
+- A URL that clients can call to access functionality
+- Each endpoint does one specific thing
+- Uses HTTP methods (GET, POST, etc.) to indicate the action
+
+Endpoint Design Principles:
+1. Clear naming (/connection, /menu, /health)
+2. Single responsibility (each endpoint does one thing)
+3. Proper HTTP methods (POST for creating, GET for reading)
+4. Meaningful responses (status codes, clear data)
 
 Understanding the Code Flow:
 POST /restaurant-booking/connection
@@ -304,7 +307,7 @@ POST /restaurant-booking/connection
 @router.post("/connection", response_model=ConnectionResponse)
 async def get_connection(request: ConnectionRequest):
     """
-    Generate LiveKit connection token for voice AI agent
+    Main endpoint: Generates LiveKit connection token for voice AI agent
     
     This endpoint:
     1. Generates a unique room name for this session
@@ -317,12 +320,6 @@ async def get_connection(request: ConnectionRequest):
     
     The agent itself runs separately (see restaurant_agent.py) and
     automatically connects to the same room when a participant joins.
-    
-    Args:
-        request: Optional participant name
-    
-    Returns:
-        Connection details including server URL, room name, and token
     """
     try:
         # Get LiveKit server URL from environment
@@ -372,14 +369,10 @@ async def get_connection(request: ConnectionRequest):
 @router.get("/menu", response_model=MenuResponse)
 async def get_menu():
     """
-    Get restaurant menu items
+    Returns available menu items
     
-    Returns all available menu items organized by category.
     This is used by the frontend to display the menu and by the
     agent to understand what items are available.
-    
-    Returns:
-        Menu items organized by category
     """
     return MenuResponse(
         menu=RESTAURANT_MENU,

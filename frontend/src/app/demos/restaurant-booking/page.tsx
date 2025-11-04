@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PhoneIcon, PhoneXMarkIcon } from '@heroicons/react/24/outline';
 import { Room, RoomEvent } from 'livekit-client';
