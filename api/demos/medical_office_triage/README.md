@@ -2,18 +2,20 @@
 
 Learn multi-agent voice AI systems by building a medical office triage system with specialized agents that can transfer between each other while preserving conversation context.
 
-## Learning Objectives
+## 🎯 Learning Objectives
 
 Master the fundamentals of **Multi-Agent Voice AI Systems** through hands-on implementation:
 
-- **Multi-Agent Architecture:** Create multiple specialized agents that work together
-- **Agent-to-Agent Transfer:** Seamlessly transfer conversations between agents
-- **Context Preservation:** Maintain conversation history across agent transfers
-- **Specialized Agent Roles:** Design agents with distinct responsibilities and expertise
-- **Chat History Management:** Truncate and preserve relevant conversation context
-- **Shared State Management:** Share data and agent instances across transfers
+  - **Voice Agent Basics:** Build a complete end-to-end voice AI loop (STT -\> LLM -\> TTS).
+  - **Multi-Agent Architecture:** Design a system with multiple, specialized agents.
+  - **Agent-to-Agent Transfer:** Use function calling to trigger a handoff between agents.
+  - **Context Preservation:** Maintain conversation history and state across agent transfers.
+  - **Specialized Agent Roles:** Engineer distinct prompts and tools for each agent's responsibilities.
+  - **Shared State Management:** Use a central `UserData` object to manage shared state and agent instances.
 
-## System Architecture
+## 🏗️ System Architecture (Final Target)
+
+This is the complete, multi-agent system you will build. It uses LiveKit for real-time audio transport and a FastAPI server for coordination, with multiple agents sharing a common state.
 
 ```mermaid
 graph TD
@@ -26,13 +28,15 @@ graph TD
     B -->|7. Audio Stream| C
     D -.->|Same Docker Image| C
     
-    C --> E["TriageAgent<br/>(Initial Contact)"]
-    E -->|Transfer| F["SupportAgent<br/>(Medical Services)"]
-    E -->|Transfer| G["BillingAgent<br/>(Billing & Insurance)"]
-    F -->|Transfer| E
-    F -->|Transfer| G
-    G -->|Transfer| E
-    G -->|Transfer| F
+    subgraph "Agent Worker (Shared State)"
+        C --> E["TriageAgent<br/>(Initial Contact)"]
+        E -->|Transfer| F["SupportAgent<br/>(Medical Services)"]
+        E -->|Transfer| G["BillingAgent<br/>(Billing & Insurance)"]
+        F -->|Transfer| E
+        F -->|Transfer| G
+        G -->|Transfer| E
+        G -->|Transfer| F
+    end
     
     style A fill:#e1f5fe
     style B fill:#e8f5e8
@@ -43,90 +47,44 @@ graph TD
     style G fill:#fff9c4
 ```
 
-### How It Works
+## 🚀 Quick Start
 
-**Multi-Agent System:**
-
-The medical office triage system uses three specialized agents:
-
-1. **TriageAgent** - Initial point of contact that greets patients and determines their needs
-2. **SupportAgent** - Handles medical services (appointments, prescriptions, records)
-3. **BillingAgent** - Manages billing, insurance, and payment questions
-
-**Agent Transfer Flow:**
-
-```
-1. Patient connects → TriageAgent greets them
-2. TriageAgent determines patient needs
-3. If medical services → Transfer to SupportAgent
-4. If billing questions → Transfer to BillingAgent
-5. Agents can transfer back if needed
-6. Conversation context is preserved across transfers
-```
-
-**Context Preservation:**
-
-- Previous agent's conversation history is preserved
-- Chat history is truncated to keep last 6 relevant messages
-- System messages and agent roles are maintained
-- Function calls are preserved for continuity
-
-**The Flow:**
-
-```
-1. User clicks "Connect" in frontend
-   ↓
-2. Frontend calls POST /medical-office-triage/connection
-   ↓
-3. FastAPI generates LiveKit token and returns it
-   ↓
-4. Frontend connects to LiveKit server with token
-   ↓
-5. LiveKit sees a participant joined, dispatches job to agent system
-   ↓
-6. Agent system's entrypoint() function is called
-   ↓
-7. TriageAgent is initialized and starts conversation
-   ↓
-8. Patient speaks, TriageAgent determines needs
-   ↓
-9. TriageAgent transfers to SupportAgent or BillingAgent if needed
-   ↓
-10. Context is preserved, conversation continues seamlessly
-```
-
-## Quick Start
+(Prerequisites and Run-steps from your original document are excellent and placed here.)
 
 ### Prerequisites
 
-1. **Install Dependencies:**
-   ```bash
-   pip install "livekit-agents[deepgram,openai]~=1.2"
-   pip install pyyaml  # For YAML prompt loading
-   ```
-   Note: Fireworks is accessed through the OpenAI plugin, so we install `openai` not `fireworks`.
+1.  **Install Dependencies:**
 
-2. **LiveKit Server:** You need a LiveKit server running. Options:
-   - Cloud: Sign up at [livekit.cloud](https://livekit.cloud)
-   - Self-hosted: Follow [LiveKit deployment guide](https://docs.livekit.io/deploy/)
+    ```bash
+    pip install "livekit-agents[deepgram,openai]~=1.2"
+    pip install pyyaml  # For YAML prompt loading
+    ```
 
-3. **Environment Variables:**
-   ```bash
-   # In api/.env
-   LIVEKIT_URL=wss://your-livekit-server.com
-   LIVEKIT_API_KEY=your-api-key
-   LIVEKIT_API_SECRET=your-api-secret
-   
-   # LLM Provider (Required)
-   FIREWORKS_API_KEY=your-fireworks-key
-   
-   # Voice AI Provider (Required)
-   DEEPGRAM_API_KEY=your-deepgram-key
-   ```
+    *Note: Fireworks is accessed through the OpenAI plugin, so we install `openai`.*
+
+2.  **LiveKit Server:** You need a LiveKit server running.
+
+      * **Cloud:** Sign up at [livekit.cloud](https://livekit.cloud)
+      * **Self-hosted:** Follow [LiveKit deployment guide](https://docs.livekit.io/deploy/)
+
+3.  **Environment Variables:**
+
+    ```bash
+    # In api/.env
+    LIVEKIT_URL=wss://your-livekit-server.com
+    LIVEKIT_API_KEY=your-api-key
+    LIVEKIT_API_SECRET=your-api-secret
+
+    # LLM Provider (Required)
+    FIREWORKS_API_KEY=your-fireworks-key
+
+    # Voice AI Provider (Required)
+    DEEPGRAM_API_KEY=your-deepgram-key
+    ```
 
 ### Running the Demo
 
-#### Option 1: Docker (Recommended - Everything starts automatically)
+#### Option 1: Docker (Recommended)
 
 ```bash
 # Start all services (API, Frontend, and Medical Triage Agent System)
@@ -134,8 +92,6 @@ make dev
 
 # Visit: http://localhost:4020/demos/medical-office-triage
 ```
-
-The medical triage agent system will automatically start as a separate service and connect to LiveKit when participants join rooms.
 
 #### Option 2: Manual (Local Development)
 
@@ -155,198 +111,211 @@ npm run dev
 # Visit: http://localhost:4020/demos/medical-office-triage
 ```
 
-## Your Learning Path: Incremental Challenges
+-----
 
-Follow these incremental challenges to build your multi-agent voice AI application. Each one adds a new layer of functionality and learning.
+## 🚀 Your Learning Path: Incremental Challenges
 
-### Challenge 1: The Basic Multi-Agent Setup
+Follow these incremental challenges to build your application. Each one adds a new layer of functionality and learning.
 
-**Goal:** Create a multi-agent system with three specialized agents.
+### Challenge 1: The "Hello, Voice\!" Agent (Single Agent)
 
-- **Your Task:**
+**Goal:** Get a *single* agent to connect, listen, and respond. This is the "Hello, World\!" of voice AI, establishing the core STT -\> LLM -\> TTS loop.
 
-  1. Create `UserData` dataclass to store shared state
-  2. Create `BaseAgent` class with common functionality
-  3. Create three specialized agents:
-     - `TriageAgent` - Initial contact agent
-     - `SupportAgent` - Medical services agent
-     - `BillingAgent` - Billing agent
-  4. Initialize all agents in `entrypoint()` function
-  5. Register agents in `UserData.personas` dictionary
-  6. Start session with `TriageAgent`
-
-- **Key Concepts:** Multi-agent architecture, Agent specialization, Shared state, Agent initialization
-
-- **Observation:** You should have three agents initialized and ready. The TriageAgent starts the conversation when a patient connects.
+  * **Architecture:**
+    ```mermaid
+    graph TD
+        A["Patient (Voice)"] <--> B["LiveKit Server"];
+        B <--> C["Single Agent Worker"];
+        C --> D["STT (Deepgram)"];
+        D --> E["LLM (Fireworks)"];
+        E --> F["TTS (Deepgram)"];
+        F --> C;
+        
+        style C fill:#fce4ec
+    ```
+  * **Your Task:**
+    1.  Create a *single* agent file (e.g., `agent.py`).
+    2.  Implement the LiveKit `entrypoint` to start your agent.
+    3.  Configure the `livekit-agents` pipeline with **Deepgram (STT/TTS)** and **Fireworks (LLM)**.
+    4.  Give the LLM a *very simple* system prompt: `"You are a helpful assistant. Be brief."`
+    5.  Run the agent and connect via the frontend. When you speak, the agent should hear you and respond.
+  * **🎓 Key Concepts:** LiveKit Agents, STT/TTS Pipeline, Voice Activity Detection (VAD), LLM Integration, Real-Time Audio Streaming.
 
 -----
 
-### Challenge 2: Agent Transfer Mechanism
+### Challenge 2: The *Specialist* Agent (Prompt Engineering)
 
-**Goal:** Enable agents to transfer to each other using function tools.
+**Goal:** Give your single agent a specific *role* and *purpose* by loading a specialized prompt from a file.
 
-- **Your Task:**
-
-  1. Create `_transfer_to_agent()` method in `BaseAgent`:
-     - Get next agent from `userdata.personas`
-     - Update `userdata.prev_agent` reference
-     - Return next agent instance
-  2. Add transfer tools to each agent:
-     - `TriageAgent`: `transfer_to_support()` and `transfer_to_billing()`
-     - `SupportAgent`: `transfer_to_triage()` and `transfer_to_billing()`
-     - `BillingAgent`: `transfer_to_triage()` and `transfer_to_support()`
-  3. Decorate transfer tools with `@function_tool`
-  4. Have agents announce transfers before switching
-  5. Test: Say "I need to schedule an appointment" - TriageAgent should transfer to SupportAgent
-
-- **Experiment:** Try different phrasings that should trigger transfers. Notice how the LLM decides when to call transfer tools based on conversation context.
-
-- **Key Concepts:** Function tools, Agent transfer, Tool calling, Agent coordination
-
-- **Observation:** Agents can now transfer to each other. The LLM intelligently decides when to call transfer tools based on patient needs.
+  * **Your Task:**
+    1.  Create the `prompts/` directory and a `triage_prompt.yaml` file.
+    2.  Add the detailed instructions for the `TriageAgent` to this YAML.
+    3.  Create a `utils.py` with a `load_prompt()` function to read the YAML file.
+    4.  In your agent, replace the simple `"You are a helpful assistant"` prompt with the loaded YAML prompt.
+    5.  Test again. The agent should now *act* like a medical triage agent, greeting you and asking why you're calling.
+  * **🎓 Key Concepts:** Prompt Engineering, Role-Playing, YAML Configuration, Code Reusability.
+  * **🤔 Observation:** Notice how *only* changing the prompt completely changes the agent's behavior, turning it from a generic bot into a specialized worker.
 
 -----
 
-### Challenge 3: Context Preservation
+### Challenge 3: The *Multi-Agent* Scaffold (System Design)
 
-**Goal:** Preserve conversation history when transferring between agents.
+**Goal:** Design the multi-agent architecture. Create all three agents and the shared state object, even if they can't transfer yet.
 
-- **Your Task:**
-
-  1. Implement `on_enter()` method in `BaseAgent`:
-     - Update room attributes to track current agent
-     - Get chat context from previous agent if exists
-     - Preserve previous agent's conversation history
-     - Add system message with current agent role
-     - Update chat context and generate reply
-  2. Implement `_truncate_chat_ctx()` method:
-     - Keep last 6 messages from previous agent
-     - Preserve function calls if needed
-     - Remove duplicate messages
-  3. Test: Have a conversation with TriageAgent, then transfer to SupportAgent. Notice how the new agent knows about the previous conversation.
-
-- **Experiment:** Have a longer conversation before transferring. Notice how the chat history is truncated to keep relevant context. Try transferring multiple times - context should be preserved across all transfers.
-
-- **Key Concepts:** Context preservation, Chat history management, Conversation continuity, State management
-
-- **Observation:** Conversation context is now preserved across agent transfers. Patients don't need to repeat information when transferred to different agents.
-
------
-
-### Challenge 4: Specialized Agent Prompts
-
-**Goal:** Create specialized prompts for each agent to guide their behavior.
-
-- **Your Task:**
-
-  1. Create `prompts/` directory with YAML files:
-     - `triage_prompt.yaml` - Instructions for TriageAgent
-     - `support_prompt.yaml` - Instructions for SupportAgent
-     - `billing_prompt.yaml` - Instructions for BillingAgent
-  2. Create `utils.py` with `load_prompt()` function:
-     - Load YAML files from prompts directory
-     - Extract instructions from YAML
-     - Handle errors gracefully
-  3. Load prompts in each agent's `__init__()` method
-  4. Test: Each agent should behave according to its specialized role
-
-- **Experiment:** Modify prompt files to change agent behavior. Notice how different prompts affect agent responses and decision-making.
-
-- **Key Concepts:** Prompt engineering, YAML configuration, Agent specialization, Behavioral guidelines
-
-- **Observation:** Each agent now has specialized instructions that guide its behavior. Agents follow their roles more consistently.
+  * **Architecture:**
+    ```mermaid
+    graph TD
+        A["Patient"] <--> B["LiveKit"];
+        B --> C["TriageAgent (Active)"];
+        
+        subgraph "Agent System"
+            direction LR
+            F[UserData (Shared State)]
+            C -.-> F
+            D -.-> F
+            E -.-> F
+            D["SupportAgent (Idle)"]
+            E["BillingAgent (Idle)"]
+        end
+        
+        style C fill:#f3e5f5
+        style D fill:#e0f2f1,stroke-dasharray: 5 5
+        style E fill:#fff9c4,stroke-dasharray: 5 5
+        style F fill:#e8f5e8,stroke:#333,stroke-width:2px
+    ```
+  * **Your Task:**
+    1.  Create a `UserData` dataclass to store shared state (e.g., `personas`, `prev_agent`).
+    2.  Create a `BaseAgent` class with common functionality (like `__init__` logic).
+    3.  Create the three agent classes: `TriageAgent`, `SupportAgent`, and `BillingAgent`, all inheriting from `BaseAgent`.
+    4.  Load the specific prompts for `SupportAgent` and `BillingAgent` from their own YAML files.
+    5.  In your `entrypoint`, initialize *all three* agents and store them in `UserData.personas`.
+    6.  Start the session with the `TriageAgent` as the active agent. The user can *only* talk to the `TriageAgent` for now.
+  * **🎓 Key Concepts:** Multi-Agent Architecture, Shared State, Object-Oriented Design, System Scaffolding.
 
 -----
 
-### Challenge 5: Chat History Truncation
+### Challenge 4: The *Transfer Signal* (Function Calling)
 
-**Goal:** Implement intelligent chat history truncation to maintain context without exceeding limits.
+**Goal:** Use LLM function calling to allow the `TriageAgent` to *decide* when a transfer is needed.
 
-- **Your Task:**
-
-  1. Enhance `_truncate_chat_ctx()` method:
-     - Keep last N messages (configurable, default 6)
-     - Option to keep system messages
-     - Option to keep function calls
-     - Remove leading function calls
-  2. Add parameters to control truncation behavior
-  3. Test with long conversations - verify that relevant context is preserved
-
-- **Experiment:** Adjust `keep_last_n_messages` parameter. Try different values (3, 6, 10) and see how it affects context preservation. Notice the trade-off between context length and token usage.
-
-- **Key Concepts:** Token management, Context window limits, Conversation history optimization, Memory management
-
-- **Observation:** Chat history is now intelligently truncated to keep relevant context while managing token limits. The system balances context preservation with efficiency.
-
------
-
-### Challenge 6: Frontend Integration
-
-**Goal:** Build a frontend that connects to LiveKit and enables multi-agent voice conversations.
-
-- **Your Task:**
-
-  1. Create React component using `@livekit/components-react`
-  2. Implement connection logic:
-     - Call `POST /medical-office-triage/connection` to get token
-     - Connect to LiveKit room using `room.connect(server_url, token)`
-  3. Add UI components:
-     - Input field for participant name
-     - "Connect" button
-     - Connection status indicator
-     - Agent status indicator (which agent is currently active)
-     - Mute/unmute button
-     - Disconnect button
-  4. Display current agent (from room attributes)
-  5. Test: Connect and verify agent transfers work through the UI
-
-- **Experiment:** Monitor room attributes to see agent changes in real-time. Notice how the UI updates when agents transfer.
-
-- **Key Concepts:** Frontend integration, LiveKit SDK, Real-time UI updates, Agent status tracking, WebSocket connections
-
-- **Observation:** You now have a complete multi-agent voice AI application with a user interface. Users can see which agent is currently handling their conversation.
+  * **Architecture:**
+    ```mermaid
+    graph TD
+        A["Patient: 'I need to pay my bill.'"] --> B["TriageAgent"];
+        B --> C["LLM (w/ Tools)"];
+        C -- "Found match" --> D["Function Call: transfer_to_billing()"];
+        B -- "Responds to user" --> E["Agent: 'Sure, let me transfer you to billing.'"];
+        
+        style B fill:#f3e5f5
+        style C fill:#e8f5e8
+        style D fill:#fce4ec
+    ```
+  * **Your Task:**
+    1.  Add `transfer_to_support()` and `transfer_to_billing()` methods to the `TriageAgent`.
+    2.  Decorate them with `@function_tool`.
+    3.  These functions should *only* print a log message for now (e.g., `"Transfer to billing initiated"`).
+    4.  Update the `triage_prompt.yaml` to explicitly tell the LLM it *has* these tools and *when* to use them.
+  * **🧪 Experiment:** Talk to the `TriageAgent`. Say "I need to schedule an appointment" or "I have a question about my bill." Watch your server logs. The LLM should call the correct function, and the agent should announce the (not-yet-functional) transfer.
+  * **🎓 Key Concepts:** Function Tools, Tool Calling, LLM as a Router, Agent Decision Making.
 
 -----
 
-### Challenge 7 (Bonus): Enhanced Features
+### Challenge 5: The *Seamless Handoff* (Context Preservation)
 
-**Goal:** Add advanced features to make the system production-ready.
+**Goal:** Implement the *actual* agent-to-agent transfer, preserving the full conversation history.
 
-- **Your Task:**
+  * **Architecture:**
+    ```mermaid
+    graph TD
+        subgraph "Transfer Logic"
+            A["TriageAgent (Active)"] -- 1. Calls _transfer_to_agent() --> B{UserData (Shared State)};
+            B -- 2. Gets Chat History --> B;
+            B -- 3. Gets 'BillingAgent' from personas --> B;
+            B -- 4. Updates prev_agent/next_agent --> B;
+            B -- 5. Returns 'BillingAgent' instance --> C["BillingAgent (Now Active)"];
+        end
 
-  1. **Error Handling:**
-     - Handle agent disconnections gracefully
-     - Add retry logic for failed transfers
-     - Handle network errors in frontend
+        C -- 6. on_enter() is called --> C;
+        C -- 7. Injects history + new system prompt --> D[LLM];
+        D -- 8. Generates greeting --> C;
+        C -- 9. Speaks to Patient --> E["Patient"];
 
-  2. **Agent State Persistence:**
-     - Store conversation state in database
-     - Track agent history per session
-     - Support session resumption
+        style A fill:#f3e5f5
+        style C fill:#fff9c4
+        style B fill:#e8f5e8,stroke:#333,stroke-width:2px,stroke-dasharray: 5 5
+    ```
+  * **Your Task:**
+    1.  Implement the `_transfer_to_agent()` method in `BaseAgent`. This logic will get the next agent from `UserData.personas` and update the state.
+    2.  Implement the `on_enter()` method in `BaseAgent`. This is the *most critical* step.
+    3.  Inside `on_enter()`, get the chat history from the `prev_agent` (if it exists).
+    4.  Create a *new* chat context for the current agent, starting with the *old* agent's history.
+    5.  Add the *new* agent's system prompt (e.g., "You are the BillingAgent...").
+    6.  Tell the agent to generate its first reply (e.g., "Hi, I'm the billing specialist. How can I help?").
+  * **🎓 Key Concepts:** Context Preservation, Chat History Management, State Handoff, Conversation Continuity.
 
-  3. **Additional Agents:**
-     - Add more specialized agents (e.g., PharmacyAgent, LabResultsAgent)
-     - Implement agent routing logic
-     - Create agent directory/registry
+-----
 
-  4. **Analytics:**
-     - Track transfer frequency
-     - Monitor agent performance
-     - Measure conversation duration
+### Challenge 6: The *Efficient* Handoff (History Truncation)
 
-  5. **Advanced Context Management:**
-     - Implement conversation summarization
-     - Add context compression
-     - Support long-term memory
+**Goal:** Prevent the context window from overflowing by intelligently truncating the history during the handoff.
 
-  6. **Integration:**
-     - Connect to patient management system
-     - Integrate with scheduling system
-     - Link to billing system
+  * **Your Task:**
+    1.  Implement the `_truncate_chat_ctx()` method in `BaseAgent`.
+    2.  Call this method inside `on_enter()` *before* adding the new system prompt.
+    3.  The logic should keep the last `N` (e.g., 6) messages from the previous agent.
+    4.  Ensure you *also* preserve any important system messages or function calls.
+  * **🧪 Experiment:** Have a long, 10-12 message conversation with the `TriageAgent` and then transfer. The new agent should still have the *relevant* recent context, but not the *entire* history, saving tokens and cost.
+  * **🎓 Key Concepts:** Token Management, Context Window Limits, Optimization, Memory Management.
 
-- **Key Concepts:** Production readiness, Database integration, Scalability, Analytics, System integration
+-----
 
-## Configuration
+### Challenge 7: The *Full* Application (Frontend Integration)
+
+**Goal:** Connect the frontend to create a complete, usable application that can call the API and display the agent's status.
+
+  * **Architecture:**
+    ```mermaid
+    graph TD
+        A["Frontend UI"] -- 1. 'Connect' Click --> B["POST /connection"];
+        B["FastAPI Server"] -- 2. Returns LiveKit Token --> A;
+        A -- 3. Connect(token) --> C["LiveKit Server"];
+        C -- 4. Dispatches Job --> D["Agent Worker"];
+        A <-->|Audio| C;
+        C <-->|Audio| D;
+        D -- "Updates Room Metadata" --> C;
+        C -- "Pushes Metadata" --> A;
+        A -- "Displays 'Current Agent: Billing'" --> A;
+
+        style A fill:#e1f5fe
+        style B fill:#fff3e0
+        style C fill:#e8f5e8
+        style D fill:#fce4ec
+    ```
+  * **Your Task:**
+    1.  Build the React frontend component.
+    2.  Implement the "Connect" button's logic to `POST` to your FastAPI server to get a token.
+    3.  Use the token to connect to the LiveKit room.
+    4.  In your `BaseAgent`, add logic to update the *Room's metadata* with the current agent's name (e.g., `room.update_metadata(...)`).
+    5.  In the frontend, *listen* for changes to room metadata and display the `Current Agent: ...` to the user.
+  * **🎓 Key Concepts:** Frontend Integration, LiveKit SDK, Real-time UI Updates, Agent Status Tracking, API Integration.
+
+-----
+
+### Challenge 8 (Bonus): Production-Ready Features
+
+**Goal:** Add advanced features to make the system more robust, scalable, and intelligent.
+
+  * **Your Task (Choose one or more):**
+    1.  **Error Handling:** What happens if a transfer fails? Add retry logic or a transfer to a "default" agent.
+    2.  **Persistence:** Store the conversation history and agent state in a database (like Redis or Postgres) so a conversation can be resumed.
+    3.  **More Agents:** Add a `PharmacyAgent` or `LabResultsAgent` and update the transfer logic.
+    4.  **Analytics:** Log every transfer, conversation duration per agent, and common topics to an analytics platform.
+    5.  **Summarization:** Instead of truncating, have an agent *summarize* the previous conversation during the handoff.
+  * **🎓 Key Concepts:** Production Readiness, Database Integration, Scalability, Analytics, Advanced Agentic Patterns.
+
+## 🔧 Configuration
+
+(Copied from your original, as it's perfect.)
 
 ### Environment Variables
 
@@ -357,74 +326,39 @@ LIVEKIT_API_KEY=your-api-key
 LIVEKIT_API_SECRET=your-api-secret
 
 # LLM Provider (Required)
-# Using Fireworks with Qwen3-235B model for fast, efficient inference
 FIREWORKS_API_KEY=your-fireworks-key
 
 # Voice AI Providers (Required)
-# Deepgram is used for both Speech-to-Text (STT) and Text-to-Speech (TTS)
 DEEPGRAM_API_KEY=your-deepgram-key
 ```
 
-### LiveKit Setup
-
-1. **Cloud Option (Easiest):**
-   - Sign up at [livekit.cloud](https://livekit.cloud)
-   - Get your server URL, API key, and secret
-   - Add to `.env` file
-
-2. **Self-Hosted Option:**
-   - Follow [LiveKit deployment guide](https://docs.livekit.io/deploy/)
-   - Deploy to your server or use Docker
-   - Configure API credentials
-
-## Key Multi-Agent Concepts
+## 🎓 Key Multi-Agent Concepts
 
 ### **What You'll Discover:**
 
-1. **Multi-Agent Architecture:** Multiple specialized agents working together to handle complex workflows
+1.  **Agent Specialization:** It's far more effective to build 3 small, expert agents than 1 giant, monolithic agent.
+2.  **LLM as a Router:** Using function calling (Challenge 4) is a powerful, low-code way to let the LLM *decide* where to route the user.
+3.  **Context is King:** The *handoff* (Challenge 5) is the most important part of a multi-agent system. A user will get frustrated if they have to repeat themselves.
+4.  **State Management is Core:** The `UserData` object (or any shared state) is the "blood" of the system, allowing agents to collaborate and pass information.
+5.  **Voice is an "All-or-Nothing" UI:** Unlike text, you can't have a "loading" spinner. The agent *must* be fast and responsive, which is why optimizing prompts and history (Challenge 6) is critical.
 
-2. **Agent Specialization:** Each agent has a specific role and expertise, making the system more efficient and accurate
+## 🤔 Critical Thinking Questions
 
-3. **Context Preservation:** Conversation history is maintained across agent transfers, avoiding patient repetition
+(Copied from your original, as they are excellent.)
 
-4. **Agent Transfer:** Seamless handoff between agents while maintaining conversation continuity
+1.  **How would you handle multiple concurrent patient calls?** What data structure would you use? How would you track conversations per patient?
+2.  **How would you persist conversation history?** What database would you use? How would you structure the schema?
+3.  **What happens if an agent disconnects during transfer?** How would you handle reconnection? Should conversation state be saved?
+4.  **How would you add more specialized agents?** What would be the routing logic? How would you manage agent discovery?
+5.  **How would you handle agent conflicts?** What if multiple agents want to handle the same request?
+6.  **How would you implement agent priority?** Should certain agents take precedence in specific scenarios?
+7.  **How would you scale this system?** What breaks with 100 concurrent patients? How would you optimize?
 
-5. **Shared State Management:** Agents share data and instances through UserData structure
+## 📚 Further Learning
 
-6. **Chat History Management:** Intelligent truncation keeps relevant context while managing token limits
-
-## Critical Thinking Questions
-
-1. **How would you handle multiple concurrent patient calls?** What data structure would you use? How would you track conversations per patient?
-
-2. **How would you persist conversation history?** What database would you use? How would you structure the schema?
-
-3. **What happens if an agent disconnects during transfer?** How would you handle reconnection? Should conversation state be saved?
-
-4. **How would you add more specialized agents?** What would be the routing logic? How would you manage agent discovery?
-
-5. **How would you handle agent conflicts?** What if multiple agents want to handle the same request?
-
-6. **How would you implement agent priority?** Should certain agents take precedence in specific scenarios?
-
-7. **How would you scale this system?** What breaks with 100 concurrent patients? How would you optimize?
-
-## Further Learning
+(Copied from your original.)
 
 **Essential Reading:**
 
-- [LiveKit Documentation](https://docs.livekit.io/) - Official LiveKit docs
-- [LiveKit Agents Guide](https://docs.livekit.io/agents/) - Building voice agents
-- [Multi-Agent Systems](https://en.wikipedia.org/wiki/Multi-agent_system) - Understanding multi-agent architectures
-
-**Next Steps:**
-
-- Implement conversation persistence with a database
-- Add more specialized agents for different departments
-- Build an admin dashboard for agent monitoring
-- Integrate with patient management systems
-- Add support for multiple languages
-- Implement agent performance analytics
-- Create agent routing policies
-- Add conversation summarization
-
+  - [Cracking the 1-second voice loop](https://dev.to/cloudx/cracking-the-1-second-voice-loop-what-we-learned-after-30-stack-benchmarks-427) - Latency optimization for voice AI systems
+  - [How Much Does It Really Cost to Run a Voice-AI Agent at Scale?](https://dev.to/cloudx/how-much-does-it-really-cost-to-run-a-voice-ai-agent-at-scale-8en) - Cost optimization for voice AI systems
