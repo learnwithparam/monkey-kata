@@ -15,7 +15,7 @@ customers join via the frontend.
 """
 
 from dotenv import load_dotenv
-from livekit.agents import JobContext, WorkerOptions, cli, function_tool
+from livekit.agents import JobContext, WorkerOptions, cli, function_tool, get_job_context
 from livekit.agents.voice import Agent, AgentSession
 from livekit.plugins import silero, deepgram, openai
 import asyncio
@@ -183,6 +183,7 @@ Guidelines:
 - Use the customer's name when addressing them (it will be provided in the context)
 - Greet customers warmly by name when they connect
 - Be conversational and friendly, like a real restaurant server
+- Keep responses SHORT and natural - maximum 1-2 sentences under 20 words for voice conversation
 - When customers ask about the menu, use the get_menu_items tool and then speak the menu items naturally in conversation
 - When customers want to order something, use the add_item_to_order tool
 - When customers want to see their order, use the view_current_order tool and read it naturally
@@ -190,7 +191,7 @@ Guidelines:
 - If a customer asks about an item not on the menu, politely let them know
 - Always confirm orders before placing them
 - Personalize your responses using the customer's name naturally throughout the conversation
-- IMPORTANT: When reading menu items or order details from tool outputs, speak them naturally in conversation. Do NOT read markdown formatting, newlines, dashes, or special characters. Convert tool output into natural spoken language.
+- Output plain text only - no markdown, no formatting, just natural spoken language
 
 Keep responses concise and natural. Speak conversationally, not robotically.
 """
@@ -205,7 +206,7 @@ class RestaurantAgent(Agent):
             stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3),
             llm=openai.LLM.with_fireworks(
                 model="accounts/fireworks/models/qwen3-235b-a22b-instruct-2507",
-                temperature=0.7
+                temperature=0.7,
             ),
             tts=deepgram.TTS(model="aura-asteria-en"),
             vad=silero.VAD.load(),
@@ -215,19 +216,19 @@ class RestaurantAgent(Agent):
     
     async def on_enter(self):
         """Called when agent enters the room - greet the customer by name"""
-        # Get participant name from room (faster check)
+        # Get participant name from room
         customer_name = None
-        room = self.session.room
-        if room:
-            # Wait briefly for participants to join (max 1 second)
-            for _ in range(10):
-                await asyncio.sleep(0.1)
-                for participant in room.remote_participants.values():
-                    if participant.name and participant.name.strip():
-                        customer_name = participant.name.strip()
-                        break
-                if customer_name:
-                    break
+        try:
+            job_ctx = get_job_context()
+            room = job_ctx.room if job_ctx else None
+            if room and room.remote_participants:
+                # Get first remote participant's name
+                remote_participant = next(iter(room.remote_participants.values()), None)
+                if remote_participant and remote_participant.name:
+                    customer_name = remote_participant.name.strip()
+        except Exception:
+            # If we can't get the room, just proceed without personalization
+            pass
         
         # Personalize greeting with customer name
         if customer_name and customer_name.lower() != "customer":
