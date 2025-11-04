@@ -99,15 +99,17 @@ async def view_current_order() -> str:
     Call this when the customer asks what they've ordered or wants to see their order.
     
     Returns:
-        Formatted order summary
+        Natural conversational order summary
     """
     if not order_items:
         return "Your order is currently empty."
     
     total = sum(item["price"] for item in order_items)
-    items_list = "\n".join([f"- {item['name']}: ${item['price']:.2f}" for item in order_items])
+    items_list = []
+    for item in order_items:
+        items_list.append(f"{item['name']} for ${item['price']:.2f}")
     
-    return f"Your current order:\n{items_list}\n\nTotal: ${total:.2f}"
+    return f"You have {', '.join(items_list)}. Your total comes to ${total:.2f}."
 
 
 @function_tool()
@@ -121,24 +123,25 @@ async def get_menu_items(category: str = "all") -> str:
         category: The category to show (appetizers, mains, desserts, drinks) or "all" for everything
     
     Returns:
-        Formatted menu items
+        Natural conversational menu description
     """
     if category.lower() == "all":
-        menu_text = "Here's our menu:\n\n"
+        # Return natural conversational text, not markdown
+        menu_parts = []
         for cat_name, items in MENU.items():
-            menu_text += f"{cat_name.title()}:\n"
+            items_list = []
             for item in items:
-                menu_text += f"  - {item['name']}: ${item['price']:.2f}\n"
-            menu_text += "\n"
-        return menu_text
+                items_list.append(f"{item['name']} for ${item['price']:.2f}")
+            menu_parts.append(f"For {cat_name}, we have {', '.join(items_list)}.")
+        return " ".join(menu_parts)
     else:
         category_lower = category.lower()
         for cat_name, items in MENU.items():
             if category_lower in cat_name.lower():
-                menu_text = f"{cat_name.title()}:\n"
+                items_list = []
                 for item in items:
-                    menu_text += f"  - {item['name']}: ${item['price']:.2f}\n"
-                return menu_text
+                    items_list.append(f"{item['name']} for ${item['price']:.2f}")
+                return f"For {cat_name}, we have {', '.join(items_list)}."
         return f"I couldn't find the category '{category}'. Available categories: {', '.join(MENU.keys())}"
 
 
@@ -180,15 +183,16 @@ Guidelines:
 - Use the customer's name when addressing them (it will be provided in the context)
 - Greet customers warmly by name when they connect
 - Be conversational and friendly, like a real restaurant server
-- When customers ask about the menu, use the get_menu_items tool
+- When customers ask about the menu, use the get_menu_items tool and then speak the menu items naturally in conversation
 - When customers want to order something, use the add_item_to_order tool
-- When customers want to see their order, use the view_current_order tool
+- When customers want to see their order, use the view_current_order tool and read it naturally
 - When customers are ready to place their order, use the place_order tool
 - If a customer asks about an item not on the menu, politely let them know
 - Always confirm orders before placing them
 - Personalize your responses using the customer's name naturally throughout the conversation
+- IMPORTANT: When reading menu items or order details from tool outputs, speak them naturally in conversation. Do NOT read markdown formatting, newlines, dashes, or special characters. Convert tool output into natural spoken language.
 
-Keep responses concise and natural. Don't list all menu items unless asked.
+Keep responses concise and natural. Speak conversationally, not robotically.
 """
 
 
@@ -198,7 +202,7 @@ class RestaurantAgent(Agent):
     def __init__(self) -> None:
         super().__init__(
             instructions=build_instructions(),
-            stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.4),
+            stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3),
             llm=openai.LLM.with_fireworks(
                 model="accounts/fireworks/models/qwen3-235b-a22b-instruct-2507",
                 temperature=0.7
@@ -206,16 +210,17 @@ class RestaurantAgent(Agent):
             tts=deepgram.TTS(model="aura-asteria-en"),
             vad=silero.VAD.load(),
             tools=[add_item_to_order, view_current_order, get_menu_items, place_order],
+            # Turn detection handled by eager_eot_threshold in STT config
         )
     
     async def on_enter(self):
         """Called when agent enters the room - greet the customer by name"""
-        # Get participant name from room
+        # Get participant name from room (faster check)
         customer_name = None
         room = self.session.room
         if room:
-            # Wait for participants to join (max 2 seconds)
-            for _ in range(20):
+            # Wait briefly for participants to join (max 1 second)
+            for _ in range(10):
                 await asyncio.sleep(0.1)
                 for participant in room.remote_participants.values():
                     if participant.name and participant.name.strip():
