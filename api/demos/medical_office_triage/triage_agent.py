@@ -35,21 +35,11 @@ Understanding the Imports:
 - logging: For debugging and monitoring agent behavior
 - dataclasses: For structured data storage
 - livekit.agents: Core LiveKit agents framework
-  - JobContext: Context for agent job execution
-  - WorkerOptions: Configuration for agent worker
-  - cli: Command-line interface for running agents
-  - function_tool: Decorator for creating agent tools
 - livekit.agents.voice: Voice-specific agent components
-  - Agent: Base class for voice agents
-  - AgentSession: Manages agent's conversation session
-  - RunContext: Context for agent execution with userdata
 - livekit.plugins: Provider plugins for STT, TTS, LLM
-  - deepgram: Speech-to-Text (STT) and Text-to-Speech (TTS)
-  - openai: LLM provider (supports Fireworks via .with_fireworks())
-  - silero: Voice Activity Detection (VAD)
 - utils: Local utility for loading prompts from YAML files
 
-Why Multi-Agent Systems?
+💡 Why Multi-Agent Systems?
 Multi-agent systems allow you to:
 1. Create specialized agents for different tasks (triage, support, billing)
 2. Transfer conversations between agents seamlessly
@@ -79,19 +69,18 @@ load_dotenv()
 # STEP 2: USERDATA (Shared State)
 # ============================================================================
 """
-UserData Structure:
-This dataclass stores shared state that persists across agent transfers.
+What is Shared State?
+- Stores data that persists across agent transfers
+- Allows agents to access each other's instances
+- Enables context preservation during transfers
 
 Key Components:
 - personas: Dictionary mapping agent names to agent instances
 - prev_agent: Reference to the previous agent (for context transfer)
 - ctx: Job context for accessing room information
 
-Why Shared State?
-- Allows agents to access each other's instances
-- Enables context preservation during transfers
-- Stores session-level information
-- Maintains conversation history across agents
+💡 Why Shared State?
+This enables seamless agent transfers while maintaining conversation context.
 """
 @dataclass
 class UserData:
@@ -112,8 +101,8 @@ RunContext_T = RunContext[UserData]
 # STEP 3: BASEAGENT (Common Functionality)
 # ============================================================================
 """
-BaseAgent Class:
-This base class provides common functionality for all agents:
+What is a Base Agent?
+A base class that provides common functionality for all agents:
 - Context preservation during transfers
 - Chat history truncation
 - Room attribute updates
@@ -124,7 +113,7 @@ Key Methods:
 - _truncate_chat_ctx(): Truncates chat history to keep relevant context
 - _transfer_to_agent(): Handles agent transfer with context preservation
 
-Why a Base Class?
+💡 Why a Base Class?
 - Reduces code duplication
 - Ensures consistent behavior across agents
 - Centralizes context management logic
@@ -146,7 +135,7 @@ class BaseAgent(Agent):
     
     async def on_enter(self) -> None:
         """
-        Called when agent enters the conversation.
+        Called when agent enters the conversation
         
         This lifecycle hook:
         1. Updates room attributes to track current agent
@@ -193,22 +182,13 @@ class BaseAgent(Agent):
         keep_function_call: bool = False,
     ) -> list:
         """
-        Truncate the chat context to keep the last n messages.
+        Truncates the chat context to keep the last n messages
         
         This helps:
         - Prevent context from growing too large
         - Keep relevant conversation history
         - Remove old messages that may not be relevant
         - Maintain function call context if needed
-        
-        Args:
-            items: List of chat context items
-            keep_last_n_messages: Number of messages to keep
-            keep_system_message: Whether to keep system messages
-            keep_function_call: Whether to keep function calls
-            
-        Returns:
-            Truncated list of chat context items
         """
         def _valid_item(item) -> bool:
             """Check if item should be kept"""
@@ -235,7 +215,7 @@ class BaseAgent(Agent):
 
     async def _transfer_to_agent(self, name: str, context: RunContext_T) -> Agent:
         """
-        Transfer to another agent while preserving context.
+        Transfers to another agent while preserving context
         
         This method:
         1. Gets the next agent from userdata
@@ -256,7 +236,7 @@ class BaseAgent(Agent):
 # STEP 4: SPECIALIZED AGENTS
 # ============================================================================
 """
-Specialized Agents:
+What are Specialized Agents?
 Each agent has a specific role and expertise:
 - TriageAgent: Initial point of contact, routes patients to appropriate department
 - SupportAgent: Handles medical services (appointments, prescriptions, records)
@@ -267,6 +247,8 @@ Each agent:
 2. Loads specialized prompts from YAML files
 3. Has transfer tools to move to other agents
 4. Uses voice components (STT, TTS, LLM, VAD)
+
+💡 Try This: Add a new specialized agent (e.g., AppointmentAgent) to handle scheduling!
 """
 
 class TriageAgent(BaseAgent):
@@ -293,10 +275,13 @@ class TriageAgent(BaseAgent):
     
     async def on_enter(self) -> None:
         """
-        Called when TriageAgent enters the room - greet the patient by name.
+        Called when TriageAgent enters the room
         
-        This overrides BaseAgent's on_enter to add a personalized greeting
-        before the context setup and LLM generation.
+        This overrides BaseAgent's on_enter to:
+        1. Set up context (calls parent)
+        2. Get patient name from room
+        3. Personalize the greeting
+        4. Start conversation with warm welcome
         """
         # First call parent to set up context and attributes
         await super().on_enter()
@@ -327,9 +312,9 @@ class TriageAgent(BaseAgent):
     @function_tool
     async def transfer_to_support(self, context: RunContext_T) -> Agent:
         """
-        Transfer patient to Patient Support agent.
+        Transfers patient to Patient Support agent
         
-        This tool is called when the patient needs help with:
+        Called when the patient needs help with:
         - Appointment scheduling
         - Prescription refills
         - Medical records requests
@@ -341,9 +326,9 @@ class TriageAgent(BaseAgent):
     @function_tool
     async def transfer_to_billing(self, context: RunContext_T) -> Agent:
         """
-        Transfer patient to Medical Billing agent.
+        Transfers patient to Medical Billing agent
         
-        This tool is called when the patient needs help with:
+        Called when the patient needs help with:
         - Insurance questions
         - Medical bills
         - Payment plans
@@ -378,13 +363,13 @@ class SupportAgent(BaseAgent):
 
     @function_tool
     async def transfer_to_triage(self, context: RunContext_T) -> Agent:
-        """Transfer back to Triage agent if needed"""
+        """Transfers back to Triage agent if needed"""
         await self.session.say("I'll transfer you back to our Medical Office Triage agent who can better direct your inquiry.")
         return await self._transfer_to_agent("triage", context)
 
     @function_tool
     async def transfer_to_billing(self, context: RunContext_T) -> Agent:
-        """Transfer to Billing agent if patient has billing questions"""
+        """Transfers to Billing agent if patient has billing questions"""
         await self.session.say("I'll transfer you to our Medical Billing department for assistance with your insurance and payment questions.")
         return await self._transfer_to_agent("billing", context)
 
@@ -415,13 +400,13 @@ class BillingAgent(BaseAgent):
 
     @function_tool
     async def transfer_to_triage(self, context: RunContext_T) -> Agent:
-        """Transfer back to Triage agent if needed"""
+        """Transfers back to Triage agent if needed"""
         await self.session.say("I'll transfer you back to our Medical Office Triage agent who can better direct your inquiry.")
         return await self._transfer_to_agent("triage", context)
 
     @function_tool
     async def transfer_to_support(self, context: RunContext_T) -> Agent:
-        """Transfer to Support agent if patient has medical service questions"""
+        """Transfers to Support agent if patient has medical service questions"""
         await self.session.say("I'll transfer you to our Patient Support team who can help with your medical services request.")
         return await self._transfer_to_agent("support", context)
 
@@ -430,8 +415,8 @@ class BillingAgent(BaseAgent):
 # STEP 5: ENTRYPOINT (Job Execution)
 # ============================================================================
 """
-Entrypoint Function:
-This is the main function that gets called when LiveKit dispatches a job to this agent system.
+What is an Entrypoint?
+The main function called when LiveKit dispatches a job to this agent system.
 
 How It Works:
 1. LiveKit detects a user joined a room
@@ -497,19 +482,37 @@ async def entrypoint(ctx: JobContext):
 
 
 # ============================================================================
-# MAIN EXECUTION
+# LEARNING CHECKLIST
 # ============================================================================
 """
-How to Run:
-1. Development mode: python triage_agent.py dev
-2. Production mode: python triage_agent.py start
+After reading this code, you should understand:
 
-The CLI handles:
-- Worker registration with LiveKit
-- Job dispatch and execution
-- Error handling and retries
-- Logging and monitoring
-- Graceful shutdown
+✓ How to build multi-agent voice AI systems
+✓ How to create specialized agents with distinct roles
+✓ How to transfer between agents with context preservation
+✓ How to manage conversation history across transfers
+✓ How to structure shared state for agent coordination
+
+Next Steps:
+1. Add a new specialized agent (e.g., AppointmentAgent)
+2. Experiment with different context truncation strategies
+3. Modify transfer logic to add custom handoff messages
+4. Try different LLM models or temperature settings
+5. Add more sophisticated state management
+
+Questions to Consider:
+- How would you handle multiple concurrent patient calls?
+- How would you persist conversation history across sessions?
+- What happens if an agent disconnects during transfer?
+- How would you add more specialized agents?
+- How could you integrate with a patient management system?
+
+💡 Key Multi-Agent Concepts:
+- Agent Specialization: Each agent has a specific role and expertise
+- Context Preservation: Conversation history maintained across transfers
+- Agent Transfer: Seamless handoff between agents
+- Coordination: Agents work together to handle complex workflows
+- Shared State: Data that persists across agent transfers
 """
 
 if __name__ == "__main__":

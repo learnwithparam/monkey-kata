@@ -105,21 +105,18 @@ class ServiceInfo(BaseModel):
 # STEP 3: MENU DATA
 # ============================================================================
 """
-Simple Restaurant Menu:
-This is a simplified menu structure for the restaurant booking demo.
-In a real application, this would come from a database.
+What is Menu Data?
+- Defines available restaurant items organized by categories
+- Each item has an id, name, description, and price
+- Used by both the API and the voice agent
 
-The menu is organized by categories:
+Menu Structure:
 - appetizers: Starter items
 - mains: Main course dishes
 - desserts: Sweet treats
 - drinks: Beverages
 
-Each item has:
-- id: Unique identifier
-- name: Display name
-- description: Item description
-- price: Price in USD
+💡 In a real application, this would come from a database or API.
 """
 RESTAURANT_MENU = {
     "appetizers": [
@@ -222,27 +219,30 @@ How It Works:
 4. Return connection details to frontend
 
 The frontend uses these details to connect to LiveKit and start voice conversation.
+The agent runs separately and automatically connects to the same room.
 """
 def generate_room_name() -> str:
-    """Generate a unique room name"""
+    """Generates a unique room name for this session"""
     alphabet = string.ascii_uppercase + string.digits
     return f"restaurant_{''.join(secrets.choice(alphabet) for _ in range(8))}"
 
 
 def generate_participant_identity() -> str:
-    """Generate a unique participant identity"""
+    """Generates a unique participant identity for this user"""
     return f"customer_{secrets.token_hex(4)}"
 
 
 def create_access_token(room_name: str, participant_identity: str, participant_name: str) -> str:
     """
-    Create a LiveKit access token for joining a room
+    Creates a LiveKit access token for joining a room
     
     This function:
     1. Gets LiveKit credentials from environment variables
     2. Creates a token with room permissions
     3. Sets token expiration (15 minutes)
     4. Returns JWT token string
+    
+    The token allows the frontend to connect to the LiveKit room.
     """
     # Get LiveKit credentials from environment
     api_key = os.getenv("LIVEKIT_API_KEY")
@@ -395,8 +395,9 @@ async def get_menu():
     """
     Returns available menu items
     
-    This is used by the frontend to display the menu and by the
-    agent to understand what items are available.
+    Used by:
+    - Frontend: To display the menu to customers
+    - Agent: To understand what items are available for ordering
     """
     return MenuResponse(
         menu=RESTAURANT_MENU,
@@ -413,9 +414,6 @@ async def health_check():
     - Monitoring system status
     - Load balancer checks
     - Debugging connection issues
-    
-    Returns:
-        Service status information
     """
     return ServiceInfo(
         status="healthy",
@@ -480,7 +478,7 @@ Questions to Consider:
 - How would you add payment processing?
 - How could you integrate with a POS system?
 
-Key Voice AI Concepts:
+💡 Key Voice AI Concepts:
 - STT (Speech-to-Text): Converts user speech to text
 - TTS (Text-to-Speech): Converts agent responses to speech
 - VAD (Voice Activity Detection): Detects when user is speaking

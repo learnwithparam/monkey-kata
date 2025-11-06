@@ -289,9 +289,6 @@ async def health_check():
     - Monitoring system status
     - Load balancer checks
     - Debugging connection issues
-    
-    Returns:
-        Service status information
     """
     return ServiceInfo(
         status="healthy",
@@ -356,7 +353,7 @@ Questions to Consider:
 - How would you add more specialized agents?
 - How could you integrate with a patient management system?
 
-Key Multi-Agent Concepts:
+💡 Key Multi-Agent Concepts:
 - Agent Specialization: Each agent has a specific role and expertise
 - Context Preservation: Conversation history maintained across transfers
 - Agent Transfer: Seamless handoff between agents
