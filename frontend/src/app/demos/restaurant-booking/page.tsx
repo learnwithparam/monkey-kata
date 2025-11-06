@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { PhoneIcon, PhoneXMarkIcon } from '@heroicons/react/24/outline';
+import { PhoneIcon } from '@heroicons/react/24/outline';
 import { Room, RoomEvent } from 'livekit-client';
-import { RoomAudioRenderer, RoomContext, useLocalParticipant, useRemoteParticipants } from '@livekit/components-react';
+import { RoomAudioRenderer, RoomContext } from '@livekit/components-react';
 import SubmitButton from '@/components/demos/SubmitButton';
 import AlertMessage from '@/components/demos/AlertMessage';
+import VoiceInterface from '@/components/demos/VoiceInterface';
 
 interface ConnectionDetails {
   server_url: string;
@@ -168,70 +169,3 @@ export default function RestaurantBookingPage() {
   );
 }
 
-function VoiceInterface({ onDisconnect }: { onDisconnect: () => void }) {
-  const localParticipant = useLocalParticipant();
-  const remoteParticipants = useRemoteParticipants();
-  const [isMuted, setIsMuted] = useState(false);
-
-  const toggleMute = () => {
-    if (localParticipant.localParticipant) {
-      localParticipant.localParticipant.setMicrophoneEnabled(!isMuted);
-      setIsMuted(!isMuted);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-            <span className="text-sm font-semibold text-green-800">Connected</span>
-          </div>
-          <button
-            onClick={onDisconnect}
-            className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold"
-          >
-            <PhoneXMarkIcon className="w-4 h-4 mr-2" />
-            Disconnect
-          </button>
-        </div>
-      </div>
-
-      <div className="p-6 bg-gray-50 rounded-lg border border-gray-200 text-center">
-        <div className="mb-4">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-4">
-            <PhoneIcon className="w-10 h-10 text-blue-600" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Voice Conversation Active</h3>
-          <p className="text-sm text-gray-600">
-            Speak naturally to order. The AI assistant will respond to your voice.
-          </p>
-        </div>
-
-        <button
-          onClick={toggleMute}
-          className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-            isMuted
-              ? 'bg-red-600 text-white hover:bg-red-700'
-              : 'bg-green-600 text-white hover:bg-green-700'
-          }`}
-        >
-          {isMuted ? 'Unmute Microphone' : 'Mute Microphone'}
-        </button>
-      </div>
-
-      <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <p className="text-sm text-blue-800 mb-2">
-          <strong>Example commands:</strong>
-        </p>
-        <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
-          <li>&quot;What&apos;s on the menu?&quot;</li>
-          <li>&quot;I&apos;d like a Caesar Salad&quot;</li>
-          <li>&quot;What&apos;s in my current order?&quot;</li>
-          <li>&quot;I&apos;m ready to place my order&quot;</li>
-        </ul>
-      </div>
-    </div>
-  );
-}

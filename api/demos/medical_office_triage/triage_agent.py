@@ -141,6 +141,9 @@ class BaseAgent(Agent):
     - Agent transfer coordination
     """
     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+    
     async def on_enter(self) -> None:
         """
         Called when agent enters the conversation.
