@@ -281,7 +281,7 @@ class TriageAgent(BaseAgent):
             instructions=load_prompt('triage_prompt.yaml'),
             stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3),
             llm=openai.LLM.with_fireworks(
-                model="accounts/fireworks/models/qwen3-235b-a22b-instruct-2507",
+                model="fireworks/llama-v3p1-8b-instruct",
                 temperature=0.7,
             ),
             tts=deepgram.TTS(model="aura-asteria-en"),
@@ -366,7 +366,7 @@ class SupportAgent(BaseAgent):
             instructions=load_prompt('support_prompt.yaml'),
             stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3),
             llm=openai.LLM.with_fireworks(
-                model="accounts/fireworks/models/qwen3-235b-a22b-instruct-2507",
+                model="fireworks/llama-v3p1-8b-instruct",
                 temperature=0.7,
             ),
             tts=deepgram.TTS(model="aura-asteria-en"),
@@ -401,9 +401,9 @@ class BillingAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__(
             instructions=load_prompt('billing_prompt.yaml'),
-            stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3),
+            stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3, eot_threshold=0.3),
             llm=openai.LLM.with_fireworks(
-                model="accounts/fireworks/models/qwen3-235b-a22b-instruct-2507",
+                model="fireworks/llama-v3p1-8b-instruct",
                 temperature=0.7,
             ),
             tts=deepgram.TTS(model="aura-asteria-en"),

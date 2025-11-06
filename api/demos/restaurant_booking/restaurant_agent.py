@@ -357,9 +357,9 @@ This class configures all the components needed for a voice AI agent:
 
 2. LLM (Large Language Model):
    - Provider: Fireworks AI (via OpenAI plugin)
-   - Model: Qwen3-235B - Fast, efficient inference for voice conversations
+   - Model: Llama-v3p1-8B - Fast, lightweight model optimized for low-latency voice conversations
    - Temperature: 0.7 - Balanced creativity and consistency
-   - Note: max_tokens not supported by with_fireworks(), controlled via instructions
+   - Note: Using smaller model for faster response times and reduced voice cutting
 
 3. TTS (Text-to-Speech):
    - Provider: Deepgram Aura Asteria
@@ -398,7 +398,7 @@ class RestaurantAgent(Agent):
             instructions=build_instructions(),
             stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3),
             llm=openai.LLM.with_fireworks(
-                model="accounts/fireworks/models/qwen3-235b-a22b-instruct-2507",
+                model="fireworks/llama-v3p1-8b-instruct",
                 temperature=0.7,
             ),
             tts=deepgram.TTS(model="aura-asteria-en"),
