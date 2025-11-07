@@ -449,12 +449,24 @@ Question: {question}
 Answer directly and concisely:"""
         
         # Stream answer from LLM
-        async for chunk in self.llm_provider.generate_stream(
-            prompt,
-            temperature=0.1,
-            max_tokens=100
-        ):
-            yield chunk
+        try:
+            async for chunk in self.llm_provider.generate_stream(
+                prompt,
+                temperature=0.1,
+                max_tokens=1000  # Increased from 100 to allow longer responses
+            ):
+                yield chunk
+        except RuntimeError as e:
+            # Handle StopIteration converted to RuntimeError
+            if "StopIteration" in str(e) or "async generator" in str(e).lower():
+                # Generator finished normally, just return
+                return
+            # Re-raise other RuntimeErrors
+            raise
+        except Exception as e:
+            # Handle any other errors gracefully
+            yield f"\n\nError generating response: {str(e)}"
+            return
                 
 
 # ============================================================================
