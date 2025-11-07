@@ -8,3 +8,5 @@ export { default as MessageBubble } from './MessageBubble';
 export { default as LoadingSpinner } from './LoadingSpinner';
 export { default as ErrorMessage } from './ErrorMessage';
 export { default as FileUpload } from './FileUpload';
+export { default as ChatMessages } from './ChatMessages';
+export type { ChatMessage } from './ChatMessages';

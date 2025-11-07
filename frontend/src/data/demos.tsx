@@ -1,10 +1,7 @@
 import { 
   BookOpenIcon,
-  ScaleIcon,
   GlobeAltIcon,
-  SpeakerWaveIcon,
   TagIcon,
-  CakeIcon,
   HeartIcon,
   MagnifyingGlassIcon,
   DocumentTextIcon,
@@ -19,7 +16,8 @@ import {
   TruckIcon,
   PhoneIcon,
   EyeIcon,
-  BriefcaseIcon
+  BriefcaseIcon,
+  ChatBubbleLeftRightIcon
 } from '@heroicons/react/24/outline';
 
 export interface Demo {
@@ -28,7 +26,20 @@ export interface Demo {
   description: string;
   demoHref?: string;
   challengeHref?: string;
+  apiSlug?: string; // Backend API folder name (e.g., 'travel_support_assistant')
   isComingSoon?: boolean;
+}
+
+// Utility to find demo by challenge slug
+export function findDemoByChallengeSlug(slug: string): Demo | null {
+  for (const week of weeksData) {
+    for (const demo of week.demos) {
+      if (demo.challengeHref === `/challenges/${slug}`) {
+        return demo;
+      }
+    }
+  }
+  return null;
 }
 
 export interface WeekData {
@@ -49,28 +60,32 @@ export const weeksData: WeekData[] = [
         title: "Bedtime Stories for Kids",
         description: "AI-powered bedtime stories that adapt to your child's interests and age",
         demoHref: "/demos/bedtime-story",
-        challengeHref: "/challenges/bedtime-story-generator"
+        challengeHref: "/challenges/bedtime-story-generator",
+        apiSlug: "bedtime_story_generator"
       },
       {
         icon: <GlobeAltIcon className="w-8 h-8 text-blue-600 mr-4" />,
         title: "Website FAQ Chatbot",
         description: "Ask questions about any website and get instant, accurate answers from the content",
         demoHref: "/demos/website-rag",
-        challengeHref: "/challenges/website-rag"
+        challengeHref: "/challenges/website-rag",
+        apiSlug: "website_rag"
       },
       {
         icon: <DocumentTextIcon className="w-8 h-8 text-blue-600 mr-4" />,
         title: "Document QA Chatbot",
         description: "Upload any document and get instant AI-powered analysis, key insights, and intelligent Q&A",
         demoHref: "/demos/document-qa-chatbot",
-        challengeHref: "/challenges/document-qa-chatbot"
+        challengeHref: "/challenges/document-qa-chatbot",
+        apiSlug: "document_qa_chatbot"
       },
       {
         icon: <BriefcaseIcon className="w-8 h-8 text-indigo-600 mr-4" />,
         title: "CV Analyzer & Improvement Suggester",
         description: "AI-powered CV analysis with personalized improvement suggestions to land your dream job",
         demoHref: "/demos/cv-analyzer",
-        challengeHref: "/challenges/cv-analyzer"
+        challengeHref: "/challenges/cv-analyzer",
+        apiSlug: "cv_analyzer"
       }
     ]
   },
@@ -80,10 +95,12 @@ export const weeksData: WeekData[] = [
     weekColor: "bg-blue-100 text-blue-800",
     demos: [
       {
-        icon: <SpeakerWaveIcon className="w-8 h-8 text-green-600 mr-4" />,
-        title: "24/7 Customer Support Bot with Human Escalation",
-        description: "Intelligent customer support that finds answers instantly from your knowledge base",
-        isComingSoon: true
+        icon: <ChatBubbleLeftRightIcon className="w-8 h-8 text-purple-600 mr-4" />,
+        title: "Travel Customer Support Assistant",
+        description: "Travel support assistant (like Booking.com) with function calling - helps with booking lookups, hotel reservations, flight status, and taxi bookings",
+        demoHref: "/demos/travel-support",
+        challengeHref: "/challenges/travel-support",
+        apiSlug: "travel_support_assistant"
       },
       {
         icon: <TagIcon className="w-8 h-8 text-blue-600 mr-4" />,
@@ -96,14 +113,16 @@ export const weeksData: WeekData[] = [
         title: "Restaurant Booking Voice AI",
         description: "Take food orders naturally through voice conversation with AI-powered restaurant assistant",
         demoHref: "/demos/restaurant-booking",
-        challengeHref: "/challenges/restaurant-booking"
+        challengeHref: "/challenges/restaurant-booking",
+        apiSlug: "restaurant_booking"
       },
       {
         icon: <HeartIcon className="w-8 h-8 text-red-600 mr-4" />,
         title: "Medical Office Triage Voice AI",
         description: "Multi-agent voice AI system that routes patients to specialized departments with context preservation",
         demoHref: "/demos/medical-office-triage",
-        challengeHref: "/challenges/medical-office-triage"
+        challengeHref: "/challenges/medical-office-triage",
+        apiSlug: "medical_office_triage"
       }
     ]
   },

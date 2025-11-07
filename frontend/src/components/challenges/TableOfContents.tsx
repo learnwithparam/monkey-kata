@@ -111,12 +111,12 @@ export default function TableOfContents({ content, className = '' }: TableOfCont
       >
         <div className="px-4 py-3 border-b border-gray-100 hidden lg:block">
           <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-            <Bars3Icon className="w-4 h-4 text-brand-purple" />
+            <Bars3Icon className="w-4 h-4" style={{ color: 'var(--brand-purple)' }} />
             Table of Contents
           </h3>
         </div>
         
-        <div className="px-3 py-3 max-h-[calc(100vh-200px)] overflow-y-auto toc-scrollbar">
+        <div className="px-3 py-3 max-h-[60vh] lg:max-h-[calc(100vh-200px)] overflow-y-auto toc-scrollbar">
           <ul className="space-y-1" role="list">
             {tocItems.map((item, index) => (
               <li key={index}>
@@ -128,19 +128,14 @@ export default function TableOfContents({ content, className = '' }: TableOfCont
                   }}
                   className={`block py-2 px-3 rounded-md text-sm transition-all duration-150 ${
                     activeId === item.id
-                      ? 'font-medium border-l-2'
+                      ? 'text-brand-purple font-medium bg-brand-purple/10 border-l-2 border-brand-purple'
                       : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
                   }`}
                   style={{ 
-                    paddingLeft: `${(item.level - 1) * 16 + 12}px`,
+                    paddingLeft: `${12 + (item.level - 1) * 16}px`,
                     fontSize: item.level === 1 ? '14px' : item.level === 2 ? '13px' : '12px',
                     fontWeight: item.level === 1 ? '600' : item.level === 2 ? '500' : '400',
                     lineHeight: '1.5',
-                    ...(activeId === item.id ? {
-                      color: 'var(--brand-purple)',
-                      backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                      borderColor: 'var(--brand-purple)',
-                    } : {}),
                   }}
                   aria-current={activeId === item.id ? 'location' : undefined}
                 >

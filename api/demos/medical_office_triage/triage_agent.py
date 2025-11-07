@@ -55,9 +55,9 @@ from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli
 from livekit.agents.llm import function_tool
 from livekit.agents.voice import Agent, AgentSession, RunContext
-from livekit.plugins import deepgram, openai, silero
-
-from utils import load_prompt
+from livekit.plugins import deepgram, silero
+from utils.livekit_utils import get_livekit_llm
+from prompt_utils import load_prompt
 
 logger = logging.getLogger("medical-office-triage")
 logger.setLevel(logging.INFO)
@@ -265,10 +265,7 @@ class TriageAgent(BaseAgent):
         super().__init__(
             instructions=load_prompt('triage_prompt.yaml'),
             stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3),
-            llm=openai.LLM.with_fireworks(
-                model="fireworks/llama-v3p1-8b-instruct",
-                temperature=0.7,
-            ),
+            llm=get_livekit_llm(),
             tts=deepgram.TTS(model="aura-asteria-en"),
             vad=silero.VAD.load()
         )
@@ -353,10 +350,7 @@ class SupportAgent(BaseAgent):
         super().__init__(
             instructions=load_prompt('support_prompt.yaml'),
             stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3),
-            llm=openai.LLM.with_fireworks(
-                model="fireworks/llama-v3p1-8b-instruct",
-                temperature=0.7,
-            ),
+            llm=get_livekit_llm(),
             tts=deepgram.TTS(model="aura-asteria-en"),
             vad=silero.VAD.load()
         )
@@ -390,10 +384,7 @@ class BillingAgent(BaseAgent):
         super().__init__(
             instructions=load_prompt('billing_prompt.yaml'),
             stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3, eot_threshold=0.3),
-            llm=openai.LLM.with_fireworks(
-                model="fireworks/llama-v3p1-8b-instruct",
-                temperature=0.7,
-            ),
+            llm=get_livekit_llm(),
             tts=deepgram.TTS(model="aura-asteria-en"),
             vad=silero.VAD.load()
         )

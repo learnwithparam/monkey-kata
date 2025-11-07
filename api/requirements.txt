@@ -24,6 +24,9 @@ transformers>=4.30.0
 sentence-transformers>=2.2.0
 langgraph>=0.1.0
 langchain-core>=0.1.0
+# AutoGen AgentChat (new API) - for Travel Support Assistant demo
+autogen-agentchat[openai]>=0.2.0
+autogen-ext[openai]>=0.2.0
 
 # LiveKit Agents (for Restaurant Booking Voice AI demo)
 # Includes Deepgram (STT/TTS), OpenAI plugin (for Fireworks LLM), and Silero (VAD)

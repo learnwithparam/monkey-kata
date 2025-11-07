@@ -47,7 +47,8 @@ real-time audio streams. They connect to LiveKit rooms when users join.
 from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli, function_tool, get_job_context
 from livekit.agents.voice import Agent, AgentSession
-from livekit.plugins import silero, deepgram, openai
+from livekit.plugins import silero, deepgram
+from utils.livekit_utils import get_livekit_llm
 
 load_dotenv()
 
@@ -304,10 +305,7 @@ class RestaurantAgent(Agent):
         super().__init__(
             instructions=build_instructions(),
             stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3),
-            llm=openai.LLM.with_fireworks(
-                model="fireworks/llama-v3p1-8b-instruct",
-                temperature=0.7,
-            ),
+            llm=get_livekit_llm(),
             tts=deepgram.TTS(model="aura-asteria-en"),
             vad=silero.VAD.load(),
             tools=[add_item_to_order, view_current_order, get_menu_items, place_order],

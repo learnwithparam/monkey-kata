@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand-purple: #8b5cf6;
+  --color-brand-teal: #14b8a6;
+}
+
 :root {
   /* Professional color palette inspired by CodeFast/ShipFast */
   --primary-green: #10b981;

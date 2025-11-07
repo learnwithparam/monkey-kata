@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { PhoneIcon } from '@heroicons/react/24/outline';
-import { Room, RoomEvent } from 'livekit-client';
+import { Room, RoomEvent, RemoteParticipant } from 'livekit-client';
 import { RoomAudioRenderer, RoomContext } from '@livekit/components-react';
 import SubmitButton from '@/components/demos/SubmitButton';
 import AlertMessage from '@/components/demos/AlertMessage';
@@ -40,11 +40,10 @@ export default function MedicalOfficeTriagePage() {
       // The agent is a remote participant from the client's perspective
       const remoteParticipants = Array.from(room.remoteParticipants.values());
       for (const participant of remoteParticipants) {
-        // Attributes might be a Map or plain object
         if (participant.attributes) {
           const agent = participant.attributes instanceof Map 
             ? participant.attributes.get('agent')
-            : (participant.attributes as any)['agent'];
+            : (participant.attributes as Record<string, unknown>)['agent'];
           if (agent) {
             setCurrentAgent(agent as string);
             return;
@@ -57,7 +56,7 @@ export default function MedicalOfficeTriagePage() {
 
     const handleAttributesChanged = () => updateAgent();
     
-    const onParticipantConnected = (participant: any) => {
+    const onParticipantConnected = (participant: RemoteParticipant) => {
       // Listen for attribute changes on newly connected participants
       participant.on('attributesChanged', handleAttributesChanged);
       updateAgent(); // Check immediately
@@ -112,10 +111,9 @@ export default function MedicalOfficeTriagePage() {
       const remoteParticipants = Array.from(room.remoteParticipants.values());
       for (const participant of remoteParticipants) {
         if (participant.attributes) {
-          // Attributes might be a Map or plain object
           const agent = participant.attributes instanceof Map 
             ? participant.attributes.get('agent')
-            : (participant.attributes as any)['agent'];
+            : (participant.attributes as Record<string, unknown>)['agent'];
           if (agent) {
             setCurrentAgent(agent as string);
             return;

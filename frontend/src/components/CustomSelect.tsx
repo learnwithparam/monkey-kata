@@ -29,6 +29,8 @@ export default function CustomSelect({
   disabled = false,
   className = ""
 }: CustomSelectProps) {
+  // name prop is kept for form compatibility but not used in rendering
+  void name;
   const [isOpen, setIsOpen] = useState(false);
   const selectRef = useRef<HTMLDivElement>(null);
 

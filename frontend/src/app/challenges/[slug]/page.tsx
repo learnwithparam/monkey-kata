@@ -11,6 +11,7 @@ import ChallengeError from '@/components/challenges/ChallengeError';
 import MarkdownRenderer from '@/components/challenges/MarkdownRenderer';
 import TableOfContents from '@/components/challenges/TableOfContents';
 import { processMarkdown } from '@/lib/markdown';
+import { findDemoByChallengeSlug } from '@/data/demos';
 
 interface Challenge {
   demo_name: string;
@@ -30,22 +31,24 @@ export default function ChallengePage({ params }: ChallengePageProps) {
   const [error, setError] = useState<string | null>(null);
   const [processedContent, setProcessedContent] = useState<string>('');
 
-  // Demo name mapping for display
-  const getDisplayName = (demoName: string) => {
-    const mapping: Record<string, string> = {
-      'bedtime_story_generator': 'Bedtime Stories for Kids',
-      'website_rag': 'Website FAQ Chatbot'
+  // Get demo info from demos data
+  const getDemoInfo = (demoName: string) => {
+    // Convert demoName to slug format and find matching demo
+    const demoNameSlug = demoName.replace(/_/g, '-');
+    const demo = findDemoByChallengeSlug(demoNameSlug);
+    
+    if (demo) {
+      return {
+        title: demo.title,
+        demoUrl: demo.demoHref || '/'
+      };
+    }
+    
+    // Fallback if not found
+    return {
+      title: demoName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      demoUrl: '/'
     };
-    return mapping[demoName] || demoName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  };
-
-  // Get demo page URL for back navigation
-  const getDemoUrl = (demoName: string) => {
-    const mapping: Record<string, string> = {
-      'bedtime_story_generator': '/demos/bedtime-story',
-      'website_rag': '/demos/website-rag'
-    };
-    return mapping[demoName] || '/';
   };
 
   const fetchChallenge = useCallback(async () => {
@@ -53,8 +56,16 @@ export default function ChallengePage({ params }: ChallengePageProps) {
     setError(null);
     
     try {
-      // Convert hyphen slug to underscore for API (e.g., bedtime-story-generator -> bedtime_story_generator)
-      const apiSlug = resolvedParams.slug.replace(/-/g, '_');
+      // Find demo from demos data using the challenge slug
+      const demo = findDemoByChallengeSlug(resolvedParams.slug);
+      
+      // Get API slug directly from demo data
+      const apiSlug = demo?.apiSlug || resolvedParams.slug.replace(/-/g, '_');
+      
+      if (!apiSlug) {
+        throw new Error('Could not determine API slug for challenge');
+      }
+      
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/challenges/${apiSlug}`);
       if (!response.ok) {
         throw new Error('Failed to fetch challenge');
@@ -93,7 +104,7 @@ export default function ChallengePage({ params }: ChallengePageProps) {
           {/* Header with Back Button */}
           <div className="mb-8">
             <Link
-              href={challenge ? getDemoUrl(challenge.demo_name) : '/'}
+              href={challenge ? getDemoInfo(challenge.demo_name).demoUrl : '/'}
               className="inline-flex items-center gap-2 text-gray-300 hover:text-white transition-colors mb-6"
             >
               <ArrowLeftIcon className="w-5 h-5" />
@@ -108,7 +119,7 @@ export default function ChallengePage({ params }: ChallengePageProps) {
             </div>
             <div>
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-2 leading-tight">
-                {challenge ? getDisplayName(challenge.demo_name) : 'Loading...'} Challenge
+                {challenge ? getDemoInfo(challenge.demo_name).title : 'Loading...'} Challenge
               </h1>
               <p className="text-base sm:text-lg text-gray-300">Complete learning objectives and hands-on exercises</p>
             </div>
@@ -117,7 +128,7 @@ export default function ChallengePage({ params }: ChallengePageProps) {
       </div>
 
       {/* Content with Responsive Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
         {loading && (
           <ChallengeLoader message="Loading challenge..." />
         )}
@@ -130,21 +141,21 @@ export default function ChallengePage({ params }: ChallengePageProps) {
         )}
 
         {!loading && !error && challenge && processedContent && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
+          <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
             {/* Main Content */}
-            <div className="lg:col-span-9">
+            <div className="flex-1 min-w-0">
+              {/* Table of Contents - Mobile (sticky at top) */}
+              <div className="lg:hidden mb-8 sticky top-16 z-10 py-2 -mx-4 sm:-mx-6 px-4 sm:px-6 bg-white border-b border-gray-100 shadow-sm">
+                <TableOfContents content={processedContent} />
+              </div>
+
               <MarkdownRenderer
                 content={challenge.content}
               />
-              
-              {/* Table of Contents - Mobile */}
-              <div className="lg:hidden mt-8">
-                <TableOfContents content={processedContent} />
-              </div>
             </div>
 
             {/* Table of Contents - Desktop Sidebar */}
-            <aside className="hidden lg:block lg:col-span-3" aria-label="Table of contents">
+            <aside className="hidden lg:block lg:w-80 lg:flex-shrink-0" aria-label="Table of contents">
               <div className="sticky top-24">
                 <TableOfContents content={processedContent} />
               </div>

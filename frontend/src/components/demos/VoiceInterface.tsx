@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { PhoneIcon } from '@heroicons/react/24/outline';
 import { RoomEvent, RemoteTrackPublication } from 'livekit-client';
-import { useLocalParticipant, useRemoteParticipants, useRoomContext } from '@livekit/components-react';
+import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
 
 type ConnectionState = 'connecting' | 'thinking' | 'connected' | 'speaking';
 
@@ -19,12 +19,10 @@ export default function VoiceInterface({
   getAgentDisplayName = (agent: string) => agent
 }: VoiceInterfaceProps) {
   const localParticipant = useLocalParticipant();
-  const remoteParticipants = useRemoteParticipants();
   const room = useRoomContext();
   
   const [isMuted, setIsMuted] = useState(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting');
-  const [isThinking, setIsThinking] = useState(false);
   const hasHeardSpeechRef = useRef(false);
   const thinkingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const speechCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -37,7 +35,6 @@ export default function VoiceInterface({
     // Reset state
     setConnectionState('connecting');
     hasHeardSpeechRef.current = false;
-    setIsThinking(false);
 
     // After 1 second, if still connecting, show thinking
     const thinkingTimer = setTimeout(() => {
@@ -47,7 +44,6 @@ export default function VoiceInterface({
         }
         return prev;
       });
-      setIsThinking(true);
     }, 1000);
 
     return () => {
@@ -69,15 +65,13 @@ export default function VoiceInterface({
           }
           return prev;
         });
-        setIsThinking(true);
 
         // Check for audio tracks
         const audioTracks = Array.from(remoteParticipant.audioTrackPublications.values());
         const subscribedTrack = audioTracks.find(track => track.isSubscribed && track.track);
         
-        if (subscribedTrack && subscribedTrack.track) {
-          // Audio track exists, set up monitoring
-          monitorAudioTrack(subscribedTrack.track);
+        if (subscribedTrack?.track) {
+          monitorAudioTrack(subscribedTrack.track.mediaStreamTrack);
         }
       }
     };
@@ -91,16 +85,15 @@ export default function VoiceInterface({
     };
 
     // Listen for track subscribed
-    const handleTrackSubscribed = (publication: RemoteTrackPublication, participant: RemoteParticipant) => {
-      if (publication.kind === 'audio' && publication.track) {
+    const handleTrackSubscribed = (track: { mediaStreamTrack: MediaStreamTrack } | null, publication: RemoteTrackPublication) => {
+      if (publication.kind === 'audio' && track) {
         setConnectionState((prev) => {
           if (prev === 'connecting') {
             return 'thinking';
           }
           return prev;
         });
-        setIsThinking(true);
-        monitorAudioTrack(publication.track);
+        monitorAudioTrack(track.mediaStreamTrack);
       }
     };
 
@@ -125,7 +118,7 @@ export default function VoiceInterface({
   }, [room, connectionState]);
 
   // Monitor audio track to detect when speech starts
-  const monitorAudioTrack = (track: any) => {
+  const monitorAudioTrack = (track: MediaStreamTrack) => {
     // Cleanup previous monitoring if exists
     if (audioCleanupRef.current) {
       audioCleanupRef.current();
@@ -134,16 +127,19 @@ export default function VoiceInterface({
 
     try {
       // Create audio context for simple level detection
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: new () => AudioContext }).webkitAudioContext;
+      if (!AudioContextClass) {
+        return;
+      }
+      const audioContext = new AudioContextClass();
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 128;
       analyser.smoothingTimeConstant = 0.3;
       
-      const stream = new MediaStream([track.mediaStreamTrack]);
+      const stream = new MediaStream([track]);
       const source = audioContext.createMediaStreamSource(stream);
       source.connect(analyser);
 
-      let speechDetected = false;
       let silenceCount = 0;
       let isMonitoring = true;
 
@@ -155,22 +151,16 @@ export default function VoiceInterface({
         const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
         
         if (average > 10) {
-          // Audio detected
           if (!hasHeardSpeechRef.current) {
-            // First time hearing speech
             hasHeardSpeechRef.current = true;
-            speechDetected = true;
             setConnectionState('speaking');
-            setIsThinking(false);
             
             if (thinkingTimeoutRef.current) {
               clearTimeout(thinkingTimeoutRef.current);
               thinkingTimeoutRef.current = null;
             }
           } else if (connectionState === 'connected' || connectionState === 'thinking') {
-            // Agent started speaking again
             setConnectionState('speaking');
-            setIsThinking(false);
           }
           silenceCount = 0;
         } else {
@@ -180,11 +170,9 @@ export default function VoiceInterface({
             if (silenceCount > 15) {
               // Been silent for a while, transition to connected/thinking
               setConnectionState('connected');
-              setIsThinking(true);
               
-              // After 2 seconds of thinking, keep showing thinking indicator
               thinkingTimeoutRef.current = setTimeout(() => {
-                setIsThinking(true);
+                // Keep showing thinking indicator
               }, 2000);
             }
           }
