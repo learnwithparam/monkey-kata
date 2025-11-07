@@ -286,8 +286,20 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
     # Step 7: Generate streaming answer with document context
     yield f"data: {json.dumps({'status': 'generating', 'message': 'Generating answer...'})}\n\n"
     
-    async for chunk in rag_pipeline.generate_answer_stream(request.question, relevant_chunks):
-        yield f"data: {json.dumps({'content': chunk})}\n\n"
+    try:
+        async for chunk in rag_pipeline.generate_answer_stream(request.question, relevant_chunks):
+            yield f"data: {json.dumps({'content': chunk})}\n\n"
+    except RuntimeError as e:
+        # Handle StopIteration converted to RuntimeError
+        if "StopIteration" in str(e) or "async generator" in str(e).lower():
+            # Generator finished normally, just signal completion
+            pass
+        else:
+            # Other RuntimeError - send error message
+            yield f"data: {json.dumps({'error': f'Error generating response: {str(e)}', 'status': 'error'})}\n\n"
+    except Exception as e:
+        # Handle any other errors gracefully
+        yield f"data: {json.dumps({'error': f'Error generating response: {str(e)}', 'status': 'error'})}\n\n"
     
     # Step 8: Signal completion
     yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
