@@ -1,7 +1,3 @@
-Here's the "Restaurant Booking Voice AI" project, converted to the incremental learning path format.
-
------
-
 # Restaurant Booking Voice AI
 
 Learn voice AI and LiveKit integration by building a restaurant order booking system with real-time voice conversations.

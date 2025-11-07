@@ -17,7 +17,8 @@ import {
   PhoneIcon,
   EyeIcon,
   BriefcaseIcon,
-  ChatBubbleLeftRightIcon
+  ChatBubbleLeftRightIcon,
+  ClipboardDocumentCheckIcon
 } from '@heroicons/react/24/outline';
 
 export interface Demo {
@@ -103,10 +104,12 @@ export const weeksData: WeekData[] = [
         apiSlug: "travel_support_assistant"
       },
       {
-        icon: <TagIcon className="w-8 h-8 text-blue-600 mr-4" />,
-        title: "Sales Lead Qualifier",
-        description: "Automatically qualify and score leads through intelligent conversation",
-        isComingSoon: true
+        icon: <ClipboardDocumentCheckIcon className="w-8 h-8 text-green-600 mr-4" />,
+        title: "Loan Application Assistant",
+        description: "AI-powered loan application assistant with human-in-the-loop approval workflow - analyzes applications and requires human approval for all decisions",
+        demoHref: "/demos/loan-application",
+        challengeHref: "/challenges/loan-application-assistant",
+        apiSlug: "loan_application_assistant"
       },
       {
         icon: <PhoneIcon className="w-8 h-8 text-orange-600 mr-4" />,
@@ -123,6 +126,12 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/medical-office-triage",
         challengeHref: "/challenges/medical-office-triage",
         apiSlug: "medical_office_triage"
+      },
+      {
+        icon: <TagIcon className="w-8 h-8 text-blue-600 mr-4" />,
+        title: "Sales Lead Qualifier",
+        description: "Automatically qualify and score leads through intelligent conversation",
+        isComingSoon: true
       }
     ]
   },

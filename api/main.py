@@ -16,6 +16,7 @@ from demos.cv_analyzer.main import router as cv_analyzer_router
 from demos.restaurant_booking.main import router as restaurant_booking_router
 from demos.medical_office_triage.main import router as medical_office_triage_router
 from demos.travel_support_assistant.main import router as travel_support_router
+from demos.loan_application_assistant.main import router as loan_application_router
 
 # Load environment variables
 load_dotenv()
@@ -28,7 +29,7 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 AI Bootcamp API starting up...")
     app_state["started"] = True
-    app_state["demos"] = ["bedtime-story-generator", "website-rag", "document-qa-chatbot", "cv-analyzer", "restaurant-booking", "medical-office-triage", "travel-support"]
+    app_state["demos"] = ["bedtime-story-generator", "website-rag", "document-qa-chatbot", "cv-analyzer", "restaurant-booking", "medical-office-triage", "travel-support", "loan-application"]
     yield
     # Shutdown
     print("🛑 AI Bootcamp API shutting down...")
@@ -49,6 +50,7 @@ app.include_router(cv_analyzer_router)
 app.include_router(restaurant_booking_router)
 app.include_router(medical_office_triage_router)
 app.include_router(travel_support_router)
+app.include_router(loan_application_router)
 
 # CORS middleware
 app.add_middleware(

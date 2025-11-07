@@ -1,87 +1,68 @@
 # Travel Customer Support Assistant
 
-Learn function calling and tool integration by building a real-world travel support assistant (like Booking.com) that helps customers with booking lookups, hotel reservations, flight status, and taxi bookings.
+Learn function calling and multi-agent workflows by building a real-world travel support assistant (like Booking.com) that helps customers with booking lookups, hotel reservations, flight status, and taxi bookings using **AutoGen**.
 
-## 🎯 Learning Objectives
+## Learning Objectives
 
-Master the fundamentals of **Function Calling and Tool Integration** through hands-on implementation:
+Master the fundamentals of **Function Calling** and **Agentic AI** through hands-on implementation:
 
-1. **Function Calling** - How agents use tools to access booking data
-2. **Support Tool Definition** - How to create tools for customer support
-3. **AutoGen Integration** - How to build support agents with AutoGen
-4. **Production Patterns** - How to structure tools for customer support
+  - **Tool Definition:** How to create Python functions that an LLM can understand and call.
+  - **Tool Calling:** How an LLM decides *which* tool to call, with *what* arguments, based on user-prompts.
+  - **Agent Design:** Build a basic two-agent (User-Assistant) system with AutoGen.
+  - **Tool Execution:** Configure an agent to *execute* function calls and return the results to the LLM.
+  - **Multi-Agent Orchestration:** (Advanced) Scale your system from a simple two-agent pair to a multi-agent "group chat" for more complex, specialized tasks.
 
-## 📚 Real-World Use Case
+## System Architecture (Final Target)
 
-### Travel Customer Support Assistant
+This project will guide you from a simple two-agent setup to a more robust multi-agent "group chat" orchestrated by a supervisor, all wrapped in a FastAPI for web use.
 
-A practical customer support assistant that helps travelers with:
-- **Booking Lookups** - Find and check booking status
-- **Hotel Search** - Search available hotels and make reservations
-- **Flight Status** - Check flight information and status
-- **Taxi Booking** - Arrange transportation
-- **Booking Modifications** - Cancel or modify bookings
+```mermaid
+graph TD
+    A["Frontend User"] -->|1. HTTP Request| B["FastAPI Server"];
+    B -->|2. initiate_chat()| C["UserProxyAgent"];
+    
+    subgraph "AutoGen GroupChat"
+        C <--> D["GroupChatManager (Supervisor)"];
+        D <--> E[BookingAgent]
+        D <--> F[SearchAgent]
+    end
+    
+    C -->|3. Tool Execution| G[Mock Database]
+    B -->|4. HTTP Response| A;
 
-### Tools (Function Calling)
-
-Tools allow the support assistant to access booking data. When a customer asks "What's my booking status for BK123456?", the assistant:
-
-1. Recognizes it needs to look up booking data
-2. Calls the `lookup_booking` tool
-3. Gets the booking information
-4. Incorporates it into a helpful customer support response
-
-### External Service Integration
-
-Tools can connect to external travel services:
-- **Hotel Booking Systems** - Connect to hotel reservation APIs
-- **Taxi Services** - Integrate with taxi/ride-sharing companies
-- **Flight Systems** - Access airline booking systems
-- **Payment Processing** - Handle booking payments securely
-
-## 🛠️ Available Support Tools
-
-This demo includes:
-
-1. **Booking Lookup** - Find customer booking information
-2. **Hotel Search** - Search available hotels by city
-3. **Flight Status** - Check flight information and status
-4. **Hotel Booking** - Book hotels via hotel booking system
-5. **Taxi Booking** - Book taxis via taxi service
-6. **Cancel Booking** - Cancel bookings via booking system
-
-## 🚀 Quick Start
-
-```bash
-# Start the demo
-make dev
-
-# Visit: http://localhost:4020/demos/travel-support
+    style A fill:#e1f5fe
+    style B fill:#e8f5e8
+    style C fill:#fce4ec
+    style D fill:#f3e5f5
+    style E fill:#e0f2f1
+    style F fill:#e0f2f1
+    style G fill:#fff9c4
 ```
+
+## Quick Start
 
 ### Prerequisites
 
-1. **Dependencies:**
+1.  **Dependencies:**
+    The required dependencies are already in `api/requirements.txt`:
 
-   The required dependencies are already included in `api/requirements.txt`:
-   - `autogen-agentchat[openai]` - AutoGen AgentChat API
-   - `autogen-ext[openai]` - AutoGen extensions for OpenAI
+      * `autogen-agentchat[openai]`
+      * `autogen-ext[openai]`
+        These will be automatically installed when you run `make dev`.
 
-   These will be automatically installed when you run `make dev` or `make install`.
+2.  **Environment Variables:**
 
-2. **Environment Variables:**
+    ```bash
+    # In api/.env
+    # Required: LLM API Key
+    OPENAI_API_KEY=your-key-here
+    # OR
+    FIREWORKS_API_KEY=your-key-here
 
-   ```bash
-   # In api/.env
-   # Required: LLM API Key
-   OPENAI_API_KEY=your-key-here
-   # OR
-   FIREWORKS_API_KEY=your-key-here
-
-   # Optional: Model configuration
-   OPENAI_MODEL=gpt-4o-mini
-   OPENAI_BASE_URL=https://api.fireworks.ai/inference/v1  # For Fireworks
-   ```
+    # Optional: Model configuration
+    OPENAI_MODEL=gpt-4o-mini
+    OPENAI_BASE_URL=https://api.fireworks.ai/inference/v1  # For Fireworks
+    ```
 
 ### Running the Demo
 
@@ -111,129 +92,209 @@ npm run dev
 # Visit: http://localhost:4020/demos/travel-support
 ```
 
-**Note:** The API will be available at `http://localhost:8000` and the frontend at `http://localhost:4020`. Make sure your `api/.env` file has the required API keys.
+### Example Customer Queries
 
-## 🎯 Example Customer Queries
+Once running, try these queries to see function calling in action:
 
-Try these queries to see function calling in action:
+  - "What's my booking status for BK123456?"
+  - "Search hotels in Paris for February 15-18"
+  - "Check flight status for AA1234"
+  - "Book a hotel in Barcelona for March 1-5"
+  - "I need a taxi from airport to Grand Hotel Paris"
+  - "Cancel my booking BK123456"
 
-- "What's my booking status for BK123456?"
-- "Search hotels in Paris for February 15-18"
-- "Check flight status for AA1234"
-- "Book a hotel in Barcelona for March 1-5"
-- "I need a taxi from airport to Grand Hotel Paris"
-- "Cancel my booking BK123456"
+-----
 
-### How It Works
-
-1. Customer sends a support request
-2. LLM analyzes the request
-3. If booking data is needed, LLM calls lookup tool
-4. If booking action is needed, LLM calls booking tool
-5. Tool executes and returns result
-6. LLM incorporates result into helpful response
-7. Response is streamed back to customer
-
-## 📖 Code Structure
-
-```
-main.py
-├── Support Tools (Step 3)
-│   ├── lookup_booking()
-│   ├── search_hotels()
-│   └── check_flight_status()
-├── Booking Tools (Step 4)
-│   ├── book_hotel()
-│   ├── book_taxi()
-│   └── cancel_booking()
-├── Agent Setup (Step 5)
-│   └── create_agent_with_tools()
-└── API Endpoints (Step 6)
-    ├── POST /chat/stream
-    ├── GET /tools
-    ├── GET /sessions/{session_id}
-    └── GET /health
-```
-
-## 🎓 Learning Challenges
+## Your Learning Path: Incremental Challenges
 
 Follow these incremental challenges to build your application. Each one adds a new layer of functionality and learning.
 
-### Challenge 1: Add a Support Tool
+### Challenge 1: The Basic Chat (Two Agents)
 
-**Goal:** Extend the assistant with a new tool for checking loyalty program points or rewards.
+**Goal:** Get a basic AutoGen chat working between a `UserProxyAgent` (for the user) and an `AssistantAgent` (the LLM). No tools yet.
 
-- **Your Task:**
-  1. Create a new function `check_loyalty_points(customer_id: str)` that returns loyalty points
-  2. Add it to the `AVAILABLE_TOOLS` list
-  3. The AutoGen agent will automatically detect and use the new tool (no manual registration needed!)
-  4. Test it by asking "What are my loyalty points?"
-
-- **Key Concepts:** Tool Definition, AutoGen Automatic Tool Detection, Function Calling.
-
------
-
-### Challenge 2: Integrate Real Hotel Booking API
-
-**Goal:** Connect to a real hotel booking API instead of using simulated data.
-
-- **Your Task:**
-  1. Choose a hotel booking API (e.g., Booking.com API, Expedia API, Amadeus API)
-  2. Replace the `book_hotel()` function to make real API calls
-  3. Handle API errors gracefully
-  4. Update the booking database with real booking confirmations
-
-- **Key Concepts:** External API Integration, Error Handling, HTTP Requests.
+  * **Architecture:**
+    ```mermaid
+    graph TD
+        A[UserProxyAgent] <--> B[AssistantAgent]
+        
+        style A fill:#fce4ec
+        style B fill:#e0f7fa
+    ```
+  * **Your Task:**
+    1.  In a new Python script, import `autogen`.
+    2.  Define an `AssistantAgent` ("assistant") with a simple system message: "You are a helpful travel assistant."
+    3.  Define a `UserProxyAgent` ("user\_proxy") with `human_input_mode="NEVER"` and `code_execution_config=False`.
+    4.  Use `user_proxy.initiate_chat(assistant, message="Hello, who are you?")`.
+  * **Key Concepts:** `UserProxyAgent`, `AssistantAgent`, `initiate_chat`, System Message.
+  * **Observation:** You've created the simplest possible agentic "chat." The `UserProxyAgent` delivers the message, the `AssistantAgent` (LLM) responds, and the chat ends.
 
 -----
 
-### Challenge 3: Add Booking History
+### Challenge 2: The First Tool (Read-Only)
 
-**Goal:** Track and display customer booking history across multiple bookings.
+**Goal:** Introduce function calling. Give the assistant *one* tool, `lookup_booking`, and configure the user proxy to *execute* it.
 
-- **Your Task:**
-  1. Extend the booking database structure to track booking history
-  2. Create a new tool `get_booking_history(customer_name: str)` 
-  3. Update the database when new bookings are made
-  4. Display booking history in the chat interface
-
-- **Key Concepts:** Data Modeling, Database Design, Tool Design.
+  * **Architecture:**
+    ```mermaid
+    graph TD
+        A[UserProxyAgent] <--> B[AssistantAgent]
+        A -->|Calls| C["@tool def lookup_booking()"];
+        
+        style A fill:#fce4ec
+        style B fill:#e0f7fa
+        style C fill:#fff9c4
+    ```
+  * **Your Task:**
+    1.  Create an in-memory `MOCK_BOOKINGS` dictionary (e.g., `{"BK123456": {"status": "Confirmed"}}`).
+    2.  Define a Python function `lookup_booking(booking_id: str) -> str`.
+    3.  Decorate it with `@tool` (from `autogen.agentchat.contrib.agent_builder.tool_utils`).
+    4.  **Register the tool:** When creating your `AssistantAgent`, pass `tools=[lookup_booking]` to its `llm_config`.
+    5.  **Enable execution:** When creating your `UserProxyAgent`, set `human_input_mode="NEVER"` and `code_execution_config={"executor": autogen.coding.LocalCommandLineCodeExecutor(work_dir="coding")}`. *This is how the proxy knows it's allowed to run the functions.*
+    6.  Test with: `user_proxy.initiate_chat(assistant, message="What's my booking status for BK123456?")`
+  * **Key Concepts:** **Function Calling**, **`@tool` Decorator**, LLM as a Router, Tool Execution, `llm_config`.
+  * **Observation:** Watch the terminal\! You'll see the LLM respond not with words, but with a *function call*. The `UserProxyAgent` then runs the function, gets the result, and sends it *back* to the LLM, which then formulates a natural language answer.
 
 -----
 
-### Challenge 4: Add Payment Processing
+### Challenge 3: The "Eyes and Ears" (Expanding Read Tools)
 
-**Goal:** Integrate payment processing for booking payments.
+**Goal:** Build out the full set of *information-gathering* tools.
 
-- **Your Task:**
-  1. Create a new tool `process_payment(booking_id: str, amount: float, payment_method: str)`
-  2. Integrate with a payment API (e.g., Stripe, PayPal)
-  3. Update booking status after successful payment
-  4. Handle payment failures gracefully
+  * **Your Task:**
+    1.  Implement the other "read" tools: `Google Hotels(city: str)` and `check_flight_status(flight_id: str)`.
+    2.  Decorate them with `@tool`.
+    3.  Add them to the `tools` list in the `AssistantAgent`'s `llm_config`.
+  * **Experiment:**
+      * Try: `"Search hotels in Paris"`
+      * Try: `"What's the status of flight AA123?"`
+      * Try a complex query: `"My booking is BK123456. Can you check its status and also look for hotels in Paris?"`
+  * **Key Concepts:** Toolset Expansion, LLM Tool Choice, Argument Inference.
+  * **Observation:** The LLM is now acting as a router, correctly *choosing* which of your three tools to call based on the user's prompt. It also intelligently extracts the arguments (like "Paris" or "AA123").
 
-- **Key Concepts:** Payment Integration, Security, Error Handling.
+-----
 
-## 🏗️ Production Considerations
+### Challenge 4: The "Hands" (State-Changing Tools)
 
-1. **Security**: Validate and secure booking data access
-2. **Rate Limiting**: Limit tool calls per customer/session
-3. **Error Handling**: Gracefully handle booking system failures
-4. **Monitoring**: Track support tool usage and performance
-5. **Caching**: Cache frequently accessed booking data
-6. **Authentication**: Secure customer data access
+**Goal:** Introduce "write" actions—tools that *change* the state of your mock database.
 
-## 📚 Further Reading
+  * **Your Task:**
+    1.  Implement the "write" tools: `book_hotel(hotel_name: str, city: str)` and `cancel_booking(booking_id: str)`.
+    2.  These functions should *modify* your `MOCK_BOOKINGS` dictionary (e.g., adding a new entry or changing a status to "Cancelled").
+    3.  Decorate them with `@tool` and add them to the `AssistantAgent`'s `tools` list.
+  * **Experiment:**
+    1.  Run a chat: `"Book the 'Grand Hotel' in Paris."`
+    2.  In a *new* chat: `"What's the status of my 'Grand Hotel' booking?"` (The `lookup_booking` tool should now find it).
+    3.  In a *third* chat: `"Please cancel my 'Grand Hotel' booking."`
+    4.  In a *fourth* chat: `"What's the status of my 'Grand Hotel' booking now?"` (It should say "Cancelled").
+  * **Key Concepts:** State Management, "Write" vs. "Read" Tools, System State.
 
-- [AutoGen AgentChat Documentation](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/index.html)
-- [AutoGen Function Calling with Tools](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/tools.html)
-- [AutoGen FastAPI Example](https://github.com/microsoft/autogen/tree/main/python/samples/agentchat_fastapi)
-- [Function Calling Guide](https://platform.openai.com/docs/guides/function-calling)
+-----
 
-## ❓ Reflection Questions
+### Challenge 5: The API Wrapper (Connecting to Frontend)
 
-1. How would you handle tool errors in a customer support context?
-2. What security considerations exist for booking tool execution?
-3. How would you rate limit tool usage for customer support?
-4. How could you add tool result caching for frequently accessed bookings?
-5. What monitoring would you add for production support systems?
+**Goal:** Put your two-agent system behind a FastAPI endpoint so the frontend can talk to it.
 
+  * **Architecture:**
+    ```mermaid
+    graph TD
+        A["Frontend"] -->|HTTP| B["FastAPI Endpoint (/chat/stream)"];
+        B -->|Manages| C[Agent Session]
+        style A fill:#e1f5fe
+        style B fill:#e8f5e8
+        style C fill:#fce4ec
+    ```
+  * **Your Task:**
+    1.  Create a `main.py` with FastAPI.
+    2.  Create a `/chat/stream` endpoint.
+    3.  Inside the endpoint, you will need to manage the agent state. **This is the hardest part.** A simple (but not scalable) way is to create *new* agents for every single request and run `initiate_chat`.
+    4.  (Advanced) A better way is to use a session ID and store the agent's chat history in a dictionary, then use `user_proxy.send()` and `user_proxy.receive()` to continue a conversation.
+    5.  Connect the frontend to this new endpoint.
+  * **Key Concepts:** API Integration, FastAPI, Session Management, Streaming Responses, Stateless vs. Stateful.
+
+-----
+
+### Challenge 6 (Bonus): The "Supervisor" (Multi-Agent Chat)
+
+**Goal:** Refactor your simple two-agent system into a more robust, specialized `GroupChat` for better task management.
+
+  * **Architecture:**
+    ```mermaid
+    graph TD
+        A["UserProxyAgent"] <--> B["GroupChatManager (Supervisor)"];
+        B <--> C[SearchAgent]
+        B <--> D[BookingAgent]
+        
+        style A fill:#fce4ec
+        style B fill:#f3e5f5
+        style C fill:#e0f2f1
+        style D fill:#e0f2f1
+    ```
+  * **Your Task:**
+    1.  Instead of one `AssistantAgent`, create *two*:
+          * `SearchAgent`: Its `llm_config` only has the "read" tools (`lookup_booking`, `Google Hotels`, etc.).
+          * `BookingAgent`: Its `llm_config` only has the "write" tools (`book_hotel`, `cancel_booking`).
+    2.  Create a `GroupChat` and a `GroupChatManager` (this is your new "Supervisor").
+    3.  Add all agents (`UserProxyAgent`, `SearchAgent`, `BookingAgent`) to the `GroupChat`.
+    4.  Initiate the chat with the `GroupChatManager`.
+  * **Key Concepts:** `GroupChat`, `GroupChatManager`, Multi-Agent Systems, Agent Specialization, Orchestration.
+  * **Observation:** The conversation log is now much more complex. The Supervisor agent directs traffic, asking the `SearchAgent` to find info and then (if needed) asking the `BookingAgent` to perform an action. This is a far more scalable and modular pattern.
+
+-----
+
+### Challenge 7 (Bonus): Add More Tools
+
+**Goal:** Extend the assistant with new tools, like the original challenges suggested.
+
+  * **Your Task:**
+    1.  Create a new function `check_loyalty_points(customer_id: str)` that returns a mock point value.
+    2.  Create `book_taxi(from_location: str, to_location: str)`.
+    3.  Decorate them and add them to the appropriate agent's `tools` list (e.g., `check_loyalty_points` to `SearchAgent`, `book_taxi` to `BookingAgent`).
+    4.  Test by asking: "What are my loyalty points?" or "I need a taxi from the airport."
+  * **Key Concepts:** Tool Expansion, Modularity.
+
+## Configuration
+
+```bash
+# In api/.env
+# Required: LLM API Key
+OPENAI_API_KEY=your-key-here
+# OR
+FIREWORKS_API_KEY=your-key-here
+
+# Optional: Model configuration
+OPENAI_MODEL=gpt-4o-mini
+OPENAI_BASE_URL=https://api.fireworks.ai/inference/v1  # For Fireworks
+```
+
+## Key Agentic AI Concepts
+
+### **What You'll Discover:**
+
+1.  **Agents are "Routers":** The primary job of an LLM in an agentic system is to act as a "router." It decides if it can answer directly, or if it *must* call a function (a "tool") to get the information it needs.
+2.  **Tool \> Prompt:** A well-defined tool is more reliable than a complex prompt. Instead of trying to *teach* an LLM all your booking info (which is impossible), you *give it a tool* to look up that info.
+3.  **The "Executor" Agent:** In AutoGen, the `UserProxyAgent` is often co-opted to be the "tool executor." The `AssistantAgent` *suggests* the function call, and the `UserProxyAgent` *runs* the code and provides the result.
+4.  **Multi-Agent Specialization:** As systems get complex, it's better to have multiple, simple, specialized agents (one for booking, one for searching) managed by a "Supervisor" than one giant, monolithic agent that does everything.
+5.  **State is Your Responsibility:** The agent system doesn't "know" it booked a hotel unless your `book_hotel` tool actually changes a database or in-memory state that the `lookup_booking` tool can read from.
+
+## Production Considerations
+
+1.  **Security**: Never let an agent execute arbitrary code. Only give it specific, sandboxed tools. Validate all inputs from the LLM before passing them to a database or external API.
+2.  **Rate Limiting**: Implement rate limiting on your API endpoint to prevent abuse.
+3.  **Error Handling**: Your tools *must* be robust. What if `lookup_booking` gets an ID that doesn't exist? It should return a clear error message (e.g., "Booking not found") for the LLM to use.
+4.  **Monitoring**: Log every tool call, its arguments, and its result. This is invaluable for debugging *why* an agent made a certain decision.
+5.  **Caching**: Cache results from non-changing tools (like `Google Hotels` for a popular city) to reduce API calls and latency.
+
+## Critical Thinking Questions
+
+1.  How would you handle a tool error in a customer-facing way? If the `book_hotel` API fails, what should the agent say?
+2.  What security risks exist in letting an LLM decide which function to call and with what arguments? How do you mitigate them?
+3.  What if the user's request is ambiguous? "Book me a flight." How do you design the *agent* to ask follow-up questions (e.g., "Where to? On what date?") *before* it tries to call a tool?
+4.  How could you add tool-result caching for frequently accessed bookings?
+5.  How would you handle a "real" database instead of the mock dictionary? Where would the database connection live?
+
+## Further Learning
+
+  - [AutoGen AgentChat Documentation](https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/index.html)
+  - [AutoGen Function Calling with Tools](https://microsoft.github.io/autogen/stable//user-guide/core-user-guide/components/tools.html)
+  - [OpenAI Function Calling Guide](https://platform.openai.com/docs/guides/function-calling)

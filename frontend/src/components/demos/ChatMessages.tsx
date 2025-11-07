@@ -153,7 +153,12 @@ export default function ChatMessages({
                                 : 'text-gray-800'
                             }`}
                             dangerouslySetInnerHTML={{
-                              __html: marked(message.content || '', { breaks: true, gfm: true }) as string
+                              __html: marked(message.content || '', { 
+                                breaks: true, 
+                                gfm: true,
+                                headerIds: false,
+                                mangle: false
+                              }) as string
                             }}
                           />
                         </div>
