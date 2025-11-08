@@ -41,7 +41,7 @@ from pydantic import BaseModel, Field
 from typing import AsyncGenerator
 import json
 
-from utils.llm_provider import get_llm_provider
+from utils.llm_provider import get_llm_provider, get_provider_config
 
 # Create a router - groups all endpoints under /bedtime-story
 router = APIRouter(prefix="/bedtime-story", tags=["bedtime-story"])
@@ -306,6 +306,27 @@ async def health_check():
         "status": "healthy",
         "service": "bedtime-story-generator"
     }
+
+
+@router.get("/provider-info")
+async def get_provider_info():
+    """
+    Get current LLM provider information
+    
+    Returns the provider name so frontend can show appropriate warnings.
+    """
+    try:
+        config = get_provider_config()
+        return {
+            "provider_name": config["provider_name"],
+            "model": config["model"]
+        }
+    except Exception as e:
+        return {
+            "provider_name": "unknown",
+            "model": "unknown",
+            "error": str(e)
+        }
 
 
 # ============================================================================

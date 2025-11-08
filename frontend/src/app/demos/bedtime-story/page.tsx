@@ -31,11 +31,23 @@ export default function BedtimeStoryPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [themes, setThemes] = useState<string[]>([]);
   const [error, setError] = useState('');
+  const [isGeminiProvider, setIsGeminiProvider] = useState(false);
 
   // Load data on component mount
   useEffect(() => {
     fetchThemes();
+    checkProvider();
   }, []);
+
+  const checkProvider = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/bedtime-story/provider-info`);
+      const data = await response.json();
+      setIsGeminiProvider(data.provider_name === 'gemini');
+    } catch (err) {
+      console.error('Failed to check provider:', err);
+    }
+  };
 
   const fetchThemes = async () => {
     try {
@@ -157,6 +169,16 @@ export default function BedtimeStoryPage() {
             </Link>
         </div>
 
+
+        {/* Gemini Warning Banner */}
+        {isGeminiProvider && (
+          <div className="mb-6">
+            <AlertMessage
+              type="warning"
+              message="Warning: Google Gemini is currently configured. This demo may not work properly due to Gemini's strict content safety filters. Please consider using a different provider (FireworksAI, OpenRouter, or OpenAI) for better results."
+            />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12">
           {/* Left Column - Form */}

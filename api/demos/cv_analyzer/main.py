@@ -36,7 +36,7 @@ import os
 import logging
 import tempfile
 import shutil
-from utils.llm_provider import get_llm_provider
+from utils.llm_provider import get_llm_provider, get_provider_config
 from .cv_utils import CVDocumentProcessor
 from .cv_agentic_analyzer import CVAnalyzer
 
@@ -272,6 +272,27 @@ async def health_check():
         documents_processed=len(document_data),
         total_chunks=total_chunks
     )
+
+
+@router.get("/provider-info")
+async def get_provider_info():
+    """
+    Get current LLM provider information
+    
+    Returns the provider name so frontend can show appropriate warnings.
+    """
+    try:
+        config = get_provider_config()
+        return {
+            "provider_name": config["provider_name"],
+            "model": config["model"]
+        }
+    except Exception as e:
+        return {
+            "provider_name": "unknown",
+            "model": "unknown",
+            "error": str(e)
+        }
 
 @router.post("/upload-cv")
 async def upload_cv(

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   BriefcaseIcon,
@@ -48,7 +48,23 @@ export default function CVAnalyzerDemo() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isGeminiProvider, setIsGeminiProvider] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check provider on mount
+  useEffect(() => {
+    checkProvider();
+  }, []);
+
+  const checkProvider = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cv-analyzer/provider-info`);
+      const data = await response.json();
+      setIsGeminiProvider(data.provider_name === 'gemini');
+    } catch (err) {
+      console.error('Failed to check provider:', err);
+    }
+  };
 
   const processDocument = async () => {
     if (!selectedFile) {
@@ -251,6 +267,16 @@ export default function CVAnalyzerDemo() {
             View Learning Challenges
           </Link>
         </div>
+
+        {/* Gemini Warning Banner */}
+        {isGeminiProvider && (
+          <div className="max-w-6xl mx-auto mb-6">
+            <AlertMessage
+              type="warning"
+              message="Warning: Google Gemini is currently configured. This demo may not work properly due to Gemini's strict content safety filters. Please consider using a different provider (FireworksAI, OpenRouter, or OpenAI) for better results."
+            />
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="max-w-6xl mx-auto space-y-6 sm:space-y-8">
