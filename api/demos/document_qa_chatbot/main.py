@@ -289,10 +289,12 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
     try:
         async for chunk in rag_pipeline.generate_answer_stream(request.question, relevant_chunks):
             yield f"data: {json.dumps({'content': chunk})}\n\n"
-    except RuntimeError as e:
-        # Handle StopIteration converted to RuntimeError
-        if "StopIteration" in str(e) or "async generator" in str(e).lower():
-            # Generator finished normally, just signal completion
+    except (RuntimeError, StopIteration) as e:
+        # StopIteration and some RuntimeErrors indicate normal completion
+        # (some async frameworks convert StopIteration to RuntimeError)
+        error_str = str(e).lower()
+        if "stopiteration" in error_str or "async generator" in error_str:
+            # Generator finished normally - this is expected, not an error
             pass
         else:
             # Other RuntimeError - send error message

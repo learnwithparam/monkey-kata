@@ -97,6 +97,124 @@ except ImportError:
     genai = None
 
 if GEMINI_AVAILABLE:
+    def _is_gemini_content_blocked(candidate) -> bool:
+        """
+        Check if Gemini response was blocked by safety filters.
+        
+        Args:
+            candidate: Gemini response candidate object
+            
+        Returns:
+            True if content was blocked, False otherwise
+        """
+        # Finish reason 2 (SAFETY) means content was blocked
+        if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+            return True
+        return False
+    
+    def _extract_text_from_gemini_chunk(chunk) -> Optional[str]:
+        """
+        Extract text from a Gemini streaming chunk.
+        
+        For streaming responses, Gemini returns incremental text chunks.
+        Each chunk contains the NEW text since the last chunk (not cumulative).
+        
+        Args:
+            chunk: Gemini streaming chunk object
+            
+        Returns:
+            Extracted text (can be empty string) or None if no text found
+        """
+        # Strategy 1: Try direct text attribute (works for some API versions)
+        try:
+            if hasattr(chunk, 'text'):
+                text = chunk.text
+                # Return even if empty string (empty is valid for streaming)
+                if text is not None:
+                    return text
+        except (AttributeError, ValueError):
+            pass
+        
+        # Strategy 2: Extract from candidates -> content -> parts (most common for streaming)
+        try:
+            if hasattr(chunk, 'candidates') and chunk.candidates:
+                if len(chunk.candidates) > 0:
+                    candidate = chunk.candidates[0]
+                    
+                    # Check for content with parts
+                    if hasattr(candidate, 'content') and candidate.content:
+                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                            # Iterate through all parts to find text
+                            for part in candidate.content.parts:
+                                # Check if part has text attribute
+                                if hasattr(part, 'text'):
+                                    text = part.text
+                                    # Return even if empty string
+                                    if text is not None:
+                                        return text
+                    
+                    # Try direct candidate.text if available
+                    if hasattr(candidate, 'text'):
+                        text = candidate.text
+                        if text is not None:
+                            return text
+        except (AttributeError, IndexError, ValueError, TypeError):
+            # Log but don't fail - try next strategy
+            pass
+        
+        # Strategy 3: Try accessing text via getattr (more defensive)
+        try:
+            text = getattr(chunk, 'text', None)
+            if text is not None:
+                return text
+        except (AttributeError, ValueError):
+            pass
+        
+        # Strategy 4: Try to access via __dict__ or dir() if available (last resort)
+        try:
+            if hasattr(chunk, '__dict__'):
+                for key in ['text', 'content', 'delta']:
+                    if hasattr(chunk, key):
+                        value = getattr(chunk, key, None)
+                        if isinstance(value, str):
+                            return value
+        except (AttributeError, ValueError):
+            pass
+        
+        return None
+    
+    def _extract_text_from_gemini_response(response) -> str:
+        """
+        Extract text from a complete Gemini response.
+        
+        Args:
+            response: Complete Gemini response object
+            
+        Returns:
+            Extracted text as string
+            
+        Raises:
+            ValueError: If no text can be extracted
+        """
+        # Try direct text extraction first
+        try:
+            return response.text
+        except ValueError:
+            pass
+        
+        # Fallback: Extract from parts manually
+        if response.candidates and len(response.candidates) > 0:
+            candidate = response.candidates[0]
+            if candidate.content and candidate.content.parts:
+                text_parts = []
+                for part in candidate.content.parts:
+                    if hasattr(part, 'text') and part.text:
+                        text_parts.append(part.text)
+                if text_parts:
+                    return ''.join(text_parts)
+        
+        raise ValueError("Failed to extract text from Gemini response")
+    
     class GeminiProvider(LLMProvider):
         """
         Google Gemini Provider
@@ -118,141 +236,204 @@ if GEMINI_AVAILABLE:
             self.model = genai.GenerativeModel(model)
         
         async def generate_text(self, prompt: str, **kwargs) -> str:
-            """Generate text using Gemini"""
+            """
+            Generate text using Gemini.
+            
+            Handles Gemini-specific error cases:
+            - No candidates returned
+            - Content blocked by safety filters
+            - Text extraction failures
+            
+            Safety Settings:
+            - Uses default Gemini safety settings
+            - Can be controlled via kwargs['safety_settings'] if needed
+            """
+            # Default temperature: 0.3 (more deterministic, can be overridden via kwargs)
+            temperature = kwargs.get('temperature', 0.3)
+            
+            # Use default safety settings (no custom overrides)
             response = await asyncio.to_thread(
                 self.model.generate_content,
                 prompt,
                 generation_config=genai.types.GenerationConfig(
-                    temperature=kwargs.get('temperature', 0.8),
-                    max_output_tokens=kwargs.get('max_tokens', 1000),
+                    temperature=temperature,
+                    max_output_tokens=kwargs.get('max_tokens', 400),
                 )
             )
             
-            # Check if response has valid content
+            # Validate response has candidates
             if not response.candidates or len(response.candidates) == 0:
                 raise ValueError("No candidates returned from Gemini API")
             
             candidate = response.candidates[0]
             
-            # Check finish reason - 2 means content was blocked/filtered
-            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
-                raise ValueError("Content was blocked by Gemini safety filters. Try rephrasing your prompt.")
+            # Check if content was blocked by safety filters
+            if _is_gemini_content_blocked(candidate):
+                raise ValueError(
+                    "Content was blocked by Gemini safety filters. "
+                    "Try rephrasing your prompt."
+                )
             
-            # Try to get text from response
-            try:
-                return response.text
-            except ValueError as e:
-                # If response.text fails, try to extract from parts manually
-                if candidate.content and candidate.content.parts:
-                    text_parts = []
-                    for part in candidate.content.parts:
-                        if hasattr(part, 'text') and part.text:
-                            text_parts.append(part.text)
-                    if text_parts:
-                        return ''.join(text_parts)
-                
-                # If we still can't get text, raise the original error
-                raise ValueError(f"Failed to extract text from Gemini response: {str(e)}")
+            # Extract text from response
+            return _extract_text_from_gemini_response(response)
         
         async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
-            """Stream text using Gemini"""
-            # Use asyncio.Queue to bridge sync generator to async generator
+            """
+            Stream text using Gemini.
+            
+            Gemini's API is synchronous, so we use a thread executor and queue
+            to bridge it to async. This handles:
+            - Converting sync generator to async generator
+            - Proper error handling (StopIteration is normal completion)
+            - Clean shutdown
+            
+            Note: Gemini streaming chunks contain incremental text (new text since last chunk),
+            not cumulative text. Each chunk should be yielded immediately.
+            """
             chunk_queue = asyncio.Queue(maxsize=100)
             exception_holder = [None]
-            loop = asyncio.get_event_loop()
+            
+            # Get the running event loop (preferred over get_event_loop)
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.get_event_loop()
             
             def _generate_chunks():
-                """Run the synchronous generator in a thread"""
+                """
+                Run synchronous Gemini generation in a thread.
+                
+                This function runs in a separate thread because Gemini's API
+                is synchronous. It puts chunks into a queue for async consumption.
+                """
+                # Default temperature: 0.3 (more deterministic, can be overridden via kwargs)
+                temperature = kwargs.get('temperature', 0.3)
+                
                 try:
+                    # Generate content with streaming enabled (using default safety settings)
                     response = self.model.generate_content(
                         prompt,
                         generation_config=genai.types.GenerationConfig(
-                            temperature=kwargs.get('temperature', 0.8),
-                            max_output_tokens=kwargs.get('max_tokens', 1000),
+                            temperature=temperature,
+                            max_output_tokens=kwargs.get('max_tokens', 400),
                         ),
                         stream=True
                     )
-                    # Iterate over chunks directly - for loop handles StopIteration automatically
+                    
+                    # Iterate over streaming chunks
+                    # Gemini's stream=True returns a generator that yields chunks
                     chunk_count = 0
-                    try:
-                        for chunk in response:
-                            # Try multiple ways to extract text from chunk
-                            text = None
-                            if hasattr(chunk, 'text') and chunk.text:
-                                text = chunk.text
-                            elif hasattr(chunk, 'candidates') and chunk.candidates:
-                                candidate = chunk.candidates[0]
-                                if hasattr(candidate, 'content') and candidate.content:
-                                    if hasattr(candidate.content, 'parts') and candidate.content.parts:
-                                        part = candidate.content.parts[0]
-                                        if hasattr(part, 'text') and part.text:
-                                            text = part.text
-                            
-                            if text:
-                                chunk_count += 1
-                                # Put chunk in queue from sync context
-                                asyncio.run_coroutine_threadsafe(
+                    for chunk in response:
+                        chunk_count += 1
+                        
+                        # Extract text from this chunk using multiple strategies
+                        text = _extract_text_from_gemini_chunk(chunk)
+                        
+                        # If extraction failed, try alternative methods
+                        if not text:
+                            # Try accessing chunk.text directly (might work for some versions)
+                            try:
+                                if hasattr(chunk, 'text'):
+                                    text = chunk.text
+                            except (AttributeError, ValueError):
+                                pass
+                        
+                        # If we still don't have text, try deeper extraction
+                        if not text:
+                            try:
+                                if hasattr(chunk, 'candidates') and chunk.candidates:
+                                    candidate = chunk.candidates[0]
+                                    if hasattr(candidate, 'content') and candidate.content:
+                                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                                            for part in candidate.content.parts:
+                                                if hasattr(part, 'text') and part.text:
+                                                    text = part.text
+                                                    break
+                            except (AttributeError, IndexError, ValueError):
+                                pass
+                        
+                        # For Gemini streaming, chunks can be empty strings (incremental updates)
+                        # We should queue them anyway, but skip completely None/empty after trimming
+                        # However, empty strings are valid (they represent no new text in this chunk)
+                        # So we queue any non-None value, including empty strings
+                        if text is not None:
+                            # Put chunk in queue from sync context
+                            # Use run_coroutine_threadsafe to safely call async from sync thread
+                            try:
+                                future = asyncio.run_coroutine_threadsafe(
                                     chunk_queue.put(text),
                                     loop
                                 )
-                    except StopIteration:
-                        # Normal end of iteration - this is expected
-                        pass
-                    except Exception as e:
-                        # Other errors during iteration
-                        exception_holder[0] = e
-                    finally:
-                        # Always signal completion
-                        asyncio.run_coroutine_threadsafe(
-                            chunk_queue.put(None),
-                            loop
-                        )
+                                # Wait for the put to complete (with timeout to avoid deadlock)
+                                future.result(timeout=2.0)
+                            except Exception:
+                                # If queue is full or other error, continue
+                                # Don't break the stream
+                                pass
+                    
+                    # Normal completion - signal end with None
+                    asyncio.run_coroutine_threadsafe(
+                        chunk_queue.put(None),
+                        loop
+                    )
+                    
                 except StopIteration:
-                    # StopIteration from generate_content itself - normal completion
-                    # Signal completion without storing as error
+                    # StopIteration is normal completion when generator ends
                     asyncio.run_coroutine_threadsafe(
                         chunk_queue.put(None),
                         loop
                     )
                 except Exception as e:
-                    # Real errors - store and signal
+                    # Real errors - store and signal completion
                     exception_holder[0] = e
-                    # Signal completion even on error
+                    # Still signal completion so async loop doesn't hang
                     asyncio.run_coroutine_threadsafe(
                         chunk_queue.put(None),
                         loop
                     )
             
-            # Start generation in a thread
+            # Start generation in a thread using run_in_executor
             executor_task = loop.run_in_executor(None, _generate_chunks)
             
-            # Yield chunks as they arrive - return normally when done (no StopIteration)
+            # Yield chunks as they arrive
             try:
                 while True:
+                    # Get chunk from queue (with timeout to avoid infinite wait)
                     try:
-                        chunk = await chunk_queue.get()
-                        if chunk is None:
-                            # Generator finished - check for exceptions (but not StopIteration)
-                            if exception_holder[0]:
-                                # Don't raise StopIteration - convert to RuntimeError or handle differently
-                                if isinstance(exception_holder[0], StopIteration):
-                                    # StopIteration is normal completion, not an error
-                                    break
-                                raise exception_holder[0]
-                            # Normal completion - break out of loop
-                            break
-                        yield chunk
-                    except RuntimeError as e:
-                        # Catch RuntimeError that might be caused by StopIteration
-                        if "StopIteration" in str(e):
-                            # This is a StopIteration converted to RuntimeError - treat as normal completion
-                            break
-                        raise
+                        chunk = await asyncio.wait_for(chunk_queue.get(), timeout=60.0)
+                    except asyncio.TimeoutError:
+                        # Timeout waiting for chunk - likely an error
+                        if exception_holder[0]:
+                            raise exception_holder[0]
+                        raise TimeoutError("Timeout waiting for Gemini streaming response")
+                    
+                    # None signals completion
+                    if chunk is None:
+                        # Check for errors (but StopIteration is normal)
+                        if exception_holder[0]:
+                            if isinstance(exception_holder[0], StopIteration):
+                                # Normal completion
+                                break
+                            raise exception_holder[0]
+                        # Normal completion - no errors
+                        break
+                    
+                    # Yield the chunk immediately
+                    yield chunk
+                    
+            except RuntimeError as e:
+                # Some async frameworks convert StopIteration to RuntimeError
+                error_str = str(e).lower()
+                if "stopiteration" in error_str or "async generator" in error_str:
+                    # Normal completion, not an error
+                    return
+                raise
             finally:
-                # Clean up - wait for executor
+                # Clean up executor - wait for thread to finish
                 try:
                     await asyncio.wait_for(executor_task, timeout=5.0)
                 except (asyncio.TimeoutError, Exception):
+                    # Executor cleanup failed, but that's okay
                     pass
 
 
@@ -524,7 +705,7 @@ def get_provider_config():
         return {
             "api_key": gemini_key,
             "model": model,
-            "base_url": None,  # Gemini doesn't use OpenAI-compatible API
+            "base_url": None,  # Gemini uses native client, not OpenAI-compatible endpoint
             "provider_name": "gemini"
         }
     

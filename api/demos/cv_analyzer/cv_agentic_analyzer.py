@@ -118,6 +118,47 @@ Agent Pattern:
 - Agent reads from state, writes to state
 - Fallback mechanisms for error handling
 """
+
+def _is_content_blocked_error(error: Exception) -> bool:
+    """
+    Check if an error indicates content was blocked by safety filters.
+    
+    This is common with Gemini and other providers that have content safety filters.
+    
+    Args:
+        error: Exception to check
+        
+    Returns:
+        True if error indicates blocked content, False otherwise
+    """
+    error_str = str(error).lower()
+    return "blocked" in error_str or "safety" in error_str
+
+def _handle_llm_error(error: Exception, agent_name: str, state: CVAnalysisState, fallback_value: Any) -> CVAnalysisState:
+    """
+    Handle LLM errors consistently across all agents.
+    
+    Args:
+        error: The exception that occurred
+        agent_name: Name of the agent (for logging)
+        state: Current state to update
+        fallback_value: Value to set in state if content is blocked
+        
+    Returns:
+        Updated state with error handling applied
+    """
+    if _is_content_blocked_error(error):
+        logger.warning(f"Content blocked by safety filters in {agent_name}: {error}")
+        # Set fallback value (varies by agent)
+        if isinstance(fallback_value, list):
+            state[agent_name.lower().replace(" ", "_")] = fallback_value
+        else:
+            state["error"] = f"{agent_name} blocked by safety filters"
+    else:
+        logger.error(f"Error in {agent_name}: {error}")
+        state["error"] = f"Error in {agent_name}: {str(error)}"
+    
+    return state
 class CVContentExtractor:
     """
     Agent 1: Content Extractor
@@ -203,9 +244,9 @@ class CVContentExtractor:
             
             logger.info("CV content extracted successfully")
             
-        except ValueError as e:
+        except (ValueError, Exception) as e:
             # Handle blocked content or API errors
-            if "blocked" in str(e).lower() or "safety" in str(e).lower():
+            if _is_content_blocked_error(e):
                 logger.warning(f"Content blocked by safety filters: {e}")
                 # Use fallback extraction
                 state["analysis_results"]["extracted_content"] = {
@@ -216,9 +257,6 @@ class CVContentExtractor:
             else:
                 logger.error(f"Error extracting CV content: {e}")
                 state["error"] = f"Error extracting CV content: {str(e)}"
-        except Exception as e:
-            logger.error(f"Error extracting CV content: {e}")
-            state["error"] = f"Error extracting CV content: {str(e)}"
         
         return state
 
@@ -290,17 +328,18 @@ class CVStrengthsAnalyzer:
             
             logger.info(f"Identified {len(state['strengths'])} strengths")
             
-        except ValueError as e:
+        except (ValueError, Exception) as e:
             # Handle blocked content or API errors
-            if "blocked" in str(e).lower() or "safety" in str(e).lower():
+            if _is_content_blocked_error(e):
                 logger.warning(f"Content blocked by safety filters: {e}")
-                state["strengths"] = ["Relevant work experience", "Technical skills demonstrated", "Educational background"]
+                state["strengths"] = [
+                    "Relevant work experience",
+                    "Technical skills demonstrated",
+                    "Educational background"
+                ]
             else:
                 logger.error(f"Error analyzing strengths: {e}")
                 state["strengths"] = ["Analysis completed"]
-        except Exception as e:
-            logger.error(f"Error analyzing strengths: {e}")
-            state["strengths"] = ["Analysis completed"]
         
         return state
 
@@ -371,17 +410,17 @@ class CVWeaknessesAnalyzer:
             
             logger.info(f"Identified {len(state['weaknesses'])} weaknesses")
             
-        except ValueError as e:
+        except (ValueError, Exception) as e:
             # Handle blocked content or API errors
-            if "blocked" in str(e).lower() or "safety" in str(e).lower():
+            if _is_content_blocked_error(e):
                 logger.warning(f"Content blocked by safety filters: {e}")
-                state["weaknesses"] = ["Consider adding more quantifiable achievements", "Review formatting for better readability"]
+                state["weaknesses"] = [
+                    "Consider adding more quantifiable achievements",
+                    "Review formatting for better readability"
+                ]
             else:
                 logger.error(f"Error analyzing weaknesses: {e}")
                 state["weaknesses"] = ["Analysis completed"]
-        except Exception as e:
-            logger.error(f"Error analyzing weaknesses: {e}")
-            state["weaknesses"] = ["Analysis completed"]
         
         return state
 
@@ -462,17 +501,18 @@ class CVImprovementSuggester:
             
             logger.info(f"Generated {len(state['improvement_suggestions'])} suggestions")
             
-        except ValueError as e:
+        except (ValueError, Exception) as e:
             # Handle blocked content or API errors
-            if "blocked" in str(e).lower() or "safety" in str(e).lower():
+            if _is_content_blocked_error(e):
                 logger.warning(f"Content blocked by safety filters: {e}")
-                state["improvement_suggestions"] = ["Add quantifiable achievements to experience section", "Include relevant keywords from job description", "Improve formatting for better readability"]
+                state["improvement_suggestions"] = [
+                    "Add quantifiable achievements to experience section",
+                    "Include relevant keywords from job description",
+                    "Improve formatting for better readability"
+                ]
             else:
                 logger.error(f"Error generating suggestions: {e}")
                 state["improvement_suggestions"] = ["Review and improve CV content"]
-        except Exception as e:
-            logger.error(f"Error generating suggestions: {e}")
-            state["improvement_suggestions"] = ["Review and improve CV content"]
         
         return state
 
@@ -565,7 +605,13 @@ Return ONLY the JSON object."""
                     state["skills_alignment"] = min(max(int(scores["skills_alignment"]), 1), 100)
                     state["format_score"] = min(max(int(scores["format_score"]), 1), 100)
                     
-                    logger.info(f"CV scored: overall={state['score']}, keyword={state['keyword_match_score']}, experience={state['experience_relevance']}, skills={state['skills_alignment']}, format={state['format_score']}")
+                    logger.info(
+                        f"CV scored: overall={state['score']}, "
+                        f"keyword={state['keyword_match_score']}, "
+                        f"experience={state['experience_relevance']}, "
+                        f"skills={state['skills_alignment']}, "
+                        f"format={state['format_score']}"
+                    )
                     return state
                 except (json_module.JSONDecodeError, ValueError, KeyError) as e:
                     logger.error(f"Failed to parse JSON scores: {e}, response: {response[:300]}")
@@ -577,7 +623,7 @@ Return ONLY the JSON object."""
             
         except ValueError as e:
             # Handle blocked content or API errors
-            if "blocked" in str(e).lower() or "safety" in str(e).lower():
+            if _is_content_blocked_error(e):
                 logger.warning(f"Content blocked by safety filters: {e}")
                 # Use default scores when content is blocked
                 state["score"] = 50
@@ -586,6 +632,7 @@ Return ONLY the JSON object."""
                 state["skills_alignment"] = 50
                 state["format_score"] = 50
                 logger.info("Using default scores due to content blocking")
+                return state
             else:
                 logger.error(f"Error scoring CV: {e}")
                 raise
@@ -593,8 +640,6 @@ Return ONLY the JSON object."""
             logger.error(f"Error scoring CV: {e}")
             # Don't return fake scores - re-raise the error
             raise
-        
-        return state
 
 # ============================================================================
 # STEP 3: WORKFLOW CONSTRUCTION

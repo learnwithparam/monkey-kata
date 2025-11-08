@@ -73,6 +73,13 @@ try:
     from autogen_agentchat.base import Response
     from autogen_core import CancellationToken
     from autogen_ext.models.openai import OpenAIChatCompletionClient
+    # Try to import Gemini client if available
+    try:
+        from autogen_ext.models.gemini import GeminiChatCompletionClient
+        GEMINI_CLIENT_AVAILABLE = True
+    except ImportError:
+        GEMINI_CLIENT_AVAILABLE = False
+        GeminiChatCompletionClient = None
     AUTOGEN_AVAILABLE = True
 except ImportError:
     AUTOGEN_AVAILABLE = False
@@ -85,6 +92,8 @@ except ImportError:
     CancellationToken = None
     ChatCompletionClient = None
     OpenAIChatCompletionClient = None
+    GEMINI_CLIENT_AVAILABLE = False
+    GeminiChatCompletionClient = None
 
 logger = logging.getLogger(__name__)
 
@@ -551,11 +560,14 @@ def create_model_client():
         config = get_provider_config()
         provider_name = config["provider_name"]
         
-        # Check if provider is supported by AutoGen
-        if provider_name == "gemini":
-            raise ValueError("Gemini is not supported with AutoGen. Please use Fireworks, OpenRouter, or OpenAI.")
+        # Use Gemini's native client if available
+        if provider_name == "gemini" and GEMINI_CLIENT_AVAILABLE:
+            return GeminiChatCompletionClient(
+                api_key=config["api_key"],
+                model=config["model"],
+            )
         
-        # Build AutoGen client config
+        # Build AutoGen client config for OpenAI-compatible providers
         client_config = {
             "api_key": config["api_key"],
             "model": config["model"],

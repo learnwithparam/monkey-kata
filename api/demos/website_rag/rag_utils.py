@@ -446,12 +446,14 @@ Answer directly and concisely:"""
                 max_tokens=1000  # Increased from 200 to allow longer responses
             ):
                 yield chunk
-        except RuntimeError as e:
-            # Handle StopIteration converted to RuntimeError
-            if "StopIteration" in str(e) or "async generator" in str(e).lower():
-                # Generator finished normally, just return
+        except (RuntimeError, StopIteration) as e:
+            # StopIteration and some RuntimeErrors indicate normal completion
+            # (some async frameworks convert StopIteration to RuntimeError)
+            error_str = str(e).lower()
+            if "stopiteration" in error_str or "async generator" in error_str:
+                # Generator finished normally - this is expected, not an error
                 return
-            # Re-raise other RuntimeErrors
+            # Re-raise other RuntimeErrors as they're real errors
             raise
         except Exception as e:
             # Handle any other errors gracefully

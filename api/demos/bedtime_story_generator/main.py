@@ -181,14 +181,25 @@ async def generate_story_stream(request: StoryRequest) -> AsyncGenerator[str, No
         # Step 3: Stream the story content from the AI
         # The AI generates text chunk by chunk, and we forward each chunk immediately
         story_content = ""
-        async for chunk in llm_provider.generate_stream(
-            prompt,
-            temperature=0.8,  # Controls creativity (0.0 = deterministic, 1.0+ = creative)
-            max_tokens=800    # Limits story length
-        ):
-            story_content += chunk
-            # Send each chunk to frontend as it arrives
-            yield f"data: {json.dumps({'content': chunk})}\n\n"
+        try:
+            async for chunk in llm_provider.generate_stream(
+                prompt,
+                temperature=0.8,  # Controls creativity (0.0 = deterministic, 1.0+ = creative)
+                max_tokens=800    # Limits story length
+            ):
+                story_content += chunk
+                # Send each chunk to frontend as it arrives
+                yield f"data: {json.dumps({'content': chunk})}\n\n"
+        except (RuntimeError, StopIteration) as e:
+            # StopIteration and some RuntimeErrors indicate normal completion
+            # (some async frameworks convert StopIteration to RuntimeError)
+            error_str = str(e).lower()
+            if "stopiteration" in error_str or "async generator" in error_str:
+                # Generator finished normally - this is expected, not an error
+                pass
+            else:
+                # Other RuntimeError - re-raise as it's a real error
+                raise
         
         # Step 4: Signal that generation is complete
         yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"
