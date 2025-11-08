@@ -26,6 +26,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import AsyncGenerator, Optional
 import json
+import asyncio
 
 # ============================================================================
 # STEP 1: ABSTRACT BASE CLASS
@@ -126,23 +127,133 @@ if GEMINI_AVAILABLE:
                     max_output_tokens=kwargs.get('max_tokens', 1000),
                 )
             )
-            return response.text
+            
+            # Check if response has valid content
+            if not response.candidates or len(response.candidates) == 0:
+                raise ValueError("No candidates returned from Gemini API")
+            
+            candidate = response.candidates[0]
+            
+            # Check finish reason - 2 means content was blocked/filtered
+            if hasattr(candidate, 'finish_reason') and candidate.finish_reason == 2:
+                raise ValueError("Content was blocked by Gemini safety filters. Try rephrasing your prompt.")
+            
+            # Try to get text from response
+            try:
+                return response.text
+            except ValueError as e:
+                # If response.text fails, try to extract from parts manually
+                if candidate.content and candidate.content.parts:
+                    text_parts = []
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'text') and part.text:
+                            text_parts.append(part.text)
+                    if text_parts:
+                        return ''.join(text_parts)
+                
+                # If we still can't get text, raise the original error
+                raise ValueError(f"Failed to extract text from Gemini response: {str(e)}")
         
         async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
             """Stream text using Gemini"""
-            response = await asyncio.to_thread(
-                self.model.generate_content,
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=kwargs.get('temperature', 0.8),
-                    max_output_tokens=kwargs.get('max_tokens', 1000),
-                ),
-                stream=True
-            )
+            # Use asyncio.Queue to bridge sync generator to async generator
+            chunk_queue = asyncio.Queue(maxsize=100)
+            exception_holder = [None]
+            loop = asyncio.get_event_loop()
             
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
+            def _generate_chunks():
+                """Run the synchronous generator in a thread"""
+                try:
+                    response = self.model.generate_content(
+                        prompt,
+                        generation_config=genai.types.GenerationConfig(
+                            temperature=kwargs.get('temperature', 0.8),
+                            max_output_tokens=kwargs.get('max_tokens', 1000),
+                        ),
+                        stream=True
+                    )
+                    # Iterate over chunks directly - for loop handles StopIteration automatically
+                    chunk_count = 0
+                    try:
+                        for chunk in response:
+                            # Try multiple ways to extract text from chunk
+                            text = None
+                            if hasattr(chunk, 'text') and chunk.text:
+                                text = chunk.text
+                            elif hasattr(chunk, 'candidates') and chunk.candidates:
+                                candidate = chunk.candidates[0]
+                                if hasattr(candidate, 'content') and candidate.content:
+                                    if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                                        part = candidate.content.parts[0]
+                                        if hasattr(part, 'text') and part.text:
+                                            text = part.text
+                            
+                            if text:
+                                chunk_count += 1
+                                # Put chunk in queue from sync context
+                                asyncio.run_coroutine_threadsafe(
+                                    chunk_queue.put(text),
+                                    loop
+                                )
+                    except StopIteration:
+                        # Normal end of iteration - this is expected
+                        pass
+                    except Exception as e:
+                        # Other errors during iteration
+                        exception_holder[0] = e
+                    finally:
+                        # Always signal completion
+                        asyncio.run_coroutine_threadsafe(
+                            chunk_queue.put(None),
+                            loop
+                        )
+                except StopIteration:
+                    # StopIteration from generate_content itself - normal completion
+                    # Signal completion without storing as error
+                    asyncio.run_coroutine_threadsafe(
+                        chunk_queue.put(None),
+                        loop
+                    )
+                except Exception as e:
+                    # Real errors - store and signal
+                    exception_holder[0] = e
+                    # Signal completion even on error
+                    asyncio.run_coroutine_threadsafe(
+                        chunk_queue.put(None),
+                        loop
+                    )
+            
+            # Start generation in a thread
+            executor_task = loop.run_in_executor(None, _generate_chunks)
+            
+            # Yield chunks as they arrive - return normally when done (no StopIteration)
+            try:
+                while True:
+                    try:
+                        chunk = await chunk_queue.get()
+                        if chunk is None:
+                            # Generator finished - check for exceptions (but not StopIteration)
+                            if exception_holder[0]:
+                                # Don't raise StopIteration - convert to RuntimeError or handle differently
+                                if isinstance(exception_holder[0], StopIteration):
+                                    # StopIteration is normal completion, not an error
+                                    break
+                                raise exception_holder[0]
+                            # Normal completion - break out of loop
+                            break
+                        yield chunk
+                    except RuntimeError as e:
+                        # Catch RuntimeError that might be caused by StopIteration
+                        if "StopIteration" in str(e):
+                            # This is a StopIteration converted to RuntimeError - treat as normal completion
+                            break
+                        raise
+            finally:
+                # Clean up - wait for executor
+                try:
+                    await asyncio.wait_for(executor_task, timeout=5.0)
+                except (asyncio.TimeoutError, Exception):
+                    pass
 
 
 # OpenAI Provider
