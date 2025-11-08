@@ -497,12 +497,27 @@ except ImportError:
     AsyncOpenAI = None
 
 if OPENROUTER_AVAILABLE:
+    # Import error classes (may vary by OpenAI SDK version)
+    try:
+        from openai import RateLimitError, APIError
+    except ImportError:
+        # Fallback: use base exception for older SDK versions
+        # We'll check status codes manually if needed
+        try:
+            from openai import OpenAIError
+            RateLimitError = OpenAIError
+            APIError = OpenAIError
+        except ImportError:
+            # Ultimate fallback
+            RateLimitError = Exception
+            APIError = Exception
+    
     class OpenRouterProvider(LLMProvider):
         """
         OpenRouter Provider
         
         Pros: Access to many models (Claude, GPT-4, Llama, etc.), unified API
-        Cons: Requires internet connection, paid service
+        Cons: Requires internet connection, paid service, rate limits on free models
         
         How it works:
         - Uses OpenAI-compatible API format
@@ -512,9 +527,14 @@ if OPENROUTER_AVAILABLE:
         
         Key Learning: OpenAI-compatible APIs let you use the same code
         to access different AI providers. This is called "API compatibility".
+        
+        Rate Limiting:
+        - Free models have strict rate limits (429 errors)
+        - This provider includes retry logic with exponential backoff
+        - Consider using paid models for production workloads
         """
         
-        def __init__(self, api_key: str, model: str = "minimax/minimax-m2:free"):
+        def __init__(self, api_key: str, model: str = "deepseek/deepseek-r1-0528-qwen3-8b:free"):
             self.api_key = api_key
             self.model = model
             # OpenRouter uses OpenAI-compatible format with different base URL
@@ -526,35 +546,147 @@ if OPENROUTER_AVAILABLE:
             # Filter out empty values
             headers = {k: v for k, v in default_headers.items() if v}
             
+            # Configure client with retry settings for rate limits
+            # max_retries=3 with exponential backoff handles transient errors
             self.client = AsyncOpenAI(
                 api_key=api_key,
                 base_url="https://openrouter.ai/api/v1",
-                default_headers=headers
+                default_headers=headers,
+                max_retries=3,  # Retry up to 3 times with exponential backoff
+                timeout=60.0  # 60 second timeout
             )
+        
+        async def _retry_with_backoff(self, operation, max_retries: int = 5, initial_delay: float = 1.0):
+            """
+            Retry operation with exponential backoff for rate limit errors.
+            
+            Args:
+                operation: Async function to retry
+                max_retries: Maximum number of retry attempts
+                initial_delay: Initial delay in seconds before first retry
+                
+            Returns:
+                Result of the operation
+                
+            Raises:
+                RateLimitError: If rate limit persists after all retries
+                APIError: For other API errors
+            """
+            last_exception = None
+            
+            for attempt in range(max_retries):
+                try:
+                    return await operation()
+                except Exception as e:
+                    # Check if this is a rate limit error (429)
+                    is_rate_limit = False
+                    status_code = None
+                    
+                    # Check if it's a RateLimitError
+                    if isinstance(e, RateLimitError):
+                        is_rate_limit = True
+                    # Check status code if available (for 429 errors)
+                    elif hasattr(e, 'status_code'):
+                        status_code = e.status_code
+                        is_rate_limit = (status_code == 429)
+                    elif hasattr(e, 'response') and hasattr(e.response, 'status_code'):
+                        status_code = e.response.status_code
+                        is_rate_limit = (status_code == 429)
+                    elif hasattr(e, 'code') and e.code == 'rate_limit_exceeded':
+                        is_rate_limit = True
+                    # Check error message for rate limit indicators
+                    elif '429' in str(e) or 'rate limit' in str(e).lower() or 'too many requests' in str(e).lower():
+                        is_rate_limit = True
+                    
+                    if is_rate_limit:
+                        last_exception = e
+                        if attempt < max_retries - 1:
+                            # Exponential backoff: 1s, 2s, 4s, 8s, 16s
+                            delay = initial_delay * (2 ** attempt)
+                            # For 429 errors, check if Retry-After header is present
+                            if hasattr(e, 'response') and e.response:
+                                retry_after = e.response.headers.get('Retry-After')
+                                if retry_after:
+                                    try:
+                                        delay = float(retry_after)
+                                    except (ValueError, TypeError):
+                                        pass
+                            
+                            await asyncio.sleep(delay)
+                        else:
+                            # Last attempt failed
+                            raise RateLimitError(
+                                f"OpenRouter rate limit exceeded after {max_retries} retries. "
+                                f"Free models have strict rate limits. "
+                                f"Consider: 1) Using a paid model, 2) Adding delays between requests, "
+                                f"3) Using a different provider (Gemini, FireworksAI), or "
+                                f"4) Upgrading your OpenRouter plan. "
+                                f"Model: {self.model}"
+                            ) from e
+                    else:
+                        # For other API errors, don't retry
+                        if isinstance(e, APIError):
+                            raise APIError(
+                                f"OpenRouter API error: {str(e)}. "
+                                f"Model: {self.model}"
+                            ) from e
+                        # Re-raise non-rate-limit errors immediately
+                        raise
+            
+            # Should not reach here, but just in case
+            if last_exception:
+                raise last_exception
         
         async def generate_text(self, prompt: str, **kwargs) -> str:
-            """Generate text using OpenRouter"""
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=kwargs.get('temperature', 0.8),
-                max_tokens=kwargs.get('max_tokens', 1000),
-            )
-            return response.choices[0].message.content
+            """Generate text using OpenRouter with retry logic for rate limits"""
+            async def _generate():
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=kwargs.get('temperature', 0.8),
+                    max_tokens=kwargs.get('max_tokens', 1000),
+                )
+                return response.choices[0].message.content
+            
+            return await self._retry_with_backoff(_generate)
         
         async def generate_stream(self, prompt: str, **kwargs) -> AsyncGenerator[str, None]:
-            """Stream text using OpenRouter"""
-            stream = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=kwargs.get('temperature', 0.8),
-                max_tokens=kwargs.get('max_tokens', 1000),
-                stream=True
-            )
+            """Stream text using OpenRouter with retry logic for rate limits"""
+            async def _generate_stream():
+                stream = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=kwargs.get('temperature', 0.8),
+                    max_tokens=kwargs.get('max_tokens', 1000),
+                    stream=True
+                )
+                return stream
             
-            async for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+            # Retry the initial request creation
+            try:
+                stream = await self._retry_with_backoff(_generate_stream)
+            except RateLimitError as e:
+                # Yield error message as stream chunk for user feedback
+                error_msg = (
+                    f"\n\n⚠️ Rate limit error: {str(e)}\n"
+                    f"Please wait a moment and try again, or consider using a different provider.\n"
+                )
+                yield error_msg
+                return
+            
+            # Stream chunks (no retry needed for individual chunks)
+            try:
+                async for chunk in stream:
+                    if chunk.choices and len(chunk.choices) > 0:
+                        if chunk.choices[0].delta.content:
+                            yield chunk.choices[0].delta.content
+            except (RateLimitError, APIError) as e:
+                # Handle errors during streaming
+                error_msg = (
+                    f"\n\n⚠️ Error during streaming: {str(e)}\n"
+                    f"Model: {self.model}\n"
+                )
+                yield error_msg
 
 
 # FireworksAI Provider
@@ -690,7 +822,7 @@ def get_provider_config():
     # Priority 2: OpenRouter
     openrouter_key = os.getenv("OPENROUTER_API_KEY")
     if openrouter_key and OPENROUTER_AVAILABLE and (provider_type == "openrouter" or not provider_type):
-        model = os.getenv("OPENROUTER_MODEL", "minimax/minimax-m2:free")
+        model = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-r1-0528-qwen3-8b:free")
         return {
             "api_key": openrouter_key,
             "model": model,
@@ -753,7 +885,7 @@ Set environment variables to choose your provider:
 - OPENAI_API_KEY=your_key
 
 OpenRouter also supports:
-- OPENROUTER_MODEL=model-name (default: minimax/minimax-m2:free - free model)
+- OPENROUTER_MODEL=model-name (default: deepseek/deepseek-r1-0528-qwen3-8b:free - free model)
 - OPENROUTER_HTTP_REFERER=your-url (optional)
 - OPENROUTER_APP_NAME=your-app-name (optional)
 """
