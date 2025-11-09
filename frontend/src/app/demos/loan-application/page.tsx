@@ -21,7 +21,7 @@ export default function LoanApplicationPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [chatApplicationId, setChatApplicationId] = useState<string | null>(null);
   
-  const apiBaseUrl = `${process.env.NEXT_PUBLIC_API_URL}/loan-application`;
+  const apiBaseUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/loan-application`;
   
   // Use approvals hook
   const { pendingApprovals, reviewApproval, fetchApprovals, isReviewing } = useApprovals({
@@ -34,8 +34,10 @@ export default function LoanApplicationPage() {
     message,
     setMessage,
     messages,
+    setMessages,
     isAsking,
     currentAnswer,
+    setCurrentAnswer,
     expandedToolCalls,
     toggleToolCall,
     askQuestion,
@@ -50,8 +52,6 @@ export default function LoanApplicationPage() {
     },
   });
 
-  const [analysisMessages, setAnalysisMessages] = useState<typeof messages>([]);
-
   const handleFormSubmit = useCallback(async (formData: LoanApplicationData) => {
     setIsSubmitting(true);
     setShowForm(false);
@@ -59,18 +59,13 @@ export default function LoanApplicationPage() {
     setSelectedApproval(null);
     setMessage('');
     
-    // Clear and initialize analysis messages
-    const initialMessages: typeof messages = [];
-    
-    // Add initial message
-    initialMessages.push({
+    // Clear messages and add initial message
+    addMessage({
       id: `system-${Date.now()}`,
       type: 'system',
       content: `Analyzing loan application for ${formData.applicant_name}...`,
       timestamp: new Date(),
     });
-
-    setAnalysisMessages(initialMessages);
 
     try {
       const response = await fetch(`${apiBaseUrl}/analyze/stream`, {
@@ -96,14 +91,13 @@ export default function LoanApplicationPage() {
 
       // Add typing indicator
       const typingMessageId = `typing-${Date.now()}`;
-      initialMessages.push({
+      addMessage({
         id: typingMessageId,
         type: 'assistant',
         content: '',
         isTyping: true,
         timestamp: new Date(),
       });
-      setAnalysisMessages([...initialMessages]);
 
       while (!done) {
         const { value, done: doneReading } = await reader.read();
@@ -117,19 +111,19 @@ export default function LoanApplicationPage() {
               const data = JSON.parse(line.slice(6));
               
               if (data.error) {
-                setAnalysisMessages(prev => [...prev, {
+                addMessage({
                   id: `error-${Date.now()}`,
                   type: 'system',
                   content: `❌ Error: ${data.error}`,
                   timestamp: new Date(),
-                }]);
+                });
                 setIsSubmitting(false);
                 return;
               }
 
               if (data.tool_calls) {
                 finalToolCalls = data.tool_calls;
-                setAnalysisMessages(prev => {
+                setMessages(prev => {
                   const updated = [...prev];
                   const typingMessage = updated.find(msg => msg.id === typingMessageId);
                   if (typingMessage) {
@@ -141,7 +135,8 @@ export default function LoanApplicationPage() {
               
               if (data.content) {
                 finalAnswer += data.content;
-                setAnalysisMessages(prev => {
+                setCurrentAnswer(finalAnswer);
+                setMessages(prev => {
                   const updated = [...prev];
                   const typingMessage = updated.find(msg => msg.id === typingMessageId);
                   if (typingMessage) {
@@ -156,7 +151,7 @@ export default function LoanApplicationPage() {
                 const finalContent = data.response || finalAnswer;
                 approvalData = data.approval;
                 
-                setAnalysisMessages(prev => {
+                setMessages(prev => {
                   const updated = [...prev];
                   const typingMessage = updated.find(msg => msg.id === typingMessageId);
                   if (typingMessage) {
@@ -166,18 +161,18 @@ export default function LoanApplicationPage() {
                   }
                   return updated;
                 });
-                
+                setCurrentAnswer('');
                 setIsSubmitting(false);
                 
                 if (approvalData?.application_id) {
                   await fetchApprovals();
                   const appId = approvalData.application_id;
-                  setAnalysisMessages(prev => [...prev, {
+                  addMessage({
                     id: `complete-${Date.now()}`,
                     type: 'system',
                     content: `✅ Analysis complete. Application ${appId} is ready for review.`,
                     timestamp: new Date(),
-                  }]);
+                  });
                 }
               }
             } catch (e) {
@@ -188,15 +183,15 @@ export default function LoanApplicationPage() {
       }
     } catch (error) {
       console.error('Error submitting application:', error);
-      setAnalysisMessages(prev => [...prev, {
+      addMessage({
         id: `error-${Date.now()}`,
         type: 'system',
         content: `❌ Error: ${error instanceof Error ? error.message : 'Failed to analyze application'}`,
         timestamp: new Date(),
-      }]);
+      });
       setIsSubmitting(false);
     }
-  }, [apiBaseUrl, fetchApprovals, setMessage]);
+  }, [apiBaseUrl, fetchApprovals, setMessage, addMessage, setMessages, setCurrentAnswer]);
 
   const handleRequestMoreInfo = useCallback(async () => {
     if (!selectedApproval) return;
@@ -276,7 +271,7 @@ export default function LoanApplicationPage() {
             Loan Application Assistant
           </h1>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
-            Agentic AI workflow demonstration. Submit loan applications via form, and watch the AI agent perform multi-step analysis automatically using tools to calculate metrics, assess risk, and generate comprehensive reports.
+            Human escalation pattern demonstration. Submit loan applications via form, and watch the AI agent perform analysis with escalation points requiring human input, and mandatory human feedback for all final decisions.
           </p>
           <Link
             href="/challenges/loan-application-assistant"
@@ -364,58 +359,63 @@ export default function LoanApplicationPage() {
                       <ChatBubbleLeftRightIcon className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold text-gray-900">Collect Information</h2>
-                      <p className="text-sm text-gray-500">
-                        {chatApplicationId ? `Application ${chatApplicationId}` : 'Chat with applicant'}
-                      </p>
+                      <h2 className="text-xl font-bold text-gray-900">Loan Application Assistant</h2>
+                      <p className="text-sm text-gray-500">AI-powered analysis and support</p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => {
-                      setShowChat(false);
-                      setChatApplicationId(null);
-                      if (selectedApproval && pendingApprovals.length > 0) {
-                        const updated = pendingApprovals.find(a => a.approval_id === selectedApproval.approval_id);
-                        if (updated) setSelectedApproval(updated);
-                      }
-                    }}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    aria-label="Close chat"
-                  >
-                    <XMarkIcon className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center space-x-2">
+                    <div className="flex items-center space-x-2 bg-green-50 border border-green-200 text-green-700 px-3 py-1.5 rounded-full text-xs font-semibold">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span>Online</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowChat(false);
+                        setChatApplicationId(null);
+                        if (selectedApproval && pendingApprovals.length > 0) {
+                          const updated = pendingApprovals.find(a => a.approval_id === selectedApproval.approval_id);
+                          if (updated) setSelectedApproval(updated);
+                        }
+                      }}
+                      className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      aria-label="Close chat"
+                    >
+                      <XMarkIcon className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
 
-                <div className="flex-1 overflow-hidden flex flex-col">
-                  <ChatMessages
-                    messages={showChat && analysisMessages.length > 0 ? analysisMessages : messages}
-                    currentAnswer={currentAnswer}
-                    emptyState={{
-                      icon: <ChatBubbleLeftRightIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />,
-                      title: 'AI Agent Analysis',
-                      description: 'Submit a loan application using the form to see the AI agent perform multi-step analysis using tools.'
-                    }}
-                    onToggleToolCall={toggleToolCall}
-                    expandedToolCalls={expandedToolCalls}
-                  />
-                  <div className="border-t border-gray-200 pt-4 mt-auto">
-                    <div className="space-y-3">
-                      {(isAsking || isSubmitting) && (
-                        <AlertMessage
-                          type="info"
-                          message={isSubmitting ? "AI agent is analyzing the application..." : "Processing your request..."}
-                        />
-                      )}
-                      <ChatInput
-                        value={message}
-                        onChange={setMessage}
-                        onSend={askQuestion}
-                        onKeyPress={handleKeyPress}
-                        disabled={isAsking || isSubmitting}
-                        isLoading={isAsking || isSubmitting}
-                        placeholder={isSubmitting ? "Analysis in progress..." : (chatApplicationId ? "Ask for more information about the application..." : "Enter your message...")}
+                {/* Chat Messages Area */}
+                <ChatMessages
+                  messages={messages}
+                  currentAnswer={currentAnswer}
+                  emptyState={{
+                    icon: <ChatBubbleLeftRightIcon className="w-12 h-12 mx-auto mb-4 text-gray-300" />,
+                    title: 'Loan Application Assistant',
+                    description: 'Submit a loan application using the form to see the AI agent perform multi-step analysis using tools.'
+                  }}
+                  onToggleToolCall={toggleToolCall}
+                  expandedToolCalls={expandedToolCalls}
+                />
+
+                <div className="border-t border-gray-200 pt-4 mt-auto">
+                  <div className="space-y-3">
+                    {(isAsking || isSubmitting) && (
+                      <AlertMessage
+                        type="info"
+                        message={isSubmitting ? "AI agent is analyzing the application..." : "Processing your request..."}
                       />
-                    </div>
+                    )}
+                    
+                    <ChatInput
+                      value={message}
+                      onChange={setMessage}
+                      onSend={askQuestion}
+                      onKeyPress={handleKeyPress}
+                      disabled={isAsking || isSubmitting}
+                      isLoading={isAsking || isSubmitting}
+                      placeholder={isSubmitting ? "Analysis in progress..." : (chatApplicationId ? "Ask for more information about the application..." : "Enter your message...")}
+                    />
                   </div>
                 </div>
               </div>
@@ -442,29 +442,29 @@ export default function LoanApplicationPage() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-3">How it works</h3>
                 <ol className="text-sm text-gray-600 space-y-2 list-decimal list-inside">
                   <li>Submit a loan application using the form (applicant details, income, credit score, etc.)</li>
-                  <li>AI agent automatically performs multi-step analysis using tools</li>
-                  <li>Agent calculates debt-to-income ratio, assesses credit risk, and generates detailed analysis</li>
-                  <li>Analysis results are displayed in real-time on the right side</li>
-                  <li>Agent creates a review request for final human decision</li>
-                  <li>Application appears in pending reviews queue for human escalation</li>
+                  <li>AI agent performs multi-step analysis using tools</li>
+                  <li>Agent escalates to human at key decision points (borderline cases, unclear info)</li>
+                  <li>Human provides input/guidance when escalated</li>
+                  <li>Agent continues analysis incorporating human input</li>
+                  <li>Final decision requires human approval/rejection with mandatory feedback</li>
                 </ol>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-3">Agentic AI Workflows</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-3">Human Escalation Pattern</h3>
                 <p className="text-sm text-gray-600 leading-relaxed mb-3">
-                  This demonstrates <strong className="text-gray-900">agentic AI workflows</strong> where an AI agent autonomously performs 
-                  complex multi-step analysis using tools. The agent orchestrates multiple analysis steps, calculates metrics, 
-                  and presents findings for human review.
+                  This demonstrates <strong className="text-gray-900">human escalation patterns</strong> where an AI agent performs analysis 
+                  but requires human input at key decision points. The agent escalates when encountering borderline cases, unclear information, 
+                  or situations requiring human judgment.
                 </p>
                 <p className="text-sm text-gray-600 leading-relaxed">
-                  The agent uses function calling to execute analysis tools in sequence, showing each step of the process 
-                  and creating structured outputs ready for human decision-making.
+                  All final decisions require <strong className="text-gray-900">mandatory human feedback</strong> with reasoning. The agent 
+                  pauses workflow at escalation checkpoints, waits for human input, then continues analysis incorporating the human guidance.
                 </p>
               </div>
             </div>
             <div className="text-center text-sm text-gray-500 pt-4 border-t border-gray-200">
               <p>
-                This loan application assistant demonstrates agentic AI workflows with AutoGen, showing how agents perform multi-step analysis using tools.
+                This loan application assistant demonstrates human escalation patterns with AutoGen, showing how agents escalate to humans at key decision points and require mandatory feedback for all final decisions.
               </p>
             </div>
           </div>

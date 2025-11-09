@@ -365,6 +365,42 @@ The AI has provided a risk assessment, but final approval must be made by a huma
     return analysis
 
 
+def request_human_input(question: str, context: str = "") -> str:
+    """
+    Requests human input during the analysis process (human escalation).
+    
+    This tool allows the agent to pause and ask for human guidance when:
+    - Unclear information needs clarification
+    - Edge cases require human judgment
+    - Additional context is needed before proceeding
+    
+    Args:
+        question: The question or clarification needed from human
+        context: Optional context about why this input is needed
+    
+    Returns:
+        Human's response to the question
+    """
+    # In a real system, this would create an escalation request
+    # For now, we'll store it and the frontend will handle it
+    escalation_id = str(uuid.uuid4())
+    
+    # Store escalation request
+    if "escalations" not in globals():
+        globals()["escalations"] = {}
+    
+    escalations[escalation_id] = {
+        "escalation_id": escalation_id,
+        "question": question,
+        "context": context,
+        "status": "pending",
+        "created_at": datetime.now().isoformat(),
+        "response": None
+    }
+    
+    return f"Human input requested. Escalation ID: {escalation_id}. Question: {question}. Please provide input via the escalation interface."
+
+
 def request_human_approval(application_id: str, analysis: str, recommendation: str, risk_score: float) -> str:
     """
     Requests human approval for a loan application.
@@ -412,8 +448,12 @@ AVAILABLE_TOOLS = [
     calculate_debt_to_income_ratio,
     assess_credit_risk,
     analyze_loan_application,
+    request_human_input,
     request_human_approval
 ]
+
+# Global escalations store
+escalations = {}
 
 
 # ============================================================================
@@ -485,29 +525,56 @@ def create_agent_with_tools(session_id: str) -> AssistantAgent:
             name="loan_application_assistant",
             model_client=model_client,
             system_message="""You are a professional loan application analysis agent for a financial institution.
-Your role is to perform comprehensive multi-step analysis of loan applications:
+Your role is to perform comprehensive multi-step analysis with human escalation at key decision points.
+
+IMPORTANT: After using tools, always provide a clear text response explaining what you did and what you found. Never leave tool results without explanation.
+
+ANALYSIS WORKFLOW WITH HUMAN ESCALATION:
 
 1. **Step 1: Fetch Credit Score** - If credit score is not provided, use fetch_credit_score() to retrieve it from credit bureau API
-2. **Step 2: Calculate Financial Metrics** - Use calculate_debt_to_income_ratio() to assess debt burden
-3. **Step 3: Assess Credit Risk** - Use assess_credit_risk() to evaluate creditworthiness (requires credit score from Step 1)
-4. **Step 4: Comprehensive Analysis** - Use analyze_loan_application() to generate detailed assessment
-5. **Step 5: Create Review Request** - Use request_human_approval() to submit for final human review
 
-Workflow:
+2. **Step 2: Calculate Financial Metrics** - Use calculate_debt_to_income_ratio() to assess debt burden
+
+3. **Step 3: Assess Credit Risk** - Use assess_credit_risk() to evaluate creditworthiness
+
+4. **Step 4: Human Escalation Checkpoints** - At key decision points, use request_human_input() to:
+   - Ask for clarification on unclear information
+   - Request guidance on edge cases
+   - Get human judgment on borderline applications
+   - Seek approval before proceeding with high-risk cases
+
+5. **Step 5: Comprehensive Analysis** - Use analyze_loan_application() to generate detailed assessment
+
+6. **Step 6: Final Human Decision** - Use request_human_approval() to submit for final human review and decision
+
+HUMAN ESCALATION GUIDELINES:
+- ALWAYS escalate to human when:
+  * Credit score is borderline (580-670) and other factors are mixed
+  * Debt-to-income ratio is between 36-43% (gray zone)
+  * Loan amount is unusually high relative to income
+  * Employment status is unclear or unusual
+  * Any red flags or inconsistencies are detected
+  
+- Use request_human_input() with clear, specific questions
+- Wait for human response before proceeding with final analysis
+- Present findings clearly for human decision-making
+
+WORKFLOW RULES:
 - Always start by checking if credit score is provided. If not, fetch it using fetch_credit_score()
-- Perform analysis in a structured, step-by-step manner
+- Perform analysis step-by-step, escalating when needed
+- After human input is received, incorporate it into your analysis
 - Show each step of your analysis process clearly
-- After completing all analysis steps, create a review request
-- Present your findings in a clear, professional format
+- After completing all analysis steps, create a review request for final human decision
+- Present findings in a clear, professional format
 
 Guidelines:
 - Be professional, clear, and thorough in your analysis
-- Use ALL available tools to perform comprehensive analysis
-- Always fetch credit score if not provided in the application
+- Use ALL available tools appropriately
+- Always escalate when in doubt or when human judgment is needed
 - Show your work - explain each step you're taking
 - Format your responses using proper markdown with line breaks and numbered/bulleted lists
 - Always use double line breaks between paragraphs for readability
-- Present findings in a structured format suitable for human review""",
+- Present findings in a structured format suitable for human review and decision-making""",
             tools=AVAILABLE_TOOLS,
             model_client_stream=True,
             reflect_on_tool_use=True,
@@ -786,8 +853,14 @@ Show each step of your analysis process clearly."""
                 yield f"data: {json.dumps({'done': True, 'response': final_response, 'tool_calls': tool_calls_used, 'approval': approval_data, 'application_id': application_id, 'type': 'complete'})}\n\n"
         
     except Exception as e:
+        error_msg = str(e)
         logger.error(f"Error in analysis stream: {e}", exc_info=True)
-        yield f"data: {json.dumps({'error': str(e), 'type': 'error'})}\n\n"
+        
+        # Provide more helpful error messages for common issues
+        if "no valid text response" in error_msg.lower() or "reflect on tool use" in error_msg.lower():
+            error_msg = "The model failed to generate a response after using tools. This may indicate the model doesn't fully support function calling. Please try a different model that supports function calling (e.g., openai/gpt-4o-mini, anthropic/claude-3-haiku, llama-v3p3-70b-instruct, minimax/minimax-m2)."
+        
+        yield f"data: {json.dumps({'error': error_msg, 'type': 'error'})}\n\n"
 
 
 @router.post("/analyze/stream")
@@ -825,7 +898,11 @@ async def get_approval(approval_id: str):
 
 @router.post("/approvals/{approval_id}/review")
 async def review_approval(approval_id: str, request: ApprovalRequest):
-    """Review and approve/reject a loan application"""
+    """
+    Review and approve/reject a loan application (HUMAN ESCALATION - Final Decision).
+    
+    This endpoint requires human input for the final decision with mandatory feedback.
+    """
     if approval_id not in pending_approvals:
         raise HTTPException(status_code=404, detail="Approval not found")
     
@@ -833,6 +910,13 @@ async def review_approval(approval_id: str, request: ApprovalRequest):
     
     if approval["status"] not in [ApprovalStatus.PENDING, ApprovalStatus.NEEDS_MORE_INFO]:
         raise HTTPException(status_code=400, detail=f"Approval already {approval['status']}")
+    
+    # Validate that reviewer notes are provided (human feedback is required)
+    if not request.reviewer_notes or not request.reviewer_notes.strip():
+        raise HTTPException(
+            status_code=400, 
+            detail="Reviewer notes (feedback) are required for all decisions. Please provide your reasoning."
+        )
     
     # Update approval status
     if request.decision.lower() == "approve":
@@ -850,6 +934,7 @@ async def review_approval(approval_id: str, request: ApprovalRequest):
     if application_id in LOAN_APPLICATIONS_DB:
         LOAN_APPLICATIONS_DB[application_id]["status"] = approval["status"]
         LOAN_APPLICATIONS_DB[application_id]["reviewed_at"] = approval["reviewed_at"]
+        LOAN_APPLICATIONS_DB[application_id]["reviewer_feedback"] = request.reviewer_notes
     
     return ApprovalResponse(**approval)
 
@@ -887,6 +972,42 @@ async def list_tools():
         "tools": tools_info,
         "autogen_available": AUTOGEN_AVAILABLE
     }
+
+
+@router.get("/escalations")
+async def list_escalations():
+    """List all pending escalations requiring human input"""
+    pending = [
+        escalation
+        for escalation in escalations.values()
+        if escalation["status"] == "pending"
+    ]
+    return {"escalations": pending, "count": len(pending)}
+
+
+@router.get("/escalations/{escalation_id}")
+async def get_escalation(escalation_id: str):
+    """Get a specific escalation by ID"""
+    if escalation_id not in escalations:
+        raise HTTPException(status_code=404, detail="Escalation not found")
+    return escalations[escalation_id]
+
+
+@router.post("/escalations/{escalation_id}/respond")
+async def respond_to_escalation(escalation_id: str, response: str = Body(..., embed=True)):
+    """Provide human response to an escalation"""
+    if escalation_id not in escalations:
+        raise HTTPException(status_code=404, detail="Escalation not found")
+    
+    escalation = escalations[escalation_id]
+    if escalation["status"] != "pending":
+        raise HTTPException(status_code=400, detail="Escalation already responded to")
+    
+    escalation["status"] = "responded"
+    escalation["response"] = response
+    escalation["responded_at"] = datetime.now().isoformat()
+    
+    return {"escalation_id": escalation_id, "status": "responded", "response": response}
 
 
 @router.get("/health")

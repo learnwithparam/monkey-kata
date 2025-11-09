@@ -18,7 +18,8 @@ import {
   EyeIcon,
   BriefcaseIcon,
   ChatBubbleLeftRightIcon,
-  ClipboardDocumentCheckIcon
+  ClipboardDocumentCheckIcon,
+  RectangleStackIcon
 } from '@heroicons/react/24/outline';
 
 export interface Demo {
@@ -112,6 +113,14 @@ export const weeksData: WeekData[] = [
         apiSlug: "loan_application_assistant"
       },
       {
+        icon: <RectangleStackIcon className="w-8 h-8 text-emerald-600 mr-4" />,
+        title: "30-Day Meal Prep Agent",
+        description: "Your personalized healthy eating assistant - create customized 30-day meal plans through conversational interaction with human-in-the-loop approval at each step",
+        demoHref: "/demos/meal-prep",
+        challengeHref: "/challenges/meal-prep-agent",
+        apiSlug: "meal_prep_agent"
+      },
+      {
         icon: <PhoneIcon className="w-8 h-8 text-orange-600 mr-4" />,
         title: "Restaurant Booking Voice AI",
         description: "Take food orders naturally through voice conversation with AI-powered restaurant assistant",
@@ -126,12 +135,6 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/medical-office-triage",
         challengeHref: "/challenges/medical-office-triage",
         apiSlug: "medical_office_triage"
-      },
-      {
-        icon: <TagIcon className="w-8 h-8 text-blue-600 mr-4" />,
-        title: "Sales Lead Qualifier",
-        description: "Automatically qualify and score leads through intelligent conversation",
-        isComingSoon: true
       }
     ]
   },

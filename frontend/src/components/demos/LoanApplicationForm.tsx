@@ -29,6 +29,7 @@ export default function LoanApplicationForm({ onSubmit, isLoading }: LoanApplica
     existing_debt: 0,
   });
   const [errors, setErrors] = useState<Partial<Record<keyof LoanApplicationData, string>>>({});
+  const [touched, setTouched] = useState<Partial<Record<keyof LoanApplicationData, boolean>>>({});
 
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof LoanApplicationData, string>> = {};
@@ -37,28 +38,39 @@ export default function LoanApplicationForm({ onSubmit, isLoading }: LoanApplica
       newErrors.applicant_name = 'Applicant name is required';
     }
 
-    if (formData.loan_amount <= 0) {
+    if (!formData.loan_amount || formData.loan_amount <= 0) {
       newErrors.loan_amount = 'Loan amount must be greater than 0';
+    } else if (formData.loan_amount < 1000) {
+      newErrors.loan_amount = 'Loan amount must be at least $1,000';
     }
 
-    if (formData.annual_income <= 0) {
-      newErrors.annual_income = 'Annual income must be greater than 0';
+    if (!formData.annual_income || formData.annual_income <= 0) {
+      newErrors.annual_income = 'Annual income is required and must be greater than 0';
+    } else if (formData.annual_income < 10000) {
+      newErrors.annual_income = 'Annual income must be at least $10,000';
     }
 
-    if (formData.credit_score !== undefined && (formData.credit_score < 300 || formData.credit_score > 850)) {
-      newErrors.credit_score = 'Credit score must be between 300 and 850';
+    if (formData.credit_score !== undefined) {
+      if (isNaN(formData.credit_score) || formData.credit_score < 300 || formData.credit_score > 850) {
+        newErrors.credit_score = 'Credit score must be between 300 and 850';
+      }
     }
 
     if (!formData.loan_purpose.trim()) {
       newErrors.loan_purpose = 'Loan purpose is required';
     }
 
-    if (formData.existing_debt < 0) {
+    if (formData.existing_debt < 0 || isNaN(formData.existing_debt)) {
       newErrors.existing_debt = 'Existing debt cannot be negative';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleBlur = (field: keyof LoanApplicationData) => {
+    setTouched({ ...touched, [field]: true });
+    validate();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,11 +91,13 @@ export default function LoanApplicationForm({ onSubmit, isLoading }: LoanApplica
           id="applicant_name"
           value={formData.applicant_name}
           onChange={(e) => setFormData({ ...formData, applicant_name: e.target.value })}
+          onBlur={() => handleBlur('applicant_name')}
           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 ${
-            errors.applicant_name ? 'border-red-300' : 'border-gray-200'
+            errors.applicant_name && touched.applicant_name ? 'border-red-300' : 'border-gray-200'
           }`}
-          placeholder="John Doe"
+          placeholder="Enter full name"
           disabled={isLoading}
+          required
         />
         {errors.applicant_name && (
           <p className="mt-1 text-sm text-red-600">{errors.applicant_name}</p>
@@ -99,16 +113,21 @@ export default function LoanApplicationForm({ onSubmit, isLoading }: LoanApplica
             type="number"
             id="loan_amount"
             value={formData.loan_amount || ''}
-            onChange={(e) => setFormData({ ...formData, loan_amount: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => {
+              const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+              setFormData({ ...formData, loan_amount: isNaN(value) ? 0 : value });
+            }}
+            onBlur={() => handleBlur('loan_amount')}
             className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 ${
-              errors.loan_amount ? 'border-red-300' : 'border-gray-200'
+              errors.loan_amount && touched.loan_amount ? 'border-red-300' : 'border-gray-200'
             }`}
             placeholder="50000"
-            min="0"
-            step="1000"
+            min="1000"
+            step="1"
             disabled={isLoading}
+            required
           />
-          {errors.loan_amount && (
+          {errors.loan_amount && touched.loan_amount && (
             <p className="mt-1 text-sm text-red-600">{errors.loan_amount}</p>
           )}
         </div>
@@ -121,16 +140,21 @@ export default function LoanApplicationForm({ onSubmit, isLoading }: LoanApplica
             type="number"
             id="annual_income"
             value={formData.annual_income || ''}
-            onChange={(e) => setFormData({ ...formData, annual_income: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => {
+              const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+              setFormData({ ...formData, annual_income: isNaN(value) ? 0 : value });
+            }}
+            onBlur={() => handleBlur('annual_income')}
             className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 ${
-              errors.annual_income ? 'border-red-300' : 'border-gray-200'
+              errors.annual_income && touched.annual_income ? 'border-red-300' : 'border-gray-200'
             }`}
             placeholder="75000"
-            min="0"
-            step="1000"
+            min="10000"
+            step="1"
             disabled={isLoading}
+            required
           />
-          {errors.annual_income && (
+          {errors.annual_income && touched.annual_income && (
             <p className="mt-1 text-sm text-red-600">{errors.annual_income}</p>
           )}
         </div>
@@ -145,16 +169,20 @@ export default function LoanApplicationForm({ onSubmit, isLoading }: LoanApplica
             type="number"
             id="credit_score"
             value={formData.credit_score || ''}
-            onChange={(e) => setFormData({ ...formData, credit_score: e.target.value ? parseInt(e.target.value) : undefined })}
+            onChange={(e) => {
+              const value = e.target.value === '' ? undefined : parseInt(e.target.value);
+              setFormData({ ...formData, credit_score: value && !isNaN(value) ? value : undefined });
+            }}
+            onBlur={() => handleBlur('credit_score')}
             className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 ${
-              errors.credit_score ? 'border-red-300' : 'border-gray-200'
+              errors.credit_score && touched.credit_score ? 'border-red-300' : 'border-gray-200'
             }`}
-            placeholder="300-850"
+            placeholder="300-850 (optional)"
             min="300"
             max="850"
             disabled={isLoading}
           />
-          {errors.credit_score && (
+          {errors.credit_score && touched.credit_score && (
             <p className="mt-1 text-sm text-red-600">{errors.credit_score}</p>
           )}
         </div>
@@ -167,16 +195,20 @@ export default function LoanApplicationForm({ onSubmit, isLoading }: LoanApplica
             type="number"
             id="existing_debt"
             value={formData.existing_debt || ''}
-            onChange={(e) => setFormData({ ...formData, existing_debt: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => {
+              const value = e.target.value === '' ? 0 : parseFloat(e.target.value);
+              setFormData({ ...formData, existing_debt: isNaN(value) ? 0 : Math.max(0, value) });
+            }}
+            onBlur={() => handleBlur('existing_debt')}
             className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 ${
-              errors.existing_debt ? 'border-red-300' : 'border-gray-200'
+              errors.existing_debt && touched.existing_debt ? 'border-red-300' : 'border-gray-200'
             }`}
-            placeholder="15000"
+            placeholder="0 (optional)"
             min="0"
-            step="1000"
+            step="1"
             disabled={isLoading}
           />
-          {errors.existing_debt && (
+          {errors.existing_debt && touched.existing_debt && (
             <p className="mt-1 text-sm text-red-600">{errors.existing_debt}</p>
           )}
         </div>
@@ -209,13 +241,15 @@ export default function LoanApplicationForm({ onSubmit, isLoading }: LoanApplica
           id="loan_purpose"
           value={formData.loan_purpose}
           onChange={(e) => setFormData({ ...formData, loan_purpose: e.target.value })}
+          onBlur={() => handleBlur('loan_purpose')}
           className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 ${
-            errors.loan_purpose ? 'border-red-300' : 'border-gray-200'
+            errors.loan_purpose && touched.loan_purpose ? 'border-red-300' : 'border-gray-200'
           }`}
-          placeholder="Home improvement, Debt consolidation, etc."
+          placeholder="e.g., Home improvement, Debt consolidation"
           disabled={isLoading}
+          required
         />
-        {errors.loan_purpose && (
+        {errors.loan_purpose && touched.loan_purpose && (
           <p className="mt-1 text-sm text-red-600">{errors.loan_purpose}</p>
         )}
       </div>

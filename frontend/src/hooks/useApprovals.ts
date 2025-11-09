@@ -13,6 +13,11 @@ export function useApprovals({ apiBaseUrl, refreshInterval = 5000 }: UseApproval
   const [error, setError] = useState<string | null>(null);
 
   const fetchApprovals = useCallback(async () => {
+    if (!apiBaseUrl) {
+      setError('API base URL is not configured');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       setError(null);
@@ -21,24 +26,29 @@ export function useApprovals({ apiBaseUrl, refreshInterval = 5000 }: UseApproval
         const data = await response.json();
         setPendingApprovals(data.approvals || []);
       } else {
-        setError('Failed to fetch approvals');
+        const errorText = await response.text().catch(() => 'Unknown error');
+        setError(`Failed to fetch approvals: ${response.status} ${errorText}`);
       }
     } catch (err) {
       console.error('Error fetching approvals:', err);
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setError(err instanceof Error ? err.message : 'Failed to fetch approvals');
     } finally {
       setIsLoading(false);
     }
   }, [apiBaseUrl]);
 
   useEffect(() => {
+    if (!apiBaseUrl) {
+      return;
+    }
+    
     // Fetch on mount
     fetchApprovals();
     
     // Set up periodic refresh
     const interval = setInterval(fetchApprovals, refreshInterval);
     return () => clearInterval(interval);
-  }, [fetchApprovals, refreshInterval]);
+  }, [apiBaseUrl, fetchApprovals, refreshInterval]);
 
   const reviewApproval = useCallback(async (
     approvalId: string,

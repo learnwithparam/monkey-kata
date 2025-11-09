@@ -1,29 +1,32 @@
-# Loan Application Assistant - Agentic AI Workflows
+# Loan Application Assistant - Human Escalation Pattern
 
-Learn agentic AI workflows by building a loan application assistant where an AI agent autonomously performs multi-step analysis using tools, orchestrating complex workflows to analyze applications and prepare them for human review.
+Learn human escalation patterns by building a loan application assistant where an AI agent performs analysis but **requires human input at key decision points** and **mandatory human feedback for all final decisions**.
 
 ## Learning Objectives
 
-Master the fundamentals of **Agentic AI Workflows** using AutoGen:
+Master the fundamentals of **Human Escalation** patterns using AutoGen:
 
-  - **Multi-Step Agent Workflows:** Build an AI agent that autonomously performs complex, sequential analysis steps.
-  - **AI Tool Calling:** Give an agent tools to calculate metrics, assess risk, and generate comprehensive reports.
-  - **Agent Orchestration:** Watch the agent decide which tools to use and in what order to complete the analysis.
-  - **Streaming Workflows:** Display agent analysis in real-time as it performs each step.
-  - **Human Escalation:** After agent completes analysis, applications are escalated to humans for final decision.
+  - **Multi-Step Analysis with Escalation:** Build an AI agent that performs analysis but escalates to humans at key decision points.
+  - **Human Input During Workflow:** Implement escalation points where the agent pauses and requests human guidance.
+  - **Mandatory Human Feedback:** Require human reviewers to provide feedback/reasoning for all final decisions.
+  - **Escalation Checkpoints:** Design workflow checkpoints where human judgment is needed (borderline cases, edge cases, unclear information).
+  - **Final Human Decision:** Ensure all loan approvals/rejections require human decision with mandatory feedback.
 
 ## System Architecture
 
-This system demonstrates agentic workflows:
+This system demonstrates human escalation patterns:
 
 1.  **Form Submission:** User submits loan application via form.
-2.  **Agentic Analysis:** AI agent automatically performs multi-step analysis:
+2.  **Agentic Analysis with Escalation:** AI agent performs multi-step analysis:
     - Calculates debt-to-income ratio
     - Assesses credit risk
+    - **Escalates to human** at key decision points (borderline cases, unclear info, edge cases)
+    - Waits for human input before proceeding
     - Generates comprehensive analysis
-    - Creates review request
-3.  **Real-Time Display:** Analysis results stream to the frontend showing each step.
-4.  **Human Escalation:** Completed analyses appear in pending queue for human review.
+    - Creates review request for final human decision
+3.  **Real-Time Display:** Analysis results and escalation points stream to the frontend.
+4.  **Human Input Collection:** Frontend displays escalation questions and collects human responses.
+5.  **Final Human Decision:** All applications require human approval/rejection with **mandatory feedback**.
 
 <!-- end list -->
 

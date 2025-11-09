@@ -534,7 +534,7 @@ if OPENROUTER_AVAILABLE:
         - Consider using paid models for production workloads
         """
         
-        def __init__(self, api_key: str, model: str = "deepseek/deepseek-r1-0528-qwen3-8b:free"):
+        def __init__(self, api_key: str, model: str = "minimax/minimax-m2:free"):
             self.api_key = api_key
             self.model = model
             # OpenRouter uses OpenAI-compatible format with different base URL
@@ -885,7 +885,7 @@ Set environment variables to choose your provider:
 - OPENAI_API_KEY=your_key
 
 OpenRouter also supports:
-- OPENROUTER_MODEL=model-name (default: deepseek/deepseek-r1-0528-qwen3-8b:free - free model)
+- OPENROUTER_MODEL=model-name
 - OPENROUTER_HTTP_REFERER=your-url (optional)
 - OPENROUTER_APP_NAME=your-app-name (optional)
 """

@@ -91,19 +91,19 @@ FIREWORKS_MODEL=accounts/fireworks/models/qwen3-235b-a22b-instruct-2507
 ### OpenRouter
 
 - **Pros**: Access to many models (Claude, GPT-4, Llama, etc.), unified API
-- **Default Model**: `deepseek/deepseek-r1-0528-qwen3-8b:free` (free model)
+- **Default Model**: `minimax/minimax-m2:free` (free model)
 - **Best For**: Trying different models, cost-effective options
 
 ```bash
 OPENROUTER_API_KEY=your_key
-OPENROUTER_MODEL=deepseek/deepseek-r1-0528-qwen3-8b:free  # or anthropic/claude-3.5-sonnet, etc.
+OPENROUTER_MODEL=minimax/minimax-m2:free  # or anthropic/claude-3.5-sonnet, etc.
 # Optional headers
 OPENROUTER_HTTP_REFERER=https://your-app-url.com
 OPENROUTER_APP_NAME=Your App Name
 ```
 
 **Popular OpenRouter Models:**
-- `deepseek/deepseek-r1-0528-qwen3-8b:free` - Free, good quality
+- `minimax/minimax-m2:free` - Free, good quality
 - `anthropic/claude-3.5-sonnet` - High quality, paid
 - `google/gemini-flash-1.5` - Free, fast
 - `openai/gpt-4o-mini` - Cost-effective GPT-4 variant
