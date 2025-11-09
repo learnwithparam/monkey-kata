@@ -117,6 +117,23 @@ class LLMProvider(ABC):
         Use this for ChatGPT-like experiences.
         """
         pass
+    
+    async def generate_image(self, image_bytes: bytes, prompt: str, **kwargs) -> bytes:
+        """
+        Generate image from an input image and prompt (image-to-image)
+        
+        This is an optional method - not all providers support image generation.
+        Providers that don't support it should raise NotImplementedError.
+        
+        Args:
+            image_bytes: Input image as bytes
+            prompt: Text prompt describing the transformation
+            **kwargs: Additional parameters (model, size, etc.)
+            
+        Returns:
+            Generated image as bytes
+        """
+        pass
 
 
 # ============================================================================
@@ -486,6 +503,18 @@ if GEMINI_AVAILABLE:
                 except (asyncio.TimeoutError, Exception):
                     # Executor cleanup failed, but that's okay
                     pass
+        
+        async def generate_image(self, image_bytes: bytes, prompt: str, **kwargs) -> bytes:
+            """Generate image using Google Gemini (if image generation is available)"""
+            raise NotImplementedError(
+                "🎓 Learning Challenge: Gemini image generation is not yet implemented!\n\n"
+                "This is a great opportunity to learn:\n"
+                "1. Research Gemini's image generation API\n"
+                "2. Implement the generate_image() method for GeminiProvider\n"
+                "3. Test it with different image inputs\n"
+                "4. Compare results with Fireworks and OpenAI\n\n"
+                "For now, please use Fireworks AI (FLUX) or OpenAI (DALL-E)."
+            )
 
 
 # OpenAI Provider
@@ -539,6 +568,27 @@ if OPENAI_AVAILABLE:
                     # Apply post-processing to fix spacing and punctuation
                     content = _fix_streaming_chunk_spacing(chunk.choices[0].delta.content)
                     yield content
+        
+        async def generate_image(self, image_bytes: bytes, prompt: str, **kwargs) -> bytes:
+            """Generate image using OpenAI GPT Image (image-to-image with edit API)"""
+            import base64
+            import io
+            
+            image_model = kwargs.get('image_model') or os.getenv("IMAGE_MODEL", "gpt-image-1")
+            image_file = io.BytesIO(image_bytes)
+            
+            response = await self.client.images.edit(
+                model=image_model,
+                image=image_file,
+                prompt=prompt,
+                size="1024x1024"
+            )
+            
+            if response.data and len(response.data) > 0:
+                image_b64 = response.data[0].b64_json
+                return base64.b64decode(image_b64)
+            else:
+                raise Exception("No image data in OpenAI response")
 
 
 # OpenRouter Provider (OpenAI-Compatible API)
@@ -742,6 +792,18 @@ if OPENROUTER_AVAILABLE:
                     f"Model: {self.model}\n"
                 )
                 yield error_msg
+        
+        async def generate_image(self, image_bytes: bytes, prompt: str, **kwargs) -> bytes:
+            """Generate image using OpenRouter (supports various image models)"""
+            raise NotImplementedError(
+                "🎓 Learning Challenge: OpenRouter image generation is not yet implemented!\n\n"
+                "This is a great opportunity to learn:\n"
+                "1. Research OpenRouter's image generation API\n"
+                "2. Implement the generate_image() method for OpenRouterProvider\n"
+                "3. Test it with different image models (FLUX, DALL-E, etc.)\n"
+                "4. Compare results with Fireworks and OpenAI\n\n"
+                "For now, please use Fireworks AI (FLUX) or OpenAI (DALL-E)."
+            )
 
 
 # FireworksAI Provider
@@ -833,6 +895,79 @@ if FIREWORKS_AVAILABLE:
                     else:
                         error_text = await response.text()
                         raise Exception(f"FireworksAI API error {response.status}: {error_text}")
+        
+        async def generate_image(self, image_bytes: bytes, prompt: str, **kwargs) -> bytes:
+            """Generate image using Fireworks AI FLUX Kontext Pro model (image-to-image)"""
+            import base64
+            
+            base64_image = base64.b64encode(image_bytes).decode('utf-8')
+            image_model = kwargs.get('image_model') or os.getenv("IMAGE_MODEL", "accounts/fireworks/models/flux-kontext-pro")
+            
+            image_format = "jpeg"
+            if image_bytes.startswith(b'\x89PNG'):
+                image_format = "png"
+            elif image_bytes.startswith(b'RIFF') and b'WEBP' in image_bytes[:12]:
+                image_format = "webp"
+            
+            url = f"https://api.fireworks.ai/inference/v1/workflows/{image_model}"
+            
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "image/jpeg",
+                "Authorization": f"Bearer {self.api_key}",
+            }
+            
+            payload = {
+                "input_image": f"data:image/{image_format};base64,{base64_image}",
+                "prompt": prompt,
+                "seed": kwargs.get('seed', -1),
+                "aspect_ratio": kwargs.get('aspect_ratio', "1:1"),
+                "prompt_upsampling": kwargs.get('prompt_upsampling', False),
+                "safety_tolerance": kwargs.get('safety_tolerance', 2)
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        if "request_id" not in result:
+                            raise Exception(f"Fireworks API error: No request_id in response: {result}")
+                        
+                        request_id = result["request_id"]
+                        result_endpoint = f"{url}/get_result"
+                        
+                        for attempt in range(60):
+                            await asyncio.sleep(1)
+                            
+                            poll_payload = {"id": request_id}
+                            async with session.post(result_endpoint, headers=headers, json=poll_payload) as poll_response:
+                                if poll_response.status == 200:
+                                    poll_result = await poll_response.json()
+                                    status = poll_result.get("status")
+                                    
+                                    if status in ["Ready", "Complete", "Finished"]:
+                                        image_data = poll_result.get("result", {}).get("sample")
+                                        if image_data:
+                                            if isinstance(image_data, str) and image_data.startswith("http"):
+                                                async with session.get(image_data) as img_response:
+                                                    if img_response.status == 200:
+                                                        return await img_response.read()
+                                                    else:
+                                                        raise Exception(f"Failed to download image from URL: {image_data}")
+                                            else:
+                                                return base64.b64decode(image_data)
+                                    elif status in ["Failed", "Error"]:
+                                        error_details = poll_result.get("details", "Unknown error")
+                                        raise Exception(f"Fireworks generation failed: {error_details}")
+                                else:
+                                    if attempt == 59:
+                                        error_text = await poll_response.text()
+                                        raise Exception(f"Fireworks polling error {poll_response.status}: {error_text}")
+                        
+                        raise Exception("Fireworks image generation timed out after 60 attempts")
+                    else:
+                        error_text = await response.text()
+                        raise Exception(f"Fireworks API error {response.status}: {error_text}")
 
 
 # ============================================================================

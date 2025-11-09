@@ -18,6 +18,7 @@ import {
   EyeIcon,
   BriefcaseIcon,
   ChatBubbleLeftRightIcon,
+  PhotoIcon,
 } from '@heroicons/react/24/outline';
 
 export interface Demo {
@@ -117,6 +118,14 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/medical-office-triage",
         challengeHref: "/challenges/medical-office-triage",
         apiSlug: "medical_office_triage"
+      },
+      {
+        icon: <PhotoIcon className="w-8 h-8 text-pink-600 mr-4" />,
+        title: "Image to Coloring Book Converter",
+        description: "Upload a photo and convert it into a printable coloring book page with simple image processing",
+        demoHref: "/demos/image-to-drawing",
+        challengeHref: "/challenges/image-to-drawing",
+        apiSlug: "image_to_drawing"
       }
     ]
   },
