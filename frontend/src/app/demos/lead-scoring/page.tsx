@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { 
   UserGroupIcon,
@@ -8,11 +8,8 @@ import {
   ChartBarIcon,
   EnvelopeIcon,
   CheckBadgeIcon,
-  ExclamationTriangleIcon,
-  LightBulbIcon,
   ArrowTrendingUpIcon,
   UserIcon,
-  AcademicCapIcon,
   CogIcon,
   SparklesIcon,
 } from '@heroicons/react/24/outline';
@@ -20,6 +17,98 @@ import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import FileUpload from '@/components/demos/FileUpload';
+
+// Component to format reasoning text with proper structure
+const FormattedReasoning = ({ reason }: { reason: string }) => {
+  // Simple, safe formatting that doesn't break text into single letters
+  const formatReasoning = (text: string) => {
+    // Look for section headers like "SKILL MATCH: 23 points" or "Relevant Experience: 27 pts"
+    // Use a more specific pattern that matches full section names
+    const sectionHeaders = [
+      /(Skill\s+Match|SKILL\s+MATCH):\s*(\d+)\s*points?[–-]?\s*/gi,
+      /(Relevant\s+Experience|RELEVANT\s+EXPERIENCE):\s*(\d+)\s*points?[–-]?\s*/gi,
+      /(Quality\s*[&]\s*Depth|QUALITY\s*[&]\s*DEPTH):\s*(\d+)\s*points?[–-]?\s*/gi,
+      /(Cultural\s+Fit\s*[&]\s*Growth\s+Potential|CULTURAL\s+FIT\s*[&]\s*GROWTH\s+POTENTIAL):\s*(\d+)\s*points?[–-]?\s*/gi,
+      /(TOTAL|Total):\s*([^\n]+?)(?:\.|$|\n\n)/gi,  // Capture full calculation line until period, end, or double newline
+    ];
+    
+    const sections: Array<{ title: string; points: string; start: number; end: number }> = [];
+    
+    // Find all section headers
+    sectionHeaders.forEach((pattern) => {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        sections.push({
+          title: match[1],
+          points: match[2],
+          start: match.index,
+          end: match.index + match[0].length,
+        });
+      }
+    });
+    
+    // Sort sections by position
+    sections.sort((a, b) => a.start - b.start);
+    
+    // If we found sections, format them
+    if (sections.length > 0) {
+      const result: React.ReactElement[] = [];
+      
+      sections.forEach((section, idx) => {
+        const nextSectionStart = idx < sections.length - 1 ? sections[idx + 1].start : text.length;
+        let sectionText = text.substring(section.end, nextSectionStart).trim();
+        const isTotal = /^TOTAL|Total/i.test(section.title);
+        
+        // For TOTAL section, include the calculation in the points/display
+        if (isTotal) {
+          // The points field contains the full calculation (e.g., "23 + 19 + 14 + 11 = 67")
+          sectionText = section.points.trim();
+        }
+        
+        result.push(
+          <div key={idx} className={isTotal ? "mt-4 pt-3" : "mb-4 pb-3 border-b border-gray-200"}>
+            <div className="flex items-center mb-2">
+              <span className="font-semibold text-gray-900">{section.title}:</span>
+              {!isTotal && (
+                <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs font-medium">{section.points} pts</span>
+              )}
+            </div>
+            {sectionText && (
+              <p className="text-sm text-gray-700 mt-1 leading-relaxed whitespace-pre-line">{sectionText}</p>
+            )}
+          </div>
+        );
+      });
+      
+      return result;
+    }
+    
+    // Fallback: If no sections found, just display as paragraphs with proper line breaks
+    // Split by double newlines first
+    const paragraphs = text.split(/\n\n+/).filter(p => p.trim());
+    
+    if (paragraphs.length > 1) {
+      return paragraphs.map((para, idx) => (
+        <p key={idx} className="text-sm text-gray-700 mb-3 leading-relaxed whitespace-pre-line">
+          {para.trim()}
+        </p>
+      ));
+    }
+    
+    // Last resort: just display as-is with proper line breaks (no splitting)
+    return (
+      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+        {text}
+      </p>
+    );
+  };
+  
+  return (
+    <div className="text-sm text-gray-700">
+      {formatReasoning(reason)}
+    </div>
+  );
+};
 
 interface ProcessingStatus {
   session_id: string;
@@ -424,7 +513,7 @@ export default function LeadScoringDemo() {
                       )}
                       {processingStatus.workflow_stage === 'initial_scoring' && (
                         <p className="text-sm text-blue-700 mt-1">
-                          The HR Evaluation Agent is analyzing each candidate's skills, experience, and fit for the role.
+                          The HR Evaluation Agent is analyzing each candidate&apos;s skills, experience, and fit for the role.
                         </p>
                       )}
                     </div>
@@ -490,7 +579,8 @@ export default function LeadScoringDemo() {
                       <CircularProgress score={candidate.score} size="w-20 h-20" strokeWidth={6} />
                     </div>
                     <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                      <p className="text-sm text-gray-700"><strong>Reasoning:</strong> {candidate.reason}</p>
+                      <p className="text-sm font-semibold text-gray-900 mb-2">Reasoning:</p>
+                      <FormattedReasoning reason={candidate.reason} />
                     </div>
                   </div>
                 ))}
@@ -511,7 +601,7 @@ export default function LeadScoringDemo() {
                   <button
                     onClick={submitFeedback}
                     disabled={isProcessing || !feedback.trim()}
-                    className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isProcessing ? 'Re-scoring...' : 'Re-score with Feedback'}
                   </button>
@@ -526,11 +616,11 @@ export default function LeadScoringDemo() {
                   <button
                     onClick={generateEmails}
                     disabled={isGeneratingEmails}
-                    className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                    className="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                   >
                     {isGeneratingEmails ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                         Generating...
                       </>
                     ) : (
@@ -556,20 +646,20 @@ export default function LeadScoringDemo() {
                 <button
                   onClick={generateEmails}
                   disabled={isGeneratingEmails}
-                  className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                >
-                  {isGeneratingEmails ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <EnvelopeIcon className="w-5 h-5 mr-2" />
-                      Generate Emails
-                    </>
-                  )}
-                </button>
+                  className="bg-gray-900 hover:bg-gray-800 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                  >
+                    {isGeneratingEmails ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <EnvelopeIcon className="w-5 h-5 mr-2" />
+                        Generate Emails
+                      </>
+                    )}
+                  </button>
               </div>
 
               <div className="space-y-4 max-h-96 overflow-y-auto">

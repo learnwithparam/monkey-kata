@@ -508,7 +508,8 @@ async def get_status(session_id: str):
         progress=session.get("progress", 0),
         current_candidate=session.get("current_candidate"),
         scored_count=session.get("scored_count", 0),
-        workflow_stage=session.get("workflow_stage")
+        workflow_stage=session.get("workflow_stage"),
+        partial_results=session.get("partial_results", [])
     )
 
 
