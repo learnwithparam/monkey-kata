@@ -7,8 +7,6 @@ const challengeTitleMap: Record<string, string> = {
   "document-qa-chatbot": "Document QA Chatbot",
   "cv-analyzer": "CV Analyzer & Improvement Suggester",
   "travel-support": "Travel Customer Support Assistant",
-  "loan-application-assistant": "Loan Application Assistant",
-  "meal-prep-agent": "30-Day Meal Prep Agent",
   "restaurant-booking": "Restaurant Booking Voice AI",
   "medical-office-triage": "Medical Office Triage Voice AI",
 };

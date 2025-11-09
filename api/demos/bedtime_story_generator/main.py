@@ -41,7 +41,7 @@ from pydantic import BaseModel, Field
 from typing import AsyncGenerator
 import json
 
-from utils.llm_provider import get_llm_provider, get_provider_config
+from utils.llm_provider import get_llm_provider, get_provider_config, _fix_streaming_chunk_spacing
 
 # Create a router - groups all endpoints under /bedtime-story
 router = APIRouter(prefix="/bedtime-story", tags=["bedtime-story"])
@@ -187,6 +187,8 @@ async def generate_story_stream(request: StoryRequest) -> AsyncGenerator[str, No
                 temperature=0.8,  # Controls creativity (0.0 = deterministic, 1.0+ = creative)
                 max_tokens=800    # Limits story length
             ):
+                # Fix spacing issues in streaming chunks (e.g., "night,5-year-old" -> "night, 5-year-old")
+                chunk = _fix_streaming_chunk_spacing(chunk)
                 story_content += chunk
                 # Send each chunk to frontend as it arrives
                 yield f"data: {json.dumps({'content': chunk})}\n\n"

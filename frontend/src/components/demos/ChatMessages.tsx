@@ -7,6 +7,7 @@ import {
   ExclamationCircleIcon,
   CheckBadgeIcon 
 } from '@heroicons/react/24/outline';
+import { normalizeSpacing } from '@/utils/textFormatting';
 
 export interface ChatMessage {
   id: string;
@@ -24,6 +25,12 @@ export interface ChatMessage {
     url: string;
     content: string;
   }>;
+  approval?: {
+    approval_id: string;
+    step_name: string;
+    step_number: number;
+    content: Record<string, unknown>;
+  };
 }
 
 interface ChatMessagesProps {
@@ -38,6 +45,7 @@ interface ChatMessagesProps {
   expandedToolCalls?: Set<string>;
   onToggleSource?: (messageId: string) => void;
   expandedSources?: Set<string>;
+  renderApproval?: (approval: ChatMessage['approval']) => React.ReactNode;
 }
 
 export default function ChatMessages({
@@ -48,6 +56,7 @@ export default function ChatMessages({
   expandedToolCalls = new Set(),
   onToggleSource,
   expandedSources = new Set(),
+  renderApproval,
 }: ChatMessagesProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -68,7 +77,7 @@ export default function ChatMessages({
     displayMessages.push({
       id: 'current-answer',
       type: 'assistant',
-      content: currentAnswer,
+      content: normalizeSpacing(currentAnswer),
       timestamp: new Date(),
       isTyping: true,
     });
@@ -147,17 +156,41 @@ export default function ChatMessages({
                         
                         <div className="prose prose-sm max-w-none">
                           <div
-                            className={`leading-relaxed [&>p]:mb-3 [&>p:last-child]:mb-0 [&>ul]:list-disc [&>ul]:list-inside [&>ul]:mb-3 [&>ul]:space-y-2 [&>ol]:list-decimal [&>ol]:list-inside [&>ol]:mb-3 [&>ol]:space-y-2 [&>li]:text-gray-700 [&>strong]:font-semibold [&>strong]:text-gray-900 [&>em]:italic [&>em]:text-gray-800 [&>code]:bg-gray-100 [&>code]:px-2 [&>code]:py-1 [&>code]:rounded-md [&>code]:text-sm [&>code]:font-mono [&>pre]:bg-gray-100 [&>pre]:p-3 [&>pre]:rounded-lg [&>pre]:text-sm [&>pre]:font-mono [&>pre]:overflow-x-auto [&>h1]:text-lg [&>h1]:font-bold [&>h1]:text-gray-900 [&>h1]:mb-3 [&>h2]:text-base [&>h2]:font-bold [&>h2]:text-gray-900 [&>h2]:mb-3 [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mb-2 [&>blockquote]:border-l-4 [&>blockquote]:border-gray-300 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-gray-600 [&>blockquote]:mb-3 ${
+                            className={`leading-relaxed 
+                              [&>p]:mb-3 [&>p:last-child]:mb-0 
+                              [&>ul]:list-disc [&>ul]:list-outside [&>ul]:mb-3 [&>ul]:pl-6 [&>ul]:space-y-1.5 
+                              [&>ol]:list-decimal [&>ol]:list-outside [&>ol]:mb-3 [&>ol]:pl-6 [&>ol]:space-y-1.5 
+                              [&>li]:text-gray-700 [&>li]:mb-1 [&>li]:leading-relaxed
+                              [&>ul>li]:pl-1 [&>ol>li]:pl-1
+                              [&>ul>ul]:mt-2 [&>ul>ul]:mb-2 [&>ul>ul]:list-[circle] [&>ul>ul]:pl-6
+                              [&>ul>ul>ul]:list-[square] 
+                              [&>ol>ol]:mt-2 [&>ol>ol]:mb-2 [&>ol>ol]:list-[lower-alpha] [&>ol>ol]:pl-6
+                              [&>ol>ol>ol]:list-[lower-roman]
+                              [&>strong]:font-semibold [&>strong]:text-gray-900 
+                              [&>em]:italic [&>em]:text-gray-800 
+                              [&>code]:bg-gray-100 [&>code]:px-2 [&>code]:py-1 [&>code]:rounded-md [&>code]:text-sm [&>code]:font-mono [&>code]:text-gray-800
+                              [&>pre]:bg-gray-100 [&>pre]:p-3 [&>pre]:rounded-lg [&>pre]:text-sm [&>pre]:font-mono [&>pre]:overflow-x-auto [&>pre]:mb-3
+                              [&>pre>code]:bg-transparent [&>pre>code]:p-0
+                              [&>h1]:text-lg [&>h1]:font-bold [&>h1]:text-gray-900 [&>h1]:mb-3 [&>h1]:mt-4
+                              [&>h2]:text-base [&>h2]:font-bold [&>h2]:text-gray-900 [&>h2]:mb-3 [&>h2]:mt-4
+                              [&>h3]:text-sm [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mb-2 [&>h3]:mt-3
+                              [&>blockquote]:border-l-4 [&>blockquote]:border-gray-300 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-gray-600 [&>blockquote]:mb-3 [&>blockquote]:my-3
+                              [&>a]:text-blue-600 [&>a]:underline [&>a]:hover:text-blue-800
+                              [&>table]:w-full [&>table]:border-collapse [&>table]:mb-3 [&>table]:mt-3
+                              [&>table>thead]:bg-gray-100
+                              [&>table>thead>tr>th]:border [&>table>thead>tr>th]:border-gray-300 [&>table>thead>tr>th]:px-3 [&>table>thead>tr>th]:py-2 [&>table>thead>tr>th]:text-left [&>table>thead>tr>th]:font-semibold
+                              [&>table>tbody>tr>td]:border [&>table>tbody>tr>td]:border-gray-300 [&>table>tbody>tr>td]:px-3 [&>table>tbody>tr>td]:py-2
+                              [&>table>tbody>tr:nth-child(even)]:bg-gray-50
+                              [&>hr]:border-gray-300 [&>hr]:my-4
+                              ${
                               message.type === 'user' 
-                                ? 'text-white [&>strong]:text-white [&>em]:text-blue-100 [&>li]:text-blue-100 [&>h1]:text-white [&>h2]:text-white [&>h3]:text-white [&>blockquote]:text-blue-100 [&>code]:bg-blue-700 [&>code]:text-blue-100 [&>pre]:bg-blue-700 [&>pre]:text-blue-100'
+                                ? 'text-white [&>strong]:text-white [&>em]:text-blue-100 [&>li]:text-blue-100 [&>h1]:text-white [&>h2]:text-white [&>h3]:text-white [&>blockquote]:text-blue-100 [&>blockquote]:border-blue-400 [&>code]:bg-blue-700 [&>code]:text-blue-100 [&>pre]:bg-blue-700 [&>pre]:text-blue-100 [&>a]:text-blue-200 [&>a:hover]:text-blue-100 [&>table>thead]:bg-blue-800 [&>table>thead>tr>th]:border-blue-600 [&>table>thead>tr>th]:text-blue-100 [&>table>tbody>tr>td]:border-blue-600 [&>table>tbody>tr:nth-child(even)]:bg-blue-900 [&>hr]:border-blue-400'
                                 : 'text-gray-800'
                             }`}
                             dangerouslySetInnerHTML={{
-                              __html: marked(message.content || '', { 
+                              __html: marked(normalizeSpacing(message.content || ''), { 
                                 breaks: true, 
-                                gfm: true,
-                                headerIds: false,
-                                mangle: false
+                                gfm: true
                               }) as string
                             }}
                           />
@@ -227,6 +260,12 @@ export default function ChatMessages({
                                 ))}
                               </div>
                             )}
+                          </div>
+                        )}
+
+                        {message.approval && renderApproval && (
+                          <div className="mt-4">
+                            {renderApproval(message.approval)}
                           </div>
                         )}
                       </>

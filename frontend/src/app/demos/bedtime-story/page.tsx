@@ -6,6 +6,7 @@ import { BookOpenIcon } from '@heroicons/react/24/outline';
 import CustomSelect from '@/components/CustomSelect';
 import SubmitButton from '@/components/demos/SubmitButton';
 import AlertMessage from '@/components/demos/AlertMessage';
+import { normalizeSpacing } from '@/utils/textFormatting';
 
 interface StoryRequest {
   character_name: string;
@@ -321,7 +322,7 @@ export default function BedtimeStoryPage() {
                             <div
                               className="text-gray-800 leading-relaxed text-lg [&>p]:mb-4 [&>p:last-child]:mb-0"
                               dangerouslySetInnerHTML={{
-                                __html: story
+                                __html: normalizeSpacing(story)
                                   .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                                   .replace(/\*(.*?)\*/g, '<em>$1</em>')
                                   .replace(/\n\n+/g, '</p><p>')  // Handle multiple newlines

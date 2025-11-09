@@ -1,6 +1,7 @@
 'use client';
 
 import { BookOpenIcon } from '@heroicons/react/24/outline';
+import { normalizeSpacing } from '@/utils/textFormatting';
 
 interface StoryDisplayProps {
   story: string;
@@ -60,7 +61,7 @@ export default function StoryDisplay({
               <div 
                 className="text-gray-800 leading-relaxed text-lg"
                 dangerouslySetInnerHTML={{ 
-                  __html: story
+                  __html: normalizeSpacing(story)
                     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                     .replace(/\*(.*?)\*/g, '<em>$1</em>')
                     .replace(/\n\n/g, '</p><p>')

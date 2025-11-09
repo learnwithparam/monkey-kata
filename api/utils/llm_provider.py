@@ -27,6 +27,54 @@ from abc import ABC, abstractmethod
 from typing import AsyncGenerator, Optional
 import json
 import asyncio
+import re
+
+# ============================================================================
+# POST-PROCESSING UTILITIES
+# ============================================================================
+"""
+Post-processing for streaming chunks to fix spacing and punctuation issues.
+
+Some LLM providers return chunks without proper spacing, especially:
+- Numbers followed by words: "123abc" -> "123 abc"
+- Punctuation followed by words: ".next" -> ". next"
+- Missing spaces after punctuation: "word,word" -> "word, word"
+"""
+def _fix_streaming_chunk_spacing(chunk: str) -> str:
+    """
+    Fix spacing and punctuation issues in streaming chunks.
+    
+    This function handles common issues where LLM providers return chunks
+    without proper spacing between numbers, punctuation, and words.
+    
+    Args:
+        chunk: Raw text chunk from LLM provider
+        
+    Returns:
+        Chunk with fixed spacing and punctuation
+    """
+    if not chunk:
+        return chunk
+    
+    # Fix: number followed by letter (e.g., "123abc" -> "123 abc")
+    # But preserve common patterns like "3D", "2x", etc.
+    chunk = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', chunk)
+    
+    # Fix: letter followed by number when it should have space (e.g., "abc123" -> "abc 123")
+    # But be conservative - only when it's clearly a word boundary
+    # This is less common, so we'll skip it to avoid breaking things
+    
+    # Fix: punctuation followed by letter or number without space (e.g., ".next" -> ". next", ",word" -> ", word", ",5-year-old" -> ", 5-year-old")
+    # Common punctuation: . , ; : ! ? ) ] }
+    chunk = re.sub(r'([.,;:!?)\]}])([a-zA-Z0-9])', r'\1 \2', chunk)
+    
+    # Fix: letter followed by punctuation that should have space before (e.g., "word,word" -> "word, word")
+    # But preserve punctuation at end of words (e.g., "word." is fine)
+    # Only fix when punctuation is followed by a letter
+    chunk = re.sub(r'([a-zA-Z])([,;:])([a-zA-Z])', r'\1\2 \3', chunk)
+    
+    return chunk
+
 
 # ============================================================================
 # STEP 1: ABSTRACT BASE CLASS
@@ -418,6 +466,9 @@ if GEMINI_AVAILABLE:
                         # Normal completion - no errors
                         break
                     
+                    # Apply post-processing to fix spacing and punctuation
+                    chunk = _fix_streaming_chunk_spacing(chunk)
+                    
                     # Yield the chunk immediately
                     yield chunk
                     
@@ -485,7 +536,9 @@ if OPENAI_AVAILABLE:
             
             async for chunk in stream:
                 if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                    # Apply post-processing to fix spacing and punctuation
+                    content = _fix_streaming_chunk_spacing(chunk.choices[0].delta.content)
+                    yield content
 
 
 # OpenRouter Provider (OpenAI-Compatible API)
@@ -679,7 +732,9 @@ if OPENROUTER_AVAILABLE:
                 async for chunk in stream:
                     if chunk.choices and len(chunk.choices) > 0:
                         if chunk.choices[0].delta.content:
-                            yield chunk.choices[0].delta.content
+                            # Apply post-processing to fix spacing and punctuation
+                            content = _fix_streaming_chunk_spacing(chunk.choices[0].delta.content)
+                            yield content
             except (RateLimitError, APIError) as e:
                 # Handle errors during streaming
                 error_msg = (
@@ -770,7 +825,9 @@ if FIREWORKS_AVAILABLE:
                                     if 'choices' in chunk and len(chunk['choices']) > 0:
                                         delta = chunk['choices'][0].get('delta', {})
                                         if 'content' in delta:
-                                            yield delta['content']
+                                            # Apply post-processing to fix spacing and punctuation
+                                            content = _fix_streaming_chunk_spacing(delta['content'])
+                                            yield content
                                 except json.JSONDecodeError:
                                     continue
                     else:

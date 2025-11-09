@@ -1,9 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Approval } from '@/components/demos/ApprovalList';
+
+// Generic approval type for use across different demos
+export interface Approval {
+  approval_id: string;
+  application_id: string;
+  applicant_name?: string;
+  status: string;
+  recommendation?: string;
+  risk_score?: number;
+  loan_amount?: number;
+  ai_analysis?: string;
+  created_at?: string;
+  reviewed_at?: string;
+  reviewer_feedback?: string;
+  [key: string]: unknown; // Allow additional properties for different demo types
+}
 
 interface UseApprovalsOptions {
   apiBaseUrl: string;
-  refreshInterval?: number;
+  refreshInterval?: number; // Set to 0 to disable automatic polling
 }
 
 export function useApprovals({ apiBaseUrl, refreshInterval = 5000 }: UseApprovalsOptions) {
@@ -42,12 +57,15 @@ export function useApprovals({ apiBaseUrl, refreshInterval = 5000 }: UseApproval
       return;
     }
     
-    // Fetch on mount
-    fetchApprovals();
-    
-    // Set up periodic refresh
-    const interval = setInterval(fetchApprovals, refreshInterval);
-    return () => clearInterval(interval);
+    // Only set up periodic refresh if refreshInterval > 0
+    // Don't fetch on mount - let components fetch manually when needed
+    if (refreshInterval && refreshInterval > 0) {
+      // Fetch once on mount, then set up interval
+      fetchApprovals();
+      const interval = setInterval(fetchApprovals, refreshInterval);
+      return () => clearInterval(interval);
+    }
+    // If refreshInterval is 0, don't fetch automatically at all
   }, [apiBaseUrl, fetchApprovals, refreshInterval]);
 
   const reviewApproval = useCallback(async (

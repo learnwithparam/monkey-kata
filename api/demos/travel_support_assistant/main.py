@@ -60,6 +60,7 @@ import logging
 import random
 
 from utils.llm_provider import get_provider_config
+import re
 
 # AutoGen imports
 try:
@@ -98,6 +99,35 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/travel-support", tags=["travel-support"])
+
+
+def _fix_streaming_chunk_spacing(chunk: str) -> str:
+    """
+    Fix spacing and punctuation issues in streaming chunks.
+    
+    This function handles common issues where LLM providers return chunks
+    without proper spacing between numbers, punctuation, and words.
+    Same implementation as in llm_provider.py for consistency.
+    
+    Args:
+        chunk: Raw text chunk from LLM provider
+        
+    Returns:
+        Chunk with fixed spacing and punctuation
+    """
+    if not chunk:
+        return chunk
+    
+    # Fix: number followed by letter (e.g., "123abc" -> "123 abc")
+    chunk = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', chunk)
+    
+    # Fix: punctuation followed by letter without space (e.g., ".next" -> ". next", ",word" -> ", word")
+    chunk = re.sub(r'([.,;:!?)\]}])([a-zA-Z])', r'\1 \2', chunk)
+    
+    # Fix: letter followed by punctuation that should have space after (e.g., "word,word" -> "word, word")
+    chunk = re.sub(r'([a-zA-Z])([,;:])([a-zA-Z])', r'\1\2 \3', chunk)
+    
+    return chunk
 
 # ============================================================================
 # DATABASE & STATE (In-Memory Storage)
@@ -631,20 +661,17 @@ def create_agent_with_tools(session_id: str) -> AssistantAgent:
             name="travel_support_assistant",
             model_client=model_client,
             system_message="""You are a professional travel customer support assistant (like Booking.com support).
-Your role is to help customers with:
-- Booking lookups and status checks
-- Hotel searches and reservations
-- Flight status inquiries
-- Taxi bookings
-- Booking modifications and cancellations
+Your role is to help customers with booking lookups, hotel searches, flight status inquiries, taxi bookings, and booking modifications.
 
 Guidelines:
-- Be professional, clear, and concise
+- Write in natural, conversational English - avoid bullet points and lists unless absolutely necessary
+- Be professional, clear, and helpful
 - Do NOT use emojis or casual language
-- Use proper formatting with clear spacing and line breaks
-- Format lists and information in a structured, easy-to-read manner
+- When presenting information, write it as flowing prose rather than structured lists
+- For example, instead of "• Hotel: Grand Hotel • Check-in: 2024-02-15", write "Your booking is at the Grand Hotel with a check-in date of February 15, 2024."
+- Use complete sentences and proper punctuation
 - Use the available tools to access booking data and perform actions
-- Always provide accurate, helpful information to customers""",
+- Always provide accurate, helpful information to customers in a natural, easy-to-read format""",
             tools=AVAILABLE_TOOLS,  # Pass tools as a list
             model_client_stream=True,  # Enable streaming
             reflect_on_tool_use=True,  # Reflect on tool results before responding
@@ -778,6 +805,11 @@ async def generate_chat_stream(
             # Handle streaming text chunks
             elif isinstance(event, ModelClientStreamingChunkEvent):
                 chunk = event.content
+                
+                # Apply post-processing to fix spacing and punctuation issues
+                # (same as in document_qa_chatbot and bedtime_story_generator)
+                chunk = _fix_streaming_chunk_spacing(chunk)
+                
                 final_response += chunk
                 # Stream chunk to frontend
                 yield f"data: {json.dumps({'content': chunk, 'type': 'text'})}\n\n"
