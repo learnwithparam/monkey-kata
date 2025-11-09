@@ -75,8 +75,8 @@ Follow these incremental challenges to build your application. Each one adds a n
 - **Your Task:**
 
   1. Implement a CSV parser that reads candidate data (id, name, email, bio, skills).
-  2. Define your `CrewAI` **Agents** (e.g., `HRAnalyst`) and **Tasks** (e.g., `score_candidate_task`) in Python.
-  3. Create a `LeadScoreCrew` using these agents and tasks.
+  2. Define your `CrewAI` **Agents** (e.g., `Senior HR Evaluation Expert`) and **Tasks** (e.g., evaluation task) in Python.
+  3. Create a crew using these agents and tasks.
   4. In your API, create a loop that iterates through each candidate *sequentially* and calls the `crew.kickoff()` method.
   5. Display the scores in a simple list.
 
@@ -169,7 +169,7 @@ Follow these incremental challenges to build your application. Each one adds a n
 
   ```mermaid
   graph TD
-      A[Human Clicks Proceed with Top 3 Candidates] --> B[FastAPI Endpoint]
+      A[Human Clicks Generate Emails] --> B[FastAPI Endpoint]
       B --> C[Lead Response Crew Parallel]
       
       subgraph Parallel[Parallel Email Generation]
@@ -193,12 +193,12 @@ Follow these incremental challenges to build your application. Each one adds a n
 
 - **Your Task:**
 
-  1. Define a *new* set of agents and tasks for email generation (e.g., `EmailPersonalizerAgent`, `EmailFormatterTask`).
-  2. Create a new `LeadResponseCrew`.
+  1. Define a *new* set of agents and tasks for email generation. Create an **HR Coordinator** agent (role: "HR Coordinator") that specializes in crafting personalized emails.
+  2. Create an email generation crew with the HR Coordinator agent and an email task.
   3. Add a "Generate Emails" button in the Top Candidates section (from Challenge 3).
-  4. When the user clicks "Generate Emails", send all candidates (with their scores and reasoning) to a new API endpoint.
-  5. This endpoint will, in parallel (using `asyncio.gather()`), run the `LeadResponseCrew` for each candidate.
-  6. The crew's task should be: "Based on this candidate's profile [profile], their score [score], and the reason [reasoning], write a personalized invitation for a Zoom call" for top 3 candidates, or "write a polite rejection email" for others.
+  4. When the user clicks "Generate Emails", send **all candidates** (with their scores and reasoning) to a new API endpoint.
+  5. This endpoint will, in parallel (using `asyncio.gather()`), run the email generation crew for **each candidate**.
+  6. The crew's task should be: "Based on this candidate's profile [profile], their score [score], and the reason [reasoning], write a personalized invitation for a Zoom call" for **top 3 candidates**, or "write a polite rejection email" for **all other candidates**.
   7. Display the generated emails in the UI.
 
 - **Key Concepts:** **Multi-Crew Orchestration**, **Separation of Concerns**, State Handoff, Task Specialization.
@@ -269,7 +269,7 @@ OPENAI_API_KEY=your_key_here
 
 **Next Steps:**
 
-- **Implement Email Templates:** Add customizable email templates that your `LeadResponseCrew` can use.
+- **Implement Email Templates:** Add customizable email templates that your email generation crew can use.
 
 - **Add Analytics Dashboard:** Track scoring trends and email open/response rates.
 
