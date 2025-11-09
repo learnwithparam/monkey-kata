@@ -26,6 +26,11 @@ interface ProcessingStatus {
   status: string;
   message: string;
   total_leads: number;
+  progress?: number;
+  current_candidate?: string | null;
+  scored_count?: number;
+  workflow_stage?: string | null;
+  partial_results?: ScoredLead[];
 }
 
 interface ScoredLead {
@@ -115,10 +120,18 @@ export default function LeadScoringDemo() {
         
         setProcessingStatus(status);
         
+        // Update partial results in real-time as candidates are scored
+        if (status.partial_results && status.partial_results.length > 0) {
+          setAllCandidates(status.partial_results);
+          // Show top 3 from partial results
+          const top3 = status.partial_results.slice(0, 3);
+          setTopCandidates(top3);
+        }
+        
         if (status.status === 'completed') {
           clearInterval(pollInterval);
           setIsProcessing(false);
-          // Automatically fetch top candidates
+          // Automatically fetch top candidates (final results)
           fetchTopCandidates(sessionId);
         } else if (status.status === 'error') {
           clearInterval(pollInterval);
@@ -131,7 +144,7 @@ export default function LeadScoringDemo() {
         setIsProcessing(false);
         setError('Failed to check processing status');
       }
-    }, 2000);
+    }, 1000); // Poll more frequently for real-time updates
   };
 
   const fetchTopCandidates = async (sessionId: string) => {
@@ -172,7 +185,8 @@ export default function LeadScoringDemo() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to submit feedback');
+        const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+        throw new Error(errorData.detail || `Failed to submit feedback: ${response.status}`);
       }
 
       const result = await response.json();
@@ -374,12 +388,70 @@ export default function LeadScoringDemo() {
               </ProcessingButton>
 
               {processingStatus && (
-                <StatusIndicator
-                  status={processingStatus.status}
-                  message={processingStatus.message}
-                  progress={processingStatus.status === 'completed' ? 100 : processingStatus.status === 'error' ? 0 : 50}
-                  documentsCount={processingStatus.total_leads}
-                />
+                <div className="space-y-4">
+                  {/* Workflow Stage Indicator */}
+                  {processingStatus.workflow_stage && (
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center">
+                          {processingStatus.workflow_stage === 'rescoring' ? (
+                            <>
+                              <CogIcon className="w-5 h-5 text-purple-600 mr-2 animate-spin" />
+                              <span className="font-semibold text-purple-900">Re-scoring with Feedback</span>
+                            </>
+                          ) : processingStatus.workflow_stage === 'initial_scoring' ? (
+                            <>
+                              <ChartBarIcon className="w-5 h-5 text-blue-600 mr-2" />
+                              <span className="font-semibold text-blue-900">Initial AI Scoring</span>
+                            </>
+                          ) : (
+                            <>
+                              <EnvelopeIcon className="w-5 h-5 text-green-600 mr-2" />
+                              <span className="font-semibold text-green-900">Email Generation</span>
+                            </>
+                          )}
+                        </div>
+                        {processingStatus.workflow_stage === 'rescoring' && (
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                            Incorporating your feedback
+                          </span>
+                        )}
+                      </div>
+                      {processingStatus.workflow_stage === 'rescoring' && (
+                        <p className="text-sm text-purple-700 mt-1">
+                          The HR Evaluation Agent is re-analyzing candidates using your feedback to improve scoring accuracy.
+                        </p>
+                      )}
+                      {processingStatus.workflow_stage === 'initial_scoring' && (
+                        <p className="text-sm text-blue-700 mt-1">
+                          The HR Evaluation Agent is analyzing each candidate's skills, experience, and fit for the role.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <StatusIndicator
+                    status={processingStatus.status}
+                    message={processingStatus.message}
+                    progress={processingStatus.progress ?? (processingStatus.status === 'completed' ? 100 : processingStatus.status === 'error' ? 0 : 0)}
+                    documentsCount={processingStatus.total_leads}
+                  />
+                  
+                  {processingStatus.current_candidate && processingStatus.status === 'scoring' && (
+                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                      <div className="flex items-center text-sm">
+                        <UserIcon className="w-4 h-4 text-gray-500 mr-2" />
+                        <span className="text-gray-600">Currently evaluating:</span>
+                        <span className="font-semibold text-gray-900 ml-2">{processingStatus.current_candidate}</span>
+                        {processingStatus.scored_count !== undefined && processingStatus.total_leads > 0 && (
+                          <span className="ml-auto text-gray-500">
+                            {processingStatus.scored_count}/{processingStatus.total_leads}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -392,7 +464,7 @@ export default function LeadScoringDemo() {
                   <SparklesIcon className="w-6 h-6 text-yellow-600" />
                 </div>
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Top 3 Candidates</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Top Candidates</h2>
                   <p className="text-sm sm:text-base text-gray-600">Review and provide feedback to refine scoring</p>
                 </div>
               </div>
@@ -425,23 +497,50 @@ export default function LeadScoringDemo() {
               </div>
 
               {/* Feedback Section */}
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4">Provide Feedback (Optional)</h3>
-                <textarea
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  placeholder="E.g., 'Focus more on React experience' or 'Prioritize candidates with AI experience'..."
-                  className="w-full px-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all duration-200 mb-4"
-                  rows={3}
-                  disabled={isProcessing}
-                />
-                <button
-                  onClick={submitFeedback}
-                  disabled={isProcessing || !feedback.trim()}
-                  className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isProcessing ? 'Re-scoring...' : 'Re-score with Feedback'}
-                </button>
+              <div className="border-t border-gray-200 pt-6 space-y-4">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Provide Feedback (Optional)</h3>
+                  <textarea
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    placeholder="E.g., 'Focus more on Python experience' or 'Prioritize candidates with AI/ML experience'..."
+                    className="w-full px-4 py-4 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all duration-200 mb-4"
+                    rows={3}
+                    disabled={isProcessing}
+                  />
+                  <button
+                    onClick={submitFeedback}
+                    disabled={isProcessing || !feedback.trim()}
+                    className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isProcessing ? 'Re-scoring...' : 'Re-score with Feedback'}
+                  </button>
+                </div>
+
+                {/* Generate Emails Button */}
+                <div className="border-t border-gray-200 pt-4">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Generate Emails</h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Generate personalized emails for all candidates. Top 3 will receive invitation emails, others will receive polite rejections.
+                  </p>
+                  <button
+                    onClick={generateEmails}
+                    disabled={isGeneratingEmails}
+                    className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                  >
+                    {isGeneratingEmails ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <EnvelopeIcon className="w-5 h-5 mr-2" />
+                        Generate Emails
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -549,6 +648,105 @@ export default function LeadScoringDemo() {
               </div>
             </div>
           )}
+        </div>
+
+        {/* How It Works Section */}
+        <div className="mt-16 sm:mt-20">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">How It Works</h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Learn how CrewAI orchestrates multiple specialized agents to score candidates and generate personalized emails
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+            {/* Step 1 */}
+            <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-lg mb-4">
+                <span className="text-2xl font-bold text-blue-600">1</span>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Upload & Parse</h3>
+              <p className="text-gray-600 text-sm sm:text-base">
+                Upload a CSV file with candidate data (id, name, email, bio, skills). The system parses and validates the data.
+              </p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-lg mb-4">
+                <span className="text-2xl font-bold text-purple-600">2</span>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">AI Scoring</h3>
+              <p className="text-gray-600 text-sm sm:text-base">
+                A specialized HR Evaluation Agent scores each candidate (1-100) based on skill match, experience, quality, and cultural fit using CrewAI.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-lg mb-4">
+                <span className="text-2xl font-bold text-yellow-600">3</span>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Human Review</h3>
+              <p className="text-gray-600 text-sm sm:text-base">
+                Review the top 3 candidates and provide feedback. The system re-scores candidates incorporating your feedback (Human-in-the-Loop).
+              </p>
+            </div>
+
+            {/* Step 4 */}
+            <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200">
+              <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-lg mb-4">
+                <span className="text-2xl font-bold text-green-600">4</span>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Email Generation</h3>
+              <p className="text-gray-600 text-sm sm:text-base">
+                An Email Followup Agent generates personalized emails. Top candidates get invitation emails, others receive polite rejections.
+              </p>
+            </div>
+          </div>
+
+          {/* Key Concepts */}
+          <div className="mt-12 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-8 sm:p-10 border border-blue-100">
+            <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">Key Learning Concepts</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="bg-white rounded-lg p-5 shadow-sm">
+                <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+                  CrewAI Crews
+                </h4>
+                <p className="text-sm text-gray-600">
+                  Specialized teams of agents (HR Evaluation Agent, Email Followup Agent) working together to complete complex tasks.
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-5 shadow-sm">
+                <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
+                  <span className="w-2 h-2 bg-purple-500 rounded-full mr-2"></span>
+                  Human-in-the-Loop
+                </h4>
+                <p className="text-sm text-gray-600">
+                  Integrate human feedback into AI workflows to refine scoring and improve results based on domain expertise.
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-5 shadow-sm">
+                <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
+                  <span className="w-2 h-2 bg-yellow-500 rounded-full mr-2"></span>
+                  Parallel Processing
+                </h4>
+                <p className="text-sm text-gray-600">
+                  Score multiple candidates concurrently using asyncio for efficient batch processing of large candidate lists.
+                </p>
+              </div>
+              <div className="bg-white rounded-lg p-5 shadow-sm">
+                <h4 className="font-semibold text-gray-900 mb-2 flex items-center">
+                  <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+                  Structured Outputs
+                </h4>
+                <p className="text-sm text-gray-600">
+                  Use Pydantic models with CrewAI to ensure consistent, validated outputs (CandidateScore) from AI agents.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

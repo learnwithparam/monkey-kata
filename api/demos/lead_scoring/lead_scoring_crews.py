@@ -88,35 +88,74 @@ async def score_candidate(
             llm=llm,
         )
         
-        # Create evaluation task
-        task_description = f"""Evaluate a candidate's bio based on the provided job description.
+        # Create evaluation task with detailed scoring criteria
+        task_description = f"""You are evaluating a candidate for a specific job position. Your task is to provide a PRECISE and GRANULAR score (1-100) based on how well the candidate matches the job requirements.
 
-Use your expertise to carefully assess how well the candidate fits the job requirements. Consider key factors such as:
-- Skill match
-- Relevant experience
-- Cultural fit
-- Growth potential
+CRITICAL SCORING RULES:
+- Use the FULL 1-100 range - don't cluster scores around similar numbers
+- Use SPECIFIC numbers like 87, 73, 64, 52, 41 - NOT round numbers like 85, 75, 65, 50
+- Even candidates with similar backgrounds MUST receive DIFFERENT scores (at least 3-5 point difference)
+- Be granular: If two candidates are close, differentiate by 3-7 points based on subtle differences
+- NO two candidates should have identical scores unless they are truly identical (which is extremely rare)
 
-CANDIDATE BIO
--------------
+DETAILED SCORING CRITERIA (Calculate each dimension precisely):
+1. SKILL MATCH (0-30 points): Count exact skill matches from job description
+   - 5+ exact matches: 27-30 points (be specific: 28, 29, 30)
+   - 3-4 exact matches: 20-26 points (be specific: 21, 23, 25)
+   - 1-2 exact matches: 12-19 points (be specific: 14, 16, 18)
+   - Partial matches only: 6-11 points (be specific: 7, 9, 11)
+   - No relevant skills: 0-5 points (be specific: 2, 3, 4)
+
+2. RELEVANT EXPERIENCE (0-30 points): Assess depth and relevance of experience
+   - 3+ years relevant experience: 26-30 points (be specific: 27, 28, 30)
+   - 1-2 years relevant experience: 18-25 points (be specific: 19, 22, 24)
+   - Some relevant projects/internships: 10-17 points (be specific: 12, 14, 16)
+   - Limited/unrelated experience: 3-9 points (be specific: 4, 6, 8)
+   - No relevant experience: 0-2 points (be specific: 0, 1, 2)
+
+3. QUALITY & DEPTH (0-25 points): Evaluate achievements and project quality
+   - Exceptional: Published work, major projects, leadership: 22-25 points (be specific: 23, 24, 25)
+   - Strong: Multiple quality projects, good portfolio: 16-21 points (be specific: 17, 19, 20)
+   - Good: Some projects, decent portfolio: 10-15 points (be specific: 11, 13, 14)
+   - Basic: Simple projects, minimal portfolio: 4-9 points (be specific: 5, 7, 8)
+   - Minimal: Little to show: 0-3 points (be specific: 1, 2, 3)
+
+4. CULTURAL FIT & GROWTH POTENTIAL (0-15 points): Assess fit and potential
+   - Excellent indicators: 13-15 points (be specific: 13, 14, 15)
+   - Good indicators: 9-12 points (be specific: 9, 10, 11)
+   - Some indicators: 5-8 points (be specific: 5, 6, 7)
+   - Unclear/limited: 0-4 points (be specific: 1, 2, 3)
+
+CALCULATION PROCESS:
+1. Score each dimension independently using the ranges above
+2. Sum the four dimensions to get total score (0-100)
+3. If total is above 100, cap at 100
+4. Use SPECIFIC numbers - avoid clustering at 75, 80, 85, etc.
+5. Ensure granularity: If calculating 18+22+15+12=67, consider if it should be 65, 68, or 71 based on nuances
+
+CANDIDATE INFORMATION
+---------------------
 Candidate ID: {candidate.id}
 Name: {candidate.name}
-Bio:
-{candidate.bio}
+Bio: {candidate.bio}
+Skills: {candidate.skills}
 
 JOB DESCRIPTION
 ---------------
-{job_description}
+{job_description if job_description else "No specific job description provided. Evaluate based on general software engineering/technical skills."}
 
-ADDITIONAL INSTRUCTIONS
------------------------
-Your final answer MUST include:
-- The candidates unique ID
-- A score between 1 and 100. Don't use numbers like 100, 75, or 50. Instead, use specific numbers like 87, 63, or 42.
-- A detailed reasoning, considering the candidate's skill match, experience, cultural fit, and growth potential.
 {additional_feedback}
 
-Expected output: A very specific score from 1 to 100 for the candidate, along with a detailed reasoning explaining why you assigned this score."""
+YOUR TASK:
+1. Calculate each dimension score separately (be specific, not round numbers)
+2. Sum them to get total score (use granular numbers like 67, 73, 81, not 70, 75, 80)
+3. Provide detailed reasoning showing your calculation for each dimension
+4. Include the candidate's unique ID: {candidate.id}
+
+REMEMBER: 
+- Use granular scoring (67, 73, 81) NOT round numbers (70, 75, 80)
+- Even similar candidates must differ by at least 3-5 points
+- Show your work: explain how you calculated each dimension score"""
         
         evaluate_task = Task(
             description=task_description,
@@ -136,15 +175,34 @@ Expected output: A very specific score from 1 to 100 for the candidate, along wi
         # Run crew in thread pool to avoid blocking
         result = await asyncio.to_thread(crew.kickoff)
         
-        if hasattr(result, 'pydantic'):
-            return result.pydantic
-        else:
-            logger.warning(f"Result doesn't have pydantic attribute for candidate {candidate.id}")
-            return CandidateScore(
-                id=candidate.id,
-                score=75,
-                reason="Score generated successfully"
-            )
+        # Try to extract Pydantic result
+        if hasattr(result, 'pydantic') and result.pydantic:
+            score_result = result.pydantic
+            logger.info(f"Successfully scored candidate {candidate.id} ({candidate.name}): {score_result.score}")
+            return score_result
+        elif hasattr(result, 'raw'):
+            # Fallback: try to parse from raw output
+            logger.warning(f"Result doesn't have pydantic attribute for candidate {candidate.id}, trying raw output")
+            raw_output = str(result.raw) if hasattr(result.raw, '__str__') else str(result)
+            logger.debug(f"Raw output for candidate {candidate.id}: {raw_output[:200]}")
+            # Try to extract score from raw output (basic fallback)
+            import re
+            score_match = re.search(r'score["\']?\s*[:=]\s*(\d+)', raw_output, re.IGNORECASE)
+            if score_match:
+                extracted_score = int(score_match.group(1))
+                return CandidateScore(
+                    id=candidate.id,
+                    score=extracted_score,
+                    reason=f"Score extracted from output: {raw_output[:200]}"
+                )
+        
+        # Last resort fallback
+        logger.error(f"Could not extract score for candidate {candidate.id} from result: {type(result)}")
+        return CandidateScore(
+            id=candidate.id,
+            score=50,  # Neutral score instead of 75
+            reason="Error: Could not parse score from agent output. Please check logs."
+        )
     except Exception as e:
         logger.error(f"Error scoring candidate {candidate.id}: {e}")
         return CandidateScore(
@@ -157,27 +215,44 @@ Expected output: A very specific score from 1 to 100 for the candidate, along wi
 async def score_candidates_parallel(
     candidates: List[Candidate],
     job_description: str,
-    additional_feedback: str = ""
+    additional_feedback: str = "",
+    progress_callback=None
 ) -> List[CandidateScore]:
     """
-    Score multiple candidates in parallel
+    Score multiple candidates in parallel with progress tracking
     
     This function creates scoring tasks for all candidates and runs them
-    concurrently using asyncio.gather().
+    concurrently using asyncio.gather(), with progress updates.
     
     Args:
         candidates: List of candidates to score
         job_description: Job description to score against
         additional_feedback: Optional feedback for scoring refinement
+        progress_callback: Optional callback function(current_index, total, candidate_name)
     
     Returns:
         List of CandidateScore objects
     """
-    tasks = [asyncio.create_task(score_candidate(c, job_description, additional_feedback)) for c in candidates]
-    candidate_scores = await asyncio.gather(*tasks)
+    total = len(candidates)
+    results = []
     
-    logger.info(f"Finished scoring {len(candidate_scores)} candidates")
-    return list(candidate_scores)
+    # Process candidates one by one to provide progress updates
+    # (We could do batches, but one-by-one gives better progress granularity)
+    for idx, candidate in enumerate(candidates):
+        # Update progress before scoring
+        if progress_callback:
+            progress_callback(idx, total, candidate.name, None)
+        
+        # Score the candidate
+        score = await score_candidate(candidate, job_description, additional_feedback)
+        results.append(score)
+        
+        # Update progress after scoring with the actual score result
+        if progress_callback:
+            progress_callback(idx + 1, total, None, score)
+    
+    logger.info(f"Finished scoring {len(results)} candidates")
+    return results
 
 
 # ============================================================================

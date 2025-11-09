@@ -67,38 +67,45 @@ llm_provider = get_llm_provider()
 
 # Default job description
 JOB_DESCRIPTION = """
-# Junior React Developer
+# Python & AI Engineer
 
-**Position:** Junior React Developer  
+**Position:** Python & AI Engineer  
 **Duration:** 12-month contract with the possibility of extension based on performance and project needs.
 
-We are seeking a motivated Junior React Developer to join our team and assist in the development of our cutting-edge Next.js web application. This project integrates the Vercel AI SDK to enhance user experience with advanced AI-driven features. 
+We are seeking a motivated Python & AI Engineer to join our team and assist in the development of our cutting-edge AI-powered backend systems. This project involves building scalable APIs, integrating AI/ML models, and developing robust backend services using Python and modern frameworks.
 
 **Key Responsibilities:**
-- Develop and maintain React components and Next.js applications.
-- Integrate AI-driven features using the Vercel AI SDK.
-- Collaborate with senior developers to design and implement new features.
-- Optimize application performance and ensure responsiveness across different devices.
+- Develop and maintain Python-based backend services and RESTful APIs.
+- Integrate AI/ML models and LLM APIs (OpenAI, Anthropic, etc.) into backend services.
+- Build scalable microservices using FastAPI, Flask, or similar frameworks.
+- Work with databases (PostgreSQL, MongoDB) and design efficient data models.
+- Implement async processing, background jobs, and task queues.
+- Collaborate with senior engineers to design and implement new features.
+- Optimize API performance, handle caching, and ensure system reliability.
 - Participate in code reviews and contribute to best practices.
-- Troubleshoot and debug issues to ensure the highest quality of the web application.
+- Troubleshoot and debug issues to ensure the highest quality of backend services.
 
 **Qualifications:**
-- 1-2 years of experience in front-end development with React and Next.js.
-- Proficiency in JavaScript, TypeScript, CSS, and HTML.
-- Experience with Git and RESTful APIs.
-- Familiarity with Vercel AI SDK is a plus.
+- 1-3 years of experience in backend development with Python.
+- Proficiency in Python, async/await, and modern Python frameworks (FastAPI, Flask, Django).
+- Experience with Node.js or similar backend technologies is a plus.
+- Strong understanding of RESTful APIs, GraphQL, and API design principles.
+- Experience with AI/ML libraries (LangChain, CrewAI, OpenAI SDK) is highly desirable.
+- Familiarity with databases (SQL and NoSQL), ORMs, and data modeling.
+- Experience with Git, Docker, and cloud platforms (AWS, GCP, Azure).
+- Knowledge of message queues (RabbitMQ, Redis, Celery) and async processing.
 - Strong problem-solving skills and attention to detail.
 - Excellent communication and teamwork abilities.
 - Ability to work independently and take initiative on projects.
 
 **What We Offer:**
-- Opportunity to work with cutting-edge technologies and AI integration.
+- Opportunity to work with cutting-edge AI technologies and LLM integrations.
 - Collaborative and supportive work environment.
-- Mentorship from senior developers to help grow your skills.
+- Mentorship from senior engineers to help grow your skills.
 - Potential for role extension and career advancement within the company.
 - Flexible working hours and the possibility of remote work.
 
-This role is ideal for someone looking to grow their skills in Next.js, React, and AI-powered web applications while contributing to impactful projects.
+This role is ideal for someone looking to grow their skills in Python backend development, AI/ML integration, and building scalable systems while contributing to impactful projects.
 """
 
 # In-memory storage (use database in production)
@@ -124,6 +131,11 @@ class LeadScoringResponse(BaseModel):
     status: str
     message: str
     total_leads: int = 0
+    progress: int = 0  # 0-100 percentage
+    current_candidate: Optional[str] = None  # Name of candidate currently being scored
+    scored_count: int = 0  # Number of candidates scored so far
+    workflow_stage: Optional[str] = None  # "initial_scoring", "rescoring", "email_generation", etc.
+    partial_results: Optional[List[Dict[str, Any]]] = None  # Partial results for real-time display
 
 
 class ScoredLead(BaseModel):
@@ -264,17 +276,85 @@ async def process_lead_scoring(
     job_description: str,
     feedback: str
 ):
-    """Background task to score leads"""
+    """Background task to score leads with progress tracking"""
     try:
         session = processing_sessions[session_id]
-        session["status"] = "scoring"
-        session["message"] = "Scoring leads..."
+        is_rescoring = bool(feedback and feedback.strip())
         
-        # Score all candidates in parallel
+        # Set initial status with context
+        if is_rescoring:
+            session["status"] = "scoring"
+            session["message"] = "Lead Scoring Crew: HR Evaluation Agent re-analyzing candidates with your feedback..."
+            session["workflow_stage"] = "rescoring"
+        else:
+            session["status"] = "scoring"
+            session["message"] = "Lead Scoring Crew: HR Evaluation Agent analyzing candidates against job requirements..."
+            session["workflow_stage"] = "initial_scoring"
+        
+        session["progress"] = 0
+        session["scored_count"] = 0
+        session["current_candidate"] = None
+        session["partial_results"] = []  # Initialize for real-time results
+        total = len(candidates)
+        
+        def update_progress(current: int, total: int, candidate_name: Optional[str] = None, candidate_score: Optional[CandidateScore] = None):
+            """Update progress in session and store partial results for real-time display"""
+            if session_id in processing_sessions:
+                session = processing_sessions[session_id]
+                progress = int((current / total) * 100) if total > 0 else 0
+                session["progress"] = progress
+                session["scored_count"] = current
+                
+                # Store partial results for real-time display
+                if candidate_score:
+                    # Initialize partial_results if not exists
+                    if "partial_results" not in session:
+                        session["partial_results"] = []
+                    
+                    # Find candidate data
+                    candidate_data = next((c for c in candidates if c.id == candidate_score.id), None)
+                    if candidate_data:
+                        scored_candidate = ScoredCandidate(
+                            id=candidate_data.id,
+                            name=candidate_data.name,
+                            email=candidate_data.email,
+                            bio=candidate_data.bio,
+                            skills=candidate_data.skills,
+                            score=candidate_score.score,
+                            reason=candidate_score.reason
+                        )
+                        # Update or add to partial results
+                        partial_results = session["partial_results"]
+                        existing_idx = next((i for i, r in enumerate(partial_results) if r["id"] == candidate_score.id), None)
+                        if existing_idx is not None:
+                            partial_results[existing_idx] = scored_candidate.dict()
+                        else:
+                            partial_results.append(scored_candidate.dict())
+                        # Sort by score descending
+                        partial_results.sort(key=lambda x: x.get("score", 0), reverse=True)
+                
+                if candidate_name:
+                    session["current_candidate"] = candidate_name
+                    if is_rescoring:
+                        session["message"] = f"Lead Scoring Crew: HR Evaluation Agent re-evaluating {candidate_name} with your feedback ({current}/{total})"
+                    else:
+                        session["message"] = f"Lead Scoring Crew: HR Evaluation Agent evaluating {candidate_name} ({current}/{total})"
+                else:
+                    session["current_candidate"] = None
+                    if current < total:
+                        if is_rescoring:
+                            session["message"] = f"Lead Scoring Crew: Completed {current} of {total} candidates (incorporating feedback)"
+                        else:
+                            session["message"] = f"Lead Scoring Crew: Completed {current} of {total} candidates"
+                    else:
+                        session["message"] = f"Lead Scoring Crew: Processing results and ranking candidates by score..."
+        
+        # Score all candidates with progress updates
         candidate_scores = await score_candidates_parallel(
             candidates,
             job_description,
-            feedback
+            feedback,
+            progress_callback=update_progress
         )
         
         # Store scores
@@ -293,7 +373,12 @@ async def process_lead_scoring(
         
         # Update status
         session["status"] = "completed"
-        session["message"] = f"Successfully scored {len(candidate_scores)} leads"
+        if is_rescoring:
+            session["message"] = f"Lead Scoring Crew: Successfully re-scored {len(candidate_scores)} candidates with your feedback"
+        else:
+            session["message"] = f"Lead Scoring Crew: Successfully scored {len(candidate_scores)} candidates"
+        session["progress"] = 100
+        session["current_candidate"] = None
         
         logger.info(f"Completed scoring for session: {session_id}")
         
@@ -359,7 +444,17 @@ async def upload_leads(
         
         # Parse CSV
         candidates = await parse_csv_leads(csv_content)
-        job_desc = job_description or JOB_DESCRIPTION
+        
+        # IMPORTANT: Job Description Priority
+        # 1. If user provides a job description in the text area (non-empty), use that
+        # 2. If user doesn't provide one (None or empty/whitespace-only string), use the default JOB_DESCRIPTION
+        # This allows users to customize the job description for their specific needs
+        # Example: User enters "Python Developer" → uses "Python Developer"
+        #          User leaves it empty → uses default "Python & AI Engineer" description
+        if job_description and job_description.strip():
+            job_desc = job_description.strip()
+        else:
+            job_desc = JOB_DESCRIPTION
         
         # Initialize session
         processing_sessions[session_id] = {
@@ -384,7 +479,11 @@ async def upload_leads(
             session_id=session_id,
             status="processing",
             message=f"Processing {len(candidates)} leads...",
-            total_leads=len(candidates)
+            total_leads=len(candidates),
+            progress=0,
+            current_candidate=None,
+            scored_count=0,
+            workflow_stage="initial_scoring"
         )
         
     except HTTPException:
@@ -405,7 +504,11 @@ async def get_status(session_id: str):
         session_id=session_id,
         status=session["status"],
         message=session.get("message", ""),
-        total_leads=session.get("total_leads", 0)
+        total_leads=session.get("total_leads", 0),
+        progress=session.get("progress", 0),
+        current_candidate=session.get("current_candidate"),
+        scored_count=session.get("scored_count", 0),
+        workflow_stage=session.get("workflow_stage")
     )
 
 
@@ -421,7 +524,7 @@ async def get_top_candidates(session_id: str):
         raise HTTPException(status_code=400, detail="Scoring not completed yet. Please wait.")
     
     all_candidates = [ScoredLead(**c) for c in session["scored_candidates"]]
-    top_candidates = all_candidates[:3]
+    top_candidates = all_candidates[:3]  # Show top 3 candidates
     
     return TopCandidatesResponse(
         session_id=session_id,
@@ -433,24 +536,45 @@ async def get_top_candidates(session_id: str):
 @router.post("/feedback", response_model=LeadScoringResponse)
 async def provide_feedback(request: FeedbackRequest):
     """Provide feedback for re-scoring leads"""
+    logger.info(f"Feedback request received for session: {request.session_id}")
+    logger.info(f"Available sessions: {list(processing_sessions.keys())}")
+    
     if request.session_id not in processing_sessions:
-        raise HTTPException(status_code=404, detail="Session not found")
+        logger.error(f"Session {request.session_id} not found in processing_sessions")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Session not found. Available sessions: {list(processing_sessions.keys())[:5]}"
+        )
     
     session = processing_sessions[request.session_id]
     session["feedback"] = request.feedback
     
-    candidates = [Candidate(**c) for c in session["candidates"]]
-    job_description = session["job_description"]
+    # Ensure candidates exist in session
+    if "candidates" not in session or not session["candidates"]:
+        raise HTTPException(
+            status_code=400,
+            detail="No candidates found in session. Please upload leads first."
+        )
     
+    candidates = [Candidate(**c) for c in session["candidates"]]
+    job_description = session.get("job_description", "")
+    
+    # Start re-scoring with feedback
     asyncio.create_task(
         process_lead_scoring(request.session_id, candidates, job_description, request.feedback)
     )
     
+    logger.info(f"Started re-scoring with feedback for session: {request.session_id}")
+    
     return LeadScoringResponse(
         session_id=request.session_id,
         status="processing",
-        message="Re-scoring leads with your feedback...",
-        total_leads=len(candidates)
+        message="Lead Scoring Crew: Starting re-scoring with your feedback...",
+        total_leads=len(candidates),
+        progress=0,
+        current_candidate=None,
+        scored_count=0,
+        workflow_stage="rescoring"
     )
 
 
@@ -467,6 +591,7 @@ async def generate_emails(request: EmailGenerationRequest):
     
     scored_candidates = [ScoredCandidate(**c) for c in session["scored_candidates"]]
     
+    # Use top 3 candidates for email generation (or all if proceed_with_top_3 is False)
     top_candidate_ids = {c.id for c in scored_candidates[:3]} if request.proceed_with_top_3 else set()
     
     # Generate emails using crew functions
