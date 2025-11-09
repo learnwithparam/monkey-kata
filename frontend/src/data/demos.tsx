@@ -19,6 +19,7 @@ import {
   BriefcaseIcon,
   ChatBubbleLeftRightIcon,
   PhotoIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 
 export interface Demo {
@@ -134,6 +135,14 @@ export const weeksData: WeekData[] = [
     weekTitle: "AI Agents & Workflows",
     weekColor: "bg-green-100 text-green-800",
     demos: [
+      {
+        icon: <UserGroupIcon className="w-8 h-8 text-green-600 mr-4" />,
+        title: "Lead Scoring & Email Generation",
+        description: "Score candidates against job descriptions and generate personalized emails using AI-powered multi-crew workflows",
+        demoHref: "/demos/lead-scoring",
+        challengeHref: "/challenges/lead-scoring",
+        apiSlug: "lead_scoring"
+      },
       {
         icon: <MagnifyingGlassIcon className="w-8 h-8 text-green-600 mr-4" />,
         title: "Market Intelligence Agent",

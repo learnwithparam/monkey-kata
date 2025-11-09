@@ -1115,6 +1115,90 @@ def get_llm_provider() -> LLMProvider:
         raise ValueError(f"Provider {provider_name} is not available. Install required dependencies.")
 
 
+# ============================================================================
+# STEP 5: CREWAI COMPATIBILITY
+# ============================================================================
+"""
+CrewAI Compatibility:
+CrewAI uses LiteLLM under the hood, which requires provider-prefixed model names.
+This function creates a CrewAI LLM instance with the correct model format.
+
+Key Learning: CrewAI's LLM class uses LiteLLM format:
+- Fireworks: fireworks/model-name
+- OpenRouter: openrouter/model-name
+- Gemini: gemini/model-name
+- OpenAI: openai/model-name (or just model-name)
+
+Reference: https://docs.crewai.com/en/learn/llm-connections
+"""
+def get_crewai_llm(temperature: float = 0.3):
+    """
+    Get CrewAI LLM instance using our shared provider system.
+    
+    This function creates a CrewAI LLM instance with the correct model name format
+    for LiteLLM (which CrewAI uses under the hood).
+    
+    Args:
+        temperature: Temperature for text generation (default: 0.3)
+    
+    Returns:
+        CrewAI LLM instance configured with our provider
+        
+    Example:
+        from utils.llm_provider import get_crewai_llm
+        
+        llm = get_crewai_llm(temperature=0.3)
+        agent = Agent(role="...", llm=llm)
+    """
+    try:
+        from crewai import LLM
+    except ImportError:
+        raise ImportError(
+            "crewai is required. Install with: pip install crewai"
+        )
+    
+    config = get_provider_config()
+    provider_name = config["provider_name"]
+    
+    # Format model name for LiteLLM (which CrewAI uses)
+    # Reference: https://docs.crewai.com/en/learn/llm-connections
+    # Reference: https://docs.litellm.ai/docs/providers/fireworks_ai
+    # Reference: https://docs.litellm.ai/docs/providers/openai_compatible
+    model_name = config["model"]
+    
+    # Use provider-specific prefixes for LiteLLM
+    if provider_name == "fireworks":
+        # Fireworks AI has its own LiteLLM provider: fireworks_ai/
+        # Keep the full model path: accounts/fireworks/models/...
+        if not model_name.startswith("fireworks_ai/"):
+            model_name = f"fireworks_ai/{model_name}"
+    elif provider_name == "openrouter":
+        # OpenRouter uses openai/ prefix for OpenAI-compatible endpoints
+        if not model_name.startswith("openai/"):
+            model_name = f"openai/{model_name}"
+    elif provider_name == "gemini":
+        # Gemini uses gemini/ prefix
+        if not model_name.startswith("gemini/"):
+            model_name = f"gemini/{model_name}"
+    elif provider_name == "openai":
+        # OpenAI uses openai/ prefix
+        if not model_name.startswith("openai/"):
+            model_name = f"openai/{model_name}"
+    
+    # Create CrewAI LLM instance
+    llm_kwargs = {
+        "model": model_name,
+        "api_key": config["api_key"],
+        "temperature": temperature,
+    }
+    
+    # Add base_url only for OpenAI-compatible providers (OpenRouter)
+    # Fireworks AI provider (fireworks_ai/) handles base_url automatically
+    # Reference: https://docs.litellm.ai/docs/providers/fireworks_ai
+    if provider_name == "openrouter" and config.get("base_url"):
+        llm_kwargs["base_url"] = config["base_url"]
+    
+    return LLM(**llm_kwargs)
 
 
 # ============================================================================
