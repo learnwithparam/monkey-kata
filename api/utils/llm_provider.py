@@ -1202,6 +1202,84 @@ def get_crewai_llm(temperature: float = 0.3):
 
 
 # ============================================================================
+# STEP 6: LANGCHAIN COMPATIBILITY
+# ============================================================================
+"""
+LangChain Compatibility:
+LangChain agents use ChatOpenAI or similar chat models.
+This function creates a LangChain-compatible LLM instance.
+
+Key Learning: LangChain uses ChatOpenAI for OpenAI-compatible APIs.
+Most providers (Fireworks, OpenRouter) are OpenAI-compatible, so we can
+use ChatOpenAI with the appropriate base_url and api_key.
+
+Reference: https://python.langchain.com/docs/integrations/chat/openai
+"""
+def get_llm(temperature: float = 0.3):
+    """
+    Get LangChain ChatModel instance using our shared provider system.
+    
+    This function creates a LangChain ChatModel instance that works with
+    LangChain agents (AgentExecutor, create_openai_tools_agent, etc.).
+    
+    Args:
+        temperature: Temperature for text generation (default: 0.3)
+    
+    Returns:
+        LangChain ChatModel instance configured with our provider
+        
+    Example:
+        from utils.llm_provider import get_llm
+        
+        llm = get_llm(temperature=0.3)
+        agent = create_openai_tools_agent(llm, tools, prompt)
+    """
+    try:
+        from langchain_openai import ChatOpenAI
+    except ImportError:
+        raise ImportError(
+            "langchain-openai is required. Install with: pip install langchain-openai"
+        )
+    
+    config = get_provider_config()
+    provider_name = config["provider_name"]
+    model_name = config["model"]
+    
+    # For OpenAI-compatible providers (Fireworks, OpenRouter, OpenAI)
+    # Use ChatOpenAI with base_url and api_key
+    if provider_name in ["fireworks", "openrouter", "openai"]:
+        llm_kwargs = {
+            "model": model_name,
+            "api_key": config["api_key"],
+            "temperature": temperature,
+        }
+        
+        # Add base_url for OpenAI-compatible providers
+        if config.get("base_url"):
+            llm_kwargs["base_url"] = config["base_url"]
+        
+        return ChatOpenAI(**llm_kwargs)
+    
+    # For Gemini, use ChatGoogleGenerativeAI
+    elif provider_name == "gemini":
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+        except ImportError:
+            raise ImportError(
+                "langchain-google-genai is required for Gemini. Install with: pip install langchain-google-genai"
+            )
+        
+        return ChatGoogleGenerativeAI(
+            model=model_name,
+            google_api_key=config["api_key"],
+            temperature=temperature,
+        )
+    
+    else:
+        raise ValueError(f"Unsupported provider for LangChain: {provider_name}")
+
+
+# ============================================================================
 # LEARNING CHECKLIST
 # ============================================================================
 """

@@ -145,27 +145,35 @@ export const weeksData: WeekData[] = [
       },
       {
         icon: <MagnifyingGlassIcon className="w-8 h-8 text-green-600 mr-4" />,
-        title: "Market Intelligence Agent",
-        description: "Automatically research competitors and analyze market positioning",
-        isComingSoon: true
+        title: "Competitor Analysis Research Agent",
+        description: "Research competitors and analyze market positioning using multi-agent workflows",
+        demoHref: "/demos/competitor-analysis",
+        challengeHref: "/challenges/competitor-analysis",
+        apiSlug: "competitor_analysis"
       },
       {
         icon: <DocumentTextIcon className="w-8 h-8 text-blue-600 mr-4" />,
-        title: "Auto Form Filler",
-        description: "Intelligent agent that navigates websites and fills forms automatically",
-        isComingSoon: true
+        title: "Web Form Filling AI Bot",
+        description: "Navigate websites and fill forms automatically with browser automation",
+        demoHref: "/demos/web-form-filling",
+        challengeHref: "/challenges/web-form-filling",
+        apiSlug: "web_form_filling"
       },
       {
         icon: <LegalIcon className="w-8 h-8 text-red-600 mr-4" />,
-        title: "Legal Case Intake System",
-        description: "Streamline client intake with AI-powered case assessment and lawyer handoff",
-        isComingSoon: true
+        title: "Legal Case Intake Workflow",
+        description: "Client intake with AI-powered case assessment and human lawyer review",
+        demoHref: "/demos/legal-case-intake",
+        challengeHref: "/challenges/legal-case-intake",
+        apiSlug: "legal_case_intake"
       },
       {
         icon: <ShoppingBagIcon className="w-8 h-8 text-purple-600 mr-4" />,
         title: "Personal Shopping Assistant",
-        description: "AI-powered shopping companion that finds perfect products based on your preferences",
-        isComingSoon: true
+        description: "AI agent for product recommendations with memory and personalized suggestions",
+        demoHref: "/demos/personal-shopping",
+        challengeHref: "/challenges/personal-shopping",
+        apiSlug: "personal_shopping"
       }
     ]
   },

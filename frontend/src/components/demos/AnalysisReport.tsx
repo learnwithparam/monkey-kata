@@ -1,0 +1,107 @@
+'use client';
+
+import { marked } from 'marked';
+import { normalizeSpacing } from '@/utils/textFormatting';
+import { 
+  ChartBarIcon,
+  BuildingOfficeIcon,
+  DocumentTextIcon,
+} from '@heroicons/react/24/outline';
+
+interface AnalysisReportProps {
+  report: string;
+  companyName: string;
+  competitors: string[];
+}
+
+export default function AnalysisReport({ report, companyName, competitors }: AnalysisReportProps) {
+  // Render markdown with proper configuration
+  const renderMarkdown = (content: string) => {
+    return marked(normalizeSpacing(content), {
+      breaks: true,
+      gfm: true
+    }) as string;
+  };
+
+  return (
+    <div className="w-full bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        {/* Report Header - Consistent with theme */}
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-2xl shadow-sm border border-gray-200 mb-6">
+            <ChartBarIcon className="w-8 h-8 text-gray-600" />
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+            Competitive Analysis Report
+          </h1>
+          <div className="flex flex-wrap items-center justify-center gap-4 text-sm text-gray-600">
+            <div className="flex items-center gap-2">
+              <BuildingOfficeIcon className="h-5 w-5 text-gray-600" />
+              <span className="font-semibold">Company:</span> {companyName}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold">Competitors:</span> {competitors.join(', ')}
+            </div>
+          </div>
+        </div>
+
+        {/* Report Content - Simple white card like other demos */}
+        <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200">
+          <div className="flex items-center mb-6 sm:mb-8">
+            <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mr-4">
+              <DocumentTextIcon className="w-6 h-6 text-gray-600" />
+            </div>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Analysis Report</h2>
+              <p className="text-sm sm:text-base text-gray-600">Detailed competitive analysis findings</p>
+            </div>
+          </div>
+
+          <div 
+            className="prose prose-lg max-w-none
+              [&>p]:mb-3 [&>p:last-child]:mb-0 [&>p]:leading-relaxed
+              [&>ul]:list-disc [&>ul]:list-outside [&>ul]:mb-3 [&>ul]:pl-6 [&>ul]:space-y-1.5
+              [&>ol]:list-decimal [&>ol]:list-outside [&>ol]:mb-3 [&>ol]:pl-6 [&>ol]:space-y-1.5
+              [&>li]:text-gray-700 [&>li]:mb-1 [&>li]:leading-relaxed
+              [&>ul>li]:pl-1 [&>ol>li]:pl-1
+              [&>ul>ul]:mt-2 [&>ul>ul]:mb-2 [&>ul>ul]:list-[circle] [&>ul>ul]:pl-6
+              [&>ul>ul>ul]:list-[square]
+              [&>ol>ol]:mt-2 [&>ol>ol]:mb-2 [&>ol>ol]:list-[lower-alpha] [&>ol>ol]:pl-6
+              [&>ol>ol>ol]:list-[lower-roman]
+              [&>strong]:font-semibold [&>strong]:text-gray-900
+              [&>em]:italic [&>em]:text-gray-800
+              [&>code]:bg-gray-100 [&>code]:px-2 [&>code]:py-1 [&>code]:rounded-md [&>code]:text-sm [&>code]:font-mono [&>code]:text-gray-800
+              [&>pre]:bg-gray-100 [&>pre]:p-3 [&>pre]:rounded-lg [&>pre]:text-sm [&>pre]:font-mono [&>pre]:overflow-x-auto [&>pre]:mb-3
+              [&>pre>code]:bg-transparent [&>pre>code]:p-0
+              [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:text-gray-900 [&>h1]:mb-3 [&>h1]:mt-6
+              [&>h2]:text-xl [&>h2]:font-bold [&>h2]:text-gray-900 [&>h2]:mb-3 [&>h2]:mt-6
+              [&>h3]:text-lg [&>h3]:font-bold [&>h3]:text-gray-900 [&>h3]:mb-2 [&>h3]:mt-4
+              [&>blockquote]:border-l-4 [&>blockquote]:border-gray-300 [&>blockquote]:pl-4 [&>blockquote]:italic [&>blockquote]:text-gray-600 [&>blockquote]:mb-3 [&>blockquote]:my-3
+              [&>a]:text-blue-600 [&>a]:underline [&>a]:hover:text-blue-800
+              [&>table]:w-full [&>table]:border-collapse [&>table]:mb-3 [&>table]:mt-3
+              [&>table>thead]:bg-gray-100
+              [&>table>thead>tr>th]:border [&>table>thead>tr>th]:border-gray-300 [&>table>thead>tr>th]:px-3 [&>table>thead>tr>th]:py-2 [&>table>thead>tr>th]:text-left [&>table>thead>tr>th]:font-semibold
+              [&>table>tbody>tr>td]:border [&>table>tbody>tr>td]:border-gray-300 [&>table>tbody>tr>td]:px-3 [&>table>tbody>tr>td]:py-2
+              [&>table>tbody>tr:nth-child(even)]:bg-gray-50
+              [&>hr]:border-gray-300 [&>hr]:my-4
+              text-gray-800"
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(report) }}
+          />
+        </div>
+
+        {/* Report Footer */}
+        <div className="mt-8 pt-6 border-t border-gray-200 text-center text-sm text-gray-500">
+          <p>Report generated by AI Multi-Agent System</p>
+          <p className="mt-2">Generated on {new Date().toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
