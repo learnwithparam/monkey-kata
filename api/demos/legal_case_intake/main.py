@@ -23,14 +23,18 @@ while humans make final decisions, demonstrating human-in-the-loop patterns.
 """
 
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, EmailStr
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, AsyncGenerator, List
 from datetime import datetime
 import uuid
 import logging
+import asyncio
+import json
 
 from .models import CaseIntake, CaseReview, CaseResult, CaseStatus
 from .intake_agents import process_case_intake
+from .progress import set_progress_callback
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,7 @@ class CaseIntakeResponse(BaseModel):
     case_id: str
     status: str
     message: str
+    steps: Optional[List[Dict[str, Any]]] = None  # Track workflow steps
 
 
 class CaseReviewRequest(BaseModel):
@@ -96,10 +101,45 @@ async def process_case(
     case_intake: CaseIntake
 ):
     """Background task to process case through intake and review"""
+    from .progress import set_progress_callback
+    
     try:
         session = case_sessions[case_id]
         session["status"] = "processing"
         session["message"] = "Intake Agent: Collecting and validating case information..."
+        session["steps"] = []
+        
+        # Set up progress callback to update session
+        def update_progress(step_data):
+            """Update session with progress steps"""
+            try:
+                if case_id in case_sessions:
+                    # Handle both string (old format) and dict (new format)
+                    if isinstance(step_data, str):
+                        step_entry = {
+                            "timestamp": datetime.now().isoformat(),
+                            "message": step_data,
+                            "agent": None,
+                            "tool": None,
+                            "target": None
+                        }
+                    else:
+                        step_entry = {
+                            "timestamp": datetime.now().isoformat(),
+                            "message": step_data.get("message", ""),
+                            "agent": step_data.get("agent"),
+                            "tool": step_data.get("tool"),
+                            "target": step_data.get("target")
+                        }
+                    
+                    case_sessions[case_id]["steps"].append(step_entry)
+                    case_sessions[case_id]["message"] = step_entry["message"]
+                    logger.info(f"Progress [{case_id}]: {step_entry['message']}")
+            except Exception as e:
+                logger.error(f"Error in update_progress callback: {e}")
+        
+        # Set the progress callback
+        set_progress_callback(update_progress)
         
         # Process case through agents
         result = await process_case_intake(case_intake)
@@ -112,6 +152,9 @@ async def process_case(
         session["recommended_action"] = result["recommended_action"]
         session["created_at"] = datetime.now().isoformat()
         
+        # Clear progress callback
+        set_progress_callback(None)
+        
         logger.info(f"Completed case processing for case: {case_id}")
         
     except Exception as e:
@@ -120,6 +163,138 @@ async def process_case(
             case_sessions[case_id]["status"] = "error"
             case_sessions[case_id]["message"] = f"Error: {str(e)}"
             case_sessions[case_id]["error"] = str(e)
+        set_progress_callback(None)
+
+
+async def stream_case_processing(
+    case_id: str,
+    case_intake: CaseIntake
+) -> AsyncGenerator[str, None]:
+    """Stream case processing steps in real-time"""
+    from .progress import set_progress_callback
+    
+    # Create a queue to collect steps
+    step_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
+    processing_complete = asyncio.Event()
+    processing_error = None
+    final_result = None
+    
+    try:
+        session = case_sessions[case_id]
+        session["status"] = "processing"
+        session["message"] = "Intake Agent: Collecting and validating case information..."
+        session["steps"] = []
+        
+        def update_progress(step_data):
+            """Update session and queue step for streaming"""
+            try:
+                if case_id in case_sessions:
+                    # Handle both string (old format) and dict (new format)
+                    if isinstance(step_data, str):
+                        step_entry = {
+                            "timestamp": datetime.now().isoformat(),
+                            "message": step_data,
+                            "agent": None,
+                            "tool": None,
+                            "target": None
+                        }
+                    else:
+                        step_entry = {
+                            "timestamp": datetime.now().isoformat(),
+                            "message": step_data.get("message", ""),
+                            "agent": step_data.get("agent"),
+                            "tool": step_data.get("tool"),
+                            "target": step_data.get("target")
+                        }
+                    
+                    case_sessions[case_id]["steps"].append(step_entry)
+                    case_sessions[case_id]["message"] = step_entry["message"]
+                    # Add to queue for streaming (non-blocking)
+                    try:
+                        step_queue.put_nowait(step_entry)
+                        logger.info(f"Queued step for streaming: {step_entry['message'][:50]}...")
+                    except asyncio.QueueFull:
+                        logger.warning("Step queue is full, skipping step")
+                    except Exception as e:
+                        logger.warning(f"Error queuing step: {e}")
+            except Exception as e:
+                logger.error(f"Error in update_progress callback: {e}")
+        
+        # Set the progress callback
+        set_progress_callback(update_progress)
+        
+        # Start processing in background
+        async def run_processing():
+            nonlocal processing_error, final_result
+            try:
+                result = await process_case_intake(case_intake)
+                
+                session["status"] = "pending_lawyer"
+                session["message"] = "Case processed. Awaiting lawyer review."
+                session["intake_summary"] = result["intake_summary"]
+                session["risk_assessment"] = result["risk_assessment"]
+                session["recommended_action"] = result["recommended_action"]
+                session["created_at"] = datetime.now().isoformat()
+                
+                final_result = result
+                processing_complete.set()
+            except Exception as e:
+                session["status"] = "error"
+                session["message"] = f"Error: {str(e)}"
+                session["error"] = str(e)
+                processing_error = str(e)
+                processing_complete.set()
+            finally:
+                set_progress_callback(None)
+        
+        # Start processing task
+        processing_task = asyncio.create_task(run_processing())
+        
+        # Stream initial connection with case_id
+        yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting case intake processing...', 'case_id': case_id})}\n\n"
+        
+        # Stream steps as they come
+        while not processing_complete.is_set():
+            try:
+                # Wait for next step with short timeout to check completion
+                try:
+                    step_data = await asyncio.wait_for(step_queue.get(), timeout=0.1)
+                    # Stream the step immediately
+                    logger.info(f"Streaming step: {step_data.get('message', '')[:50]}...")
+                    yield f"data: {json.dumps({'step': step_data, 'status': 'processing'})}\n\n"
+                except asyncio.TimeoutError:
+                    # No step available, check if processing is done
+                    if processing_complete.is_set():
+                        break
+                    # Small delay to prevent busy waiting
+                    await asyncio.sleep(0.05)
+                    continue
+                    
+            except Exception as e:
+                logger.error(f"Error in streaming loop: {e}")
+                break
+        
+        # Get any remaining items from queue
+        while not step_queue.empty():
+            try:
+                step_data = step_queue.get_nowait()
+                yield f"data: {json.dumps({'step': step_data, 'status': 'processing'})}\n\n"
+            except:
+                break
+        
+        # Wait for processing to complete
+        await processing_task
+        
+        # Send final result
+        if final_result:
+            yield f"data: {json.dumps({'done': True, 'status': 'pending_lawyer', 'result': final_result})}\n\n"
+        elif processing_error:
+            yield f"data: {json.dumps({'done': True, 'status': 'error', 'error': processing_error})}\n\n"
+        
+    except Exception as e:
+        logger.error(f"Error streaming case processing for case {case_id}: {e}")
+        yield f"data: {json.dumps({'error': str(e), 'status': 'error'})}\n\n"
+        set_progress_callback(None)
 
 
 # ============================================================================
@@ -179,7 +354,8 @@ async def submit_case(
             "lawyer_notes": None,
             "lawyer_decision": None,
             "created_at": None,
-            "reviewed_at": None
+            "reviewed_at": None,
+            "steps": []
         }
         
         # Start background processing
@@ -192,9 +368,59 @@ async def submit_case(
             status="processing",
             message="Case submitted. Processing with Intake and Review agents..."
         )
+
+
+@router.post("/submit-case-stream")
+async def submit_case_stream(request: CaseIntakeRequest):
+    """
+    Submit a new legal case for intake processing with real-time streaming
+    
+    This endpoint streams workflow steps in real-time as they happen,
+    showing which agent is doing what for educational purposes.
+    """
+    try:
+        case_id = str(uuid.uuid4())
+        
+        # Convert request to CaseIntake model
+        case_intake = CaseIntake(
+            client_name=request.client_name,
+            client_email=request.client_email,
+            client_phone=request.client_phone,
+            case_type=request.case_type,
+            case_description=request.case_description,
+            urgency=request.urgency,
+            additional_info=request.additional_info
+        )
+        
+        # Initialize session
+        case_sessions[case_id] = {
+            "case_id": case_id,
+            "status": "processing",
+            "message": "Initializing case intake...",
+            "intake_data": case_intake.dict(),
+            "intake_summary": None,
+            "risk_assessment": None,
+            "recommended_action": None,
+            "lawyer_notes": None,
+            "lawyer_decision": None,
+            "created_at": None,
+            "reviewed_at": None,
+            "steps": []
+        }
+        
+        logger.info(f"Started streaming case processing for case: {case_id}")
+        
+        return StreamingResponse(
+            stream_case_processing(case_id, case_intake),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+            }
+        )
         
     except Exception as e:
-        logger.error(f"Error submitting case: {e}")
+        logger.error(f"Error starting streaming case processing: {e}")
         raise HTTPException(status_code=500, detail=f"Error submitting case: {str(e)}")
 
 
@@ -208,7 +434,8 @@ async def get_status(case_id: str):
     return CaseIntakeResponse(
         case_id=case_id,
         status=session["status"],
-        message=session["message"]
+        message=session["message"],
+        steps=session.get("steps", [])
     )
 
 

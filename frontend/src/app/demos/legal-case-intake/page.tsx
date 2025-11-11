@@ -14,6 +14,7 @@ import {
 import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
+import CustomSelect from '@/components/CustomSelect';
 
 interface CaseIntakeRequest {
   client_name: string;
@@ -29,6 +30,13 @@ interface CaseIntakeResponse {
   case_id: string;
   status: string;
   message: string;
+  steps?: Array<{
+    timestamp: string;
+    message: string;
+    agent?: string;
+    tool?: string;
+    target?: string;
+  }>;
 }
 
 interface CaseReview {
@@ -60,6 +68,13 @@ export default function LegalCaseIntakeDemo() {
   const [lawyerDecision, setLawyerDecision] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'submit' | 'review'>('submit');
+  const [workflowSteps, setWorkflowSteps] = useState<Array<{
+    timestamp: string;
+    message: string;
+    agent?: string;
+    tool?: string;
+    target?: string;
+  }>>([]);
 
   const submitCase = async () => {
     if (!caseData.client_name || !caseData.client_email || !caseData.case_type || !caseData.case_description) {
@@ -70,9 +85,10 @@ export default function LegalCaseIntakeDemo() {
     setIsProcessing(true);
     setError(null);
     setCaseReview(null);
+    setWorkflowSteps([]);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/legal-case-intake/submit-case`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/legal-case-intake/submit-case-stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -85,12 +101,110 @@ export default function LegalCaseIntakeDemo() {
         throw new Error(errorText || 'Failed to submit case');
       }
 
-      const result: CaseIntakeResponse = await response.json();
-      setCaseId(result.case_id);
-      setCaseStatus(result);
-      
-      // Start polling for status updates
-      pollStatus(result.case_id);
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const decoder = new TextDecoder('utf-8');
+      const steps: Array<{ timestamp: string; message: string; agent?: string; tool?: string; target?: string }> = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+
+              if (data.status === 'connected') {
+                if (data.case_id) {
+                  setCaseId(data.case_id);
+                }
+                setCaseStatus({
+                  case_id: data.case_id || '',
+                  status: 'processing',
+                  message: data.message || 'Starting case intake processing...'
+                });
+                continue;
+              }
+
+              if (data.step) {
+                // Real-time step update
+                const newSteps = [...steps, data.step];
+                steps.length = 0;
+                steps.push(...newSteps);
+                
+                setWorkflowSteps(newSteps);
+                setCaseStatus(prev => prev ? {
+                  ...prev,
+                  message: data.step.message,
+                  status: 'processing',
+                  steps: newSteps
+                } : null);
+              }
+
+              if (data.done) {
+                setIsProcessing(false);
+                if (data.result) {
+                  // Update status first
+                  setCaseStatus(prev => {
+                    const updatedStatus = prev ? {
+                      ...prev,
+                      status: 'pending_lawyer',
+                      message: 'Case processed. Awaiting lawyer review.',
+                      steps: steps
+                    } : null;
+                    
+                    // Get case for review using case_id from status
+                    if (updatedStatus && updatedStatus.case_id) {
+                      fetch(`${process.env.NEXT_PUBLIC_API_URL}/legal-case-intake/review/${updatedStatus.case_id}`)
+                        .then(reviewResponse => {
+                          if (reviewResponse.ok) {
+                            return reviewResponse.json();
+                          }
+                          return null;
+                        })
+                        .then(review => {
+                          if (review) {
+                            setCaseReview(review);
+                            setViewMode('review');
+                            setCaseId(updatedStatus.case_id);
+                          }
+                        })
+                        .catch(err => {
+                          console.error('Error fetching review:', err);
+                        });
+                    }
+                    
+                    return updatedStatus;
+                  });
+                } else if (data.error) {
+                  setError(data.error);
+                  setCaseStatus(prev => prev ? {
+                    ...prev,
+                    status: 'error',
+                    message: `Error: ${data.error}`
+                  } : null);
+                }
+                return;
+              }
+
+              if (data.error) {
+                setError(data.error);
+                setIsProcessing(false);
+                return;
+              }
+            } catch (parseError) {
+              console.error('Error parsing chunk:', parseError);
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Error submitting case:', error);
       setError(error instanceof Error ? error.message : 'Failed to submit case. Please try again.');
@@ -252,47 +366,50 @@ export default function LegalCaseIntakeDemo() {
               </div>
 
               <div className="space-y-4 sm:space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
                     Client Name *
                   </label>
                   <input
                     type="text"
                     value={caseData.client_name}
                     onChange={(e) => setCaseData({...caseData, client_name: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., John Doe"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isProcessing}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
                     Client Email *
                   </label>
                   <input
                     type="email"
                     value={caseData.client_email}
                     onChange={(e) => setCaseData({...caseData, client_email: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., john.doe@example.com"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isProcessing}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
                     Client Phone
                   </label>
                   <input
                     type="tel"
                     value={caseData.client_phone}
                     onChange={(e) => setCaseData({...caseData, client_phone: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g., +1 (555) 123-4567"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isProcessing}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
                     Case Type *
                   </label>
                   <input
@@ -300,39 +417,43 @@ export default function LegalCaseIntakeDemo() {
                     value={caseData.case_type}
                     onChange={(e) => setCaseData({...caseData, case_type: e.target.value})}
                     placeholder="e.g., Personal Injury, Contract Dispute"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     disabled={isProcessing}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
                     Case Description *
                   </label>
                   <textarea
                     value={caseData.case_description}
                     onChange={(e) => setCaseData({...caseData, case_description: e.target.value})}
                     rows={5}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Provide a detailed description of the case..."
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 text-gray-900 placeholder-gray-400 bg-white hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed resize-y"
                     disabled={isProcessing}
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-gray-700">
                     Urgency
                   </label>
-                  <select
+                  <CustomSelect
+                    id="urgency"
+                    name="urgency"
                     value={caseData.urgency}
-                    onChange={(e) => setCaseData({...caseData, urgency: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    onChange={(value) => setCaseData({...caseData, urgency: value})}
+                    options={[
+                      { value: 'low', label: 'Low' },
+                      { value: 'normal', label: 'Normal' },
+                      { value: 'high', label: 'High' },
+                      { value: 'urgent', label: 'Urgent' }
+                    ]}
+                    placeholder="Select urgency level..."
                     disabled={isProcessing}
-                  >
-                    <option value="low">Low</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
+                  />
                 </div>
 
                 <ProcessingButton
@@ -366,11 +487,76 @@ export default function LegalCaseIntakeDemo() {
               )}
 
               {caseStatus && (
-                <div>
+                <div className="mb-6">
                   <StatusIndicator
                     status={caseStatus.status}
                     message={caseStatus.message}
                   />
+                  
+                  {/* Multi-Agent Workflow Steps */}
+                  {(workflowSteps.length > 0 || (caseStatus.steps && caseStatus.steps.length > 0)) && (
+                    <div className="mt-6 space-y-3">
+                      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                        <SparklesIcon className="h-4 w-4 text-blue-600 mr-2" />
+                        Multi-Agent Workflow
+                      </h3>
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {(workflowSteps.length > 0 ? workflowSteps : caseStatus.steps || []).map((step, index) => {
+                          const getStatusColor = () => {
+                            if (step.tool === 'agent_complete' || step.tool === 'workflow_complete') return 'bg-green-500';
+                            if (step.tool === 'agent_invoke') return 'bg-blue-500 animate-pulse';
+                            if (step.tool === 'agent_processing' || step.tool === 'crew_execution' || step.tool === 'data_parsing') return 'bg-purple-500 animate-pulse';
+                            return 'bg-gray-400';
+                          };
+
+                          const getAgentColor = (agent: string | undefined) => {
+                            if (!agent) return 'bg-gray-200 text-gray-700';
+                            if (agent.includes('Intake')) return 'bg-blue-100 text-blue-700';
+                            if (agent.includes('Review')) return 'bg-purple-100 text-purple-700';
+                            if (agent.includes('Workflow') || agent.includes('Orchestrator')) return 'bg-green-100 text-green-700';
+                            return 'bg-gray-100 text-gray-700';
+                          };
+
+                          return (
+                            <div
+                              key={index}
+                              className="flex items-start gap-3 p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-all"
+                            >
+                              <div className="flex-shrink-0 mt-0.5">
+                                <div className={`w-3 h-3 ${getStatusColor()} rounded-full`}></div>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                {step.agent && (
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className={`text-xs font-semibold px-2 py-1 rounded ${getAgentColor(step.agent)}`}>
+                                      {step.agent}
+                                    </span>
+                                    {step.tool && step.tool !== 'agent_invoke' && step.tool !== 'agent_complete' && step.tool !== 'workflow_complete' && (
+                                      <span className="text-xs text-gray-600 font-mono bg-gray-100 px-2 py-1 rounded">
+                                        {step.tool}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                <p className="text-sm font-medium text-gray-900 break-words">
+                                  {step.message}
+                                </p>
+                                {step.target && (
+                                  <p className="text-xs text-gray-600 mt-1 font-mono bg-gray-50 px-2 py-1 rounded inline-block">
+                                    {step.target}
+                                  </p>
+                                )}
+                                <p className="text-xs text-gray-500 mt-2">
+                                  {new Date(step.timestamp).toLocaleTimeString()}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  
                   {caseStatus.status === 'processing' && (
                     <div className="mt-4">
                       <div className="flex items-center text-sm text-gray-600">

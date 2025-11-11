@@ -235,19 +235,19 @@ export const weeksData: WeekData[] = [
       {
         icon: <TruckIcon className="w-8 h-8 text-yellow-600 mr-4" />,
         title: "Drive-Thru Order Assistant",
-        description: "Revolutionary voice AI that takes fast-food orders with natural conversation",
+        description: "Revolutionary voice AI that takes fast-food orders with natural conversation. Integrates voice, agents, and real-time processing.",
         isComingSoon: true
       },
       {
         icon: <PhoneIcon className="w-8 h-8 text-blue-600 mr-4" />,
         title: "Smart Call Center",
-        description: "Transform customer support with AI that handles calls naturally and efficiently",
+        description: "Transform customer support with AI that handles calls naturally and efficiently. Combines voice AI, RAG, and human-in-the-loop patterns.",
         isComingSoon: true
       },
       {
         icon: <EyeIcon className="w-8 h-8 text-purple-600 mr-4" />,
         title: "Financial Document Analyzer",
-        description: "AI that reads and analyzes financial reports, charts, and documents with computer vision",
+        description: "AI that reads and analyzes financial reports, charts, and documents with computer vision. Multi-modal system combining vision and LLMs.",
         isComingSoon: true
       }
     ]

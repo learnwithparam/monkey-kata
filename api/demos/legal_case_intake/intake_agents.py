@@ -28,6 +28,7 @@ from crewai import Agent, Crew, Process, Task
 
 from utils.llm_provider import get_crewai_llm
 from .models import CaseIntake, CaseReview, CaseStatus
+from .progress import report_progress
 
 logger = logging.getLogger(__name__)
 
@@ -98,11 +99,26 @@ async def process_case_intake(case_intake: CaseIntake) -> Dict[str, Any]:
         Dictionary with processed case information
     """
     try:
+        # Report workflow start
+        report_progress(
+            "Intake Agent: Starting case intake validation",
+            agent="Intake Agent",
+            tool="agent_invoke",
+            target=f"Case Type: {case_intake.case_type}"
+        )
+        
         llm = get_crewai_llm(temperature=0.3)
         
         # Create agents
         intake_agent = create_intake_agent()
         review_agent = create_review_agent()
+        
+        report_progress(
+            "Intake Agent: Validating case information and structure",
+            agent="Intake Agent",
+            tool="agent_processing",
+            target="Checking required fields and data completeness"
+        )
         
         # Intake task - validate and structure case
         intake_task = Task(
@@ -151,6 +167,20 @@ RECOMMENDED_ACTION: [your recommendation]""",
         )
         
         # Create crew and execute
+        report_progress(
+            "Intake Agent: Completed validation phase",
+            agent="Intake Agent",
+            tool="agent_complete",
+            target="Case information validated and structured"
+        )
+        
+        report_progress(
+            "Review Agent: Starting case analysis and risk assessment",
+            agent="Review Agent",
+            tool="agent_invoke",
+            target="Analyzing case details and legal implications"
+        )
+        
         crew = Crew(
             agents=[intake_agent, review_agent],
             tasks=[intake_task, review_task],
@@ -158,9 +188,30 @@ RECOMMENDED_ACTION: [your recommendation]""",
             verbose=True
         )
         
+        report_progress(
+            "Review Agent: Processing case through CrewAI workflow",
+            agent="Review Agent",
+            tool="crew_execution",
+            target="Running sequential agent tasks"
+        )
+        
         result = crew.kickoff()
         
+        report_progress(
+            "Review Agent: Completed case analysis",
+            agent="Review Agent",
+            tool="agent_complete",
+            target="Generated summary, risk assessment, and recommendations"
+        )
+        
         # Parse the result
+        report_progress(
+            "Review Agent: Parsing analysis results",
+            agent="Review Agent",
+            tool="data_parsing",
+            target="Extracting summary, risk assessment, and recommendations"
+        )
+        
         output_text = str(result)
         
         # Extract summary, risk assessment, and recommendation
@@ -192,6 +243,13 @@ RECOMMENDED_ACTION: [your recommendation]""",
             risk_assessment = "Risk assessment pending lawyer review"
         if not recommended_action:
             recommended_action = "Review case with lawyer"
+        
+        report_progress(
+            "Workflow: Case processing complete, ready for lawyer review",
+            agent="Workflow Orchestrator",
+            tool="workflow_complete",
+            target="All agents completed, awaiting human review"
+        )
         
         return {
             "intake_summary": summary,
