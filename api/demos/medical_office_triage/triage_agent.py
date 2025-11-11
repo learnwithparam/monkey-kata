@@ -66,6 +66,73 @@ load_dotenv()
 
 
 # ============================================================================
+# UTILITY: MARKDOWN STRIPPING
+# ============================================================================
+"""
+Utility function to strip markdown formatting from text.
+
+This is a safety measure to ensure that even if the LLM outputs markdown
+despite instructions, it will be removed before being spoken by TTS.
+
+Voice agents should always output plain natural English, never markdown.
+"""
+import re
+
+def strip_markdown(text: str) -> str:
+    """
+    Remove markdown formatting from text to ensure plain natural speech.
+    
+    Removes:
+    - Markdown headers (# ## ###)
+    - Bold/italic (*text* **text**)
+    - Code blocks (```code```)
+    - Inline code (`code`)
+    - Links ([text](url))
+    - Lists (- item, * item, 1. item)
+    - Horizontal rules (---)
+    - Blockquotes (> text)
+    """
+    if not text:
+        return text
+    
+    # Remove code blocks (```code```)
+    text = re.sub(r'```[\s\S]*?```', '', text)
+    
+    # Remove inline code (`code`)
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    
+    # Remove markdown headers (# ## ###)
+    text = re.sub(r'^#{1,6}\s+(.+)$', r'\1', text, flags=re.MULTILINE)
+    
+    # Remove bold (**text** or __text__)
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = re.sub(r'__([^_]+)__', r'\1', text)
+    
+    # Remove italic (*text* or _text_)
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    text = re.sub(r'_([^_]+)_', r'\1', text)
+    
+    # Remove links ([text](url))
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    
+    # Remove list markers (- * + 1. 2. etc.)
+    text = re.sub(r'^[\s]*[-*+]\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove horizontal rules
+    text = re.sub(r'^---+$', '', text, flags=re.MULTILINE)
+    
+    # Remove blockquotes
+    text = re.sub(r'^>\s+', '', text, flags=re.MULTILINE)
+    
+    # Clean up extra whitespace
+    text = re.sub(r'\n\s*\n', '\n', text)
+    text = text.strip()
+    
+    return text
+
+
+# ============================================================================
 # STEP 2: USERDATA (Shared State)
 # ============================================================================
 """

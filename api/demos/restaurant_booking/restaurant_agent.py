@@ -54,6 +54,73 @@ load_dotenv()
 
 
 # ============================================================================
+# UTILITY: MARKDOWN STRIPPING
+# ============================================================================
+"""
+Utility function to strip markdown formatting from text.
+
+This is a safety measure to ensure that even if the LLM outputs markdown
+despite instructions, it will be removed before being spoken by TTS.
+
+Voice agents should always output plain natural English, never markdown.
+"""
+import re
+
+def strip_markdown(text: str) -> str:
+    """
+    Remove markdown formatting from text to ensure plain natural speech.
+    
+    Removes:
+    - Markdown headers (# ## ###)
+    - Bold/italic (*text* **text**)
+    - Code blocks (```code```)
+    - Inline code (`code`)
+    - Links ([text](url))
+    - Lists (- item, * item, 1. item)
+    - Horizontal rules (---)
+    - Blockquotes (> text)
+    """
+    if not text:
+        return text
+    
+    # Remove code blocks (```code```)
+    text = re.sub(r'```[\s\S]*?```', '', text)
+    
+    # Remove inline code (`code`)
+    text = re.sub(r'`([^`]+)`', r'\1', text)
+    
+    # Remove markdown headers (# ## ###)
+    text = re.sub(r'^#{1,6}\s+(.+)$', r'\1', text, flags=re.MULTILINE)
+    
+    # Remove bold (**text** or __text__)
+    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
+    text = re.sub(r'__([^_]+)__', r'\1', text)
+    
+    # Remove italic (*text* or _text_)
+    text = re.sub(r'\*([^*]+)\*', r'\1', text)
+    text = re.sub(r'_([^_]+)_', r'\1', text)
+    
+    # Remove links ([text](url))
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+    
+    # Remove list markers (- * + 1. 2. etc.)
+    text = re.sub(r'^[\s]*[-*+]\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\d+\.\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove horizontal rules
+    text = re.sub(r'^---+$', '', text, flags=re.MULTILINE)
+    
+    # Remove blockquotes
+    text = re.sub(r'^>\s+', '', text, flags=re.MULTILINE)
+    
+    # Clean up extra whitespace
+    text = re.sub(r'\n\s*\n', '\n', text)
+    text = text.strip()
+    
+    return text
+
+
+# ============================================================================
 # STEP 2: MENU DATA
 # ============================================================================
 """
@@ -115,6 +182,7 @@ Key Tool Design Principles:
 - Return natural language strings (not markdown) since they'll be spoken
 - Keep responses conversational and friendly
 - Handle errors gracefully with helpful messages
+- Output plain natural English only - no markdown, no formatting
 """
 
 
@@ -265,7 +333,15 @@ Guidelines:
 - If a customer asks about an item not on the menu, politely let them know
 - Always confirm orders before placing them
 - Personalize your responses using the customer's name naturally throughout the conversation
-- Output plain text only - no markdown, no formatting, just natural spoken language
+
+CRITICAL: Your responses will be spoken aloud by a text-to-speech system. You MUST:
+- Output ONLY plain natural English text - NO markdown formatting whatsoever
+- NO asterisks, underscores, backticks, or any markdown syntax
+- NO bullet points, numbered lists, or formatting characters
+- NO code blocks, bold, italic, or any text formatting
+- Write exactly as you would speak in a natural conversation
+- Use contractions naturally (I'll, you're, we've)
+- Speak conversationally, not robotically
 
 Keep responses concise and natural. Speak conversationally, not robotically.
 """
