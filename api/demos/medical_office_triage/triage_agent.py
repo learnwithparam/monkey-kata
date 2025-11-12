@@ -62,6 +62,40 @@ from prompt_utils import load_prompt
 logger = logging.getLogger("medical-office-triage")
 logger.setLevel(logging.INFO)
 
+# Fix for LiveKit pickling error when logging errors with unpicklable objects
+# This happens when LiveKit tries to log session close events with error objects
+# that contain CIMultiDictProxy (from aiohttp headers) which can't be pickled
+# The example code might not hit this error path, or uses a different LiveKit version
+_original_makeRecord = logging.Logger.makeRecord
+
+def _safe_makeRecord(self, *args, **kwargs):
+    """Sanitize extra dict to prevent pickling errors"""
+    if 'extra' in kwargs and kwargs['extra']:
+        extra = kwargs['extra']
+        sanitized_extra = {}
+        for key, value in extra.items():
+            if hasattr(value, '__class__'):
+                class_name = value.__class__.__name__
+                # Convert known unpicklable types (aiohttp headers)
+                if 'MultiDict' in class_name or 'CIMultiDict' in class_name:
+                    try:
+                        sanitized_extra[key] = dict(value.items()) if hasattr(value, 'items') else str(value)
+                    except:
+                        sanitized_extra[key] = f"<{class_name}>"
+                else:
+                    try:
+                        import pickle
+                        pickle.dumps(value)
+                        sanitized_extra[key] = value
+                    except:
+                        sanitized_extra[key] = str(value) if value else f"<{class_name}>"
+            else:
+                sanitized_extra[key] = value
+        kwargs['extra'] = sanitized_extra
+    return _original_makeRecord(self, *args, **kwargs)
+
+logging.Logger.makeRecord = _safe_makeRecord
+
 load_dotenv()
 
 
@@ -199,6 +233,7 @@ class BaseAgent(Agent):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+    
     
     async def on_enter(self) -> None:
         """
@@ -510,9 +545,6 @@ async def entrypoint(ctx: JobContext):
     if not ctx.room.name.startswith("medical_"):
         logger.info(f"Ignoring room {ctx.room.name} - not a medical office room")
         return
-    
-    # Connect to the room first
-    await ctx.connect()
     
     # Create shared state
     userdata = UserData(ctx=ctx)

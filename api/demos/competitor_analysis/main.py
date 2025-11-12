@@ -250,7 +250,7 @@ async def stream_analysis_steps(
         analysis_task = asyncio.create_task(run_analysis())
         
         # Stream initial connection
-        yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting competitor analysis...'})}\n\n"
+        yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting competitor analysis...'}, ensure_ascii=False)}\n\n"
         
         # Stream steps as they come
         while not analysis_complete.is_set():
@@ -258,9 +258,22 @@ async def stream_analysis_steps(
                 # Wait for next step with short timeout to check completion
                 try:
                     step_data = await asyncio.wait_for(step_queue.get(), timeout=0.1)
-                    # Stream the step immediately
-                    logger.info(f"Streaming step: {step_data.get('message', '')[:50]}...")
-                    yield f"data: {json.dumps({'step': step_data, 'status': 'processing'})}\n\n"
+                    # Stream the step immediately - ensure all strings are properly escaped
+                    try:
+                        # Clean step data to ensure JSON safety
+                        clean_step = {
+                            "timestamp": step_data.get("timestamp", ""),
+                            "message": str(step_data.get("message", "")).replace('\x00', '').replace('\r', ''),
+                            "agent": str(step_data.get("agent", "")) if step_data.get("agent") else None,
+                            "tool": str(step_data.get("tool", "")) if step_data.get("tool") else None,
+                            "target": str(step_data.get("target", "")) if step_data.get("target") else None,
+                        }
+                        logger.info(f"Streaming step: {clean_step.get('message', '')[:50]}...")
+                        yield f"data: {json.dumps({'step': clean_step, 'status': 'processing'}, ensure_ascii=False)}\n\n"
+                    except Exception as e:
+                        logger.error(f"Error encoding step data: {e}")
+                        # Fallback: send minimal safe data
+                        yield f"data: {json.dumps({'step': {'message': 'Processing...', 'timestamp': step_data.get('timestamp', '')}, 'status': 'processing'})}\n\n"
                 except asyncio.TimeoutError:
                     # No step available, check if analysis is done
                     if analysis_complete.is_set():
@@ -277,8 +290,17 @@ async def stream_analysis_steps(
         while not step_queue.empty():
             try:
                 step_data = step_queue.get_nowait()
-                yield f"data: {json.dumps({'step': step_data, 'status': 'processing'})}\n\n"
-            except:
+                # Clean step data to ensure JSON safety
+                clean_step = {
+                    "timestamp": step_data.get("timestamp", ""),
+                    "message": str(step_data.get("message", "")).replace('\x00', '').replace('\r', ''),
+                    "agent": str(step_data.get("agent", "")) if step_data.get("agent") else None,
+                    "tool": str(step_data.get("tool", "")) if step_data.get("tool") else None,
+                    "target": str(step_data.get("target", "")) if step_data.get("target") else None,
+                }
+                yield f"data: {json.dumps({'step': clean_step, 'status': 'processing'}, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                logger.error(f"Error encoding remaining step: {e}")
                 break
         
         # Wait for analysis to complete
@@ -286,13 +308,17 @@ async def stream_analysis_steps(
         
         # Send final result
         if final_report:
-            yield f"data: {json.dumps({'done': True, 'status': 'completed', 'report': final_report})}\n\n"
+            # Ensure report is a string and clean it
+            report_str = str(final_report).replace('\x00', '').replace('\r', '')
+            yield f"data: {json.dumps({'done': True, 'status': 'completed', 'report': report_str}, ensure_ascii=False)}\n\n"
         elif analysis_error:
-            yield f"data: {json.dumps({'done': True, 'status': 'error', 'error': analysis_error})}\n\n"
+            error_str = str(analysis_error).replace('\x00', '').replace('\r', '')
+            yield f"data: {json.dumps({'done': True, 'status': 'error', 'error': error_str}, ensure_ascii=False)}\n\n"
         
     except Exception as e:
         logger.error(f"Error streaming analysis for session {session_id}: {e}")
-        yield f"data: {json.dumps({'error': str(e), 'status': 'error'})}\n\n"
+        error_str = str(e).replace('\x00', '').replace('\r', '')
+        yield f"data: {json.dumps({'error': error_str, 'status': 'error'}, ensure_ascii=False)}\n\n"
         set_progress_callback(None)
 
 

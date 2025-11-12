@@ -131,7 +131,18 @@ export default function CompetitorAnalysisDemo() {
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
-              const data = JSON.parse(line.slice(6));
+              // Safely parse JSON, handle malformed JSON from streaming
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr) continue; // Skip empty lines
+              
+              let data;
+              try {
+                data = JSON.parse(jsonStr);
+              } catch (parseErr) {
+                // If JSON parsing fails, skip this line (likely incomplete or malformed)
+                console.warn('Failed to parse JSON line:', jsonStr.substring(0, 100));
+                continue;
+              }
 
               if (data.status === 'connected') {
                 // Connection established

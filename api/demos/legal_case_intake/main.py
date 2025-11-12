@@ -65,6 +65,12 @@ class CaseIntakeResponse(BaseModel):
     status: str
     message: str
     steps: Optional[List[Dict[str, Any]]] = None  # Track workflow steps
+    needs_more_info: Optional[bool] = False
+    missing_info: Optional[List[str]] = None
+    is_complete: Optional[bool] = False
+    intake_summary: Optional[str] = None
+    risk_assessment: Optional[str] = None
+    recommended_action: Optional[str] = None
 
 
 class CaseReviewRequest(BaseModel):
@@ -72,6 +78,12 @@ class CaseReviewRequest(BaseModel):
     case_id: str
     lawyer_notes: Optional[str] = Field(None, description="Lawyer's review notes")
     lawyer_decision: str = Field(..., description="Lawyer's decision: approve, reject, request_info")
+
+
+class AdditionalInfoRequest(BaseModel):
+    """Request to provide additional case information"""
+    case_id: str
+    additional_info: str = Field(..., description="Additional information requested by the AI")
 
 
 class CaseReviewResponse(BaseModel):
@@ -142,7 +154,16 @@ async def process_case(
         set_progress_callback(update_progress)
         
         # Process case through agents
-        result = await process_case_intake(case_intake)
+        # Track what info has been provided in previous rounds
+        previously_provided = session.get("previously_provided_info", "")
+        result = await process_case_intake(case_intake, previously_provided)
+        
+        # Update what we've collected
+        if case_intake.additional_info:
+            if previously_provided:
+                session["previously_provided_info"] = previously_provided + "\n\n" + case_intake.additional_info
+            else:
+                session["previously_provided_info"] = case_intake.additional_info
         
         # Update session with results
         session["status"] = "pending_lawyer"
@@ -173,7 +194,7 @@ async def stream_case_processing(
     """Stream case processing steps in real-time"""
     from .progress import set_progress_callback
     
-    # Create a queue to collect steps
+    # Create queue to collect steps
     step_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
     processing_complete = asyncio.Event()
     processing_error = None
@@ -227,13 +248,27 @@ async def stream_case_processing(
         async def run_processing():
             nonlocal processing_error, final_result
             try:
-                result = await process_case_intake(case_intake)
+                # Track what info has been provided
+                previously_provided = session.get("previously_provided_info", "")
+                result = await process_case_intake(case_intake, previously_provided)
                 
-                session["status"] = "pending_lawyer"
-                session["message"] = "Case processed. Awaiting lawyer review."
+                # Update session based on result
+                if result.get("is_complete"):
+                    session["status"] = "approved"
+                    session["message"] = "Case intake complete! All information collected."
+                elif result.get("needs_more_info"):
+                    session["status"] = "needs_info"
+                    session["message"] = "Additional information needed to complete intake."
+                else:
+                    session["status"] = "pending_lawyer"
+                    session["message"] = "Case processed. Ready for review."
+                
                 session["intake_summary"] = result["intake_summary"]
                 session["risk_assessment"] = result["risk_assessment"]
                 session["recommended_action"] = result["recommended_action"]
+                session["needs_more_info"] = result.get("needs_more_info", False)
+                session["missing_info"] = result.get("missing_info", [])
+                session["is_complete"] = result.get("is_complete", False)
                 session["created_at"] = datetime.now().isoformat()
                 
                 final_result = result
@@ -251,7 +286,7 @@ async def stream_case_processing(
         processing_task = asyncio.create_task(run_processing())
         
         # Stream initial connection with case_id
-        yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting case intake processing...', 'case_id': case_id})}\n\n"
+        yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting case intake processing...', 'case_id': case_id}, ensure_ascii=False)}\n\n"
         
         # Stream steps as they come
         while not processing_complete.is_set():
@@ -259,9 +294,22 @@ async def stream_case_processing(
                 # Wait for next step with short timeout to check completion
                 try:
                     step_data = await asyncio.wait_for(step_queue.get(), timeout=0.1)
-                    # Stream the step immediately
-                    logger.info(f"Streaming step: {step_data.get('message', '')[:50]}...")
-                    yield f"data: {json.dumps({'step': step_data, 'status': 'processing'})}\n\n"
+                    # Stream the step immediately - ensure all strings are properly escaped
+                    try:
+                        # Clean step data to ensure JSON safety
+                        clean_step = {
+                            "timestamp": step_data.get("timestamp", ""),
+                            "message": str(step_data.get("message", "")).replace('\x00', '').replace('\r', ''),
+                            "agent": str(step_data.get("agent", "")) if step_data.get("agent") else None,
+                            "tool": str(step_data.get("tool", "")) if step_data.get("tool") else None,
+                            "target": str(step_data.get("target", "")) if step_data.get("target") else None,
+                        }
+                        logger.info(f"Streaming step: {clean_step.get('message', '')[:50]}...")
+                        yield f"data: {json.dumps({'step': clean_step, 'status': 'processing'}, ensure_ascii=False)}\n\n"
+                    except Exception as e:
+                        logger.error(f"Error encoding step data: {e}")
+                        # Fallback: send minimal safe data
+                        yield f"data: {json.dumps({'step': {'message': 'Processing...', 'timestamp': step_data.get('timestamp', '')}, 'status': 'processing'})}\n\n"
                 except asyncio.TimeoutError:
                     # No step available, check if processing is done
                     if processing_complete.is_set():
@@ -278,8 +326,17 @@ async def stream_case_processing(
         while not step_queue.empty():
             try:
                 step_data = step_queue.get_nowait()
-                yield f"data: {json.dumps({'step': step_data, 'status': 'processing'})}\n\n"
-            except:
+                # Clean step data to ensure JSON safety
+                clean_step = {
+                    "timestamp": step_data.get("timestamp", ""),
+                    "message": str(step_data.get("message", "")).replace('\x00', '').replace('\r', ''),
+                    "agent": str(step_data.get("agent", "")) if step_data.get("agent") else None,
+                    "tool": str(step_data.get("tool", "")) if step_data.get("tool") else None,
+                    "target": str(step_data.get("target", "")) if step_data.get("target") else None,
+                }
+                yield f"data: {json.dumps({'step': clean_step, 'status': 'processing'}, ensure_ascii=False)}\n\n"
+            except Exception as e:
+                logger.error(f"Error encoding remaining step: {e}")
                 break
         
         # Wait for processing to complete
@@ -287,13 +344,25 @@ async def stream_case_processing(
         
         # Send final result
         if final_result:
-            yield f"data: {json.dumps({'done': True, 'status': 'pending_lawyer', 'result': final_result})}\n\n"
+            status = "approved" if final_result.get("is_complete") else ("needs_info" if final_result.get("needs_more_info") else "pending_lawyer")
+            # Clean result data to ensure JSON safety
+            clean_result = {
+                "intake_summary": str(final_result.get("intake_summary", "")).replace('\x00', '').replace('\r', '') if final_result.get("intake_summary") else None,
+                "risk_assessment": str(final_result.get("risk_assessment", "")).replace('\x00', '').replace('\r', '') if final_result.get("risk_assessment") else None,
+                "recommended_action": str(final_result.get("recommended_action", "")).replace('\x00', '').replace('\r', '') if final_result.get("recommended_action") else None,
+                "needs_more_info": final_result.get("needs_more_info", False),
+                "missing_info": [str(m).replace('\x00', '').replace('\r', '') for m in (final_result.get("missing_info") or [])],
+                "is_complete": final_result.get("is_complete", False),
+            }
+            yield f"data: {json.dumps({'done': True, 'status': status, 'result': clean_result}, ensure_ascii=False)}\n\n"
         elif processing_error:
-            yield f"data: {json.dumps({'done': True, 'status': 'error', 'error': processing_error})}\n\n"
+            error_str = str(processing_error).replace('\x00', '').replace('\r', '')
+            yield f"data: {json.dumps({'done': True, 'status': 'error', 'error': error_str}, ensure_ascii=False)}\n\n"
         
     except Exception as e:
         logger.error(f"Error streaming case processing for case {case_id}: {e}")
-        yield f"data: {json.dumps({'error': str(e), 'status': 'error'})}\n\n"
+        error_str = str(e).replace('\x00', '').replace('\r', '')
+        yield f"data: {json.dumps({'error': error_str, 'status': 'error'}, ensure_ascii=False)}\n\n"
         set_progress_callback(None)
 
 
@@ -368,6 +437,10 @@ async def submit_case(
             status="processing",
             message="Case submitted. Processing with Intake and Review agents..."
         )
+        
+    except Exception as e:
+        logger.error(f"Error submitting case: {e}")
+        raise HTTPException(status_code=500, detail=f"Error submitting case: {str(e)}")
 
 
 @router.post("/submit-case-stream")
@@ -405,7 +478,8 @@ async def submit_case_stream(request: CaseIntakeRequest):
             "lawyer_decision": None,
             "created_at": None,
             "reviewed_at": None,
-            "steps": []
+            "steps": [],
+            "previously_provided_info": ""
         }
         
         logger.info(f"Started streaming case processing for case: {case_id}")
@@ -538,6 +612,117 @@ async def submit_lawyer_review(
     )
 
 
+@router.post("/provide-additional-info")
+async def provide_additional_info(request: AdditionalInfoRequest):
+    """
+    Provide additional information requested by the AI and continue processing
+    """
+    if request.case_id not in case_sessions:
+        raise HTTPException(status_code=404, detail="Case not found")
+    
+    session = case_sessions[request.case_id]
+    
+    if session["status"] != "needs_info":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Case is not in 'needs_info' status. Current status: {session['status']}"
+        )
+    
+    # Update case intake with additional info
+    intake_data = CaseIntake(**session["intake_data"])
+    # Append additional info to existing additional_info
+    if intake_data.additional_info:
+        intake_data.additional_info += f"\n\nAdditional Information (Round {len(session.get('previously_provided_info', '').split('Round'))}): {request.additional_info}"
+    else:
+        intake_data.additional_info = request.additional_info
+    
+    # Track what we've collected
+    previously_provided = session.get("previously_provided_info", "")
+    if previously_provided:
+        session["previously_provided_info"] = previously_provided + "\n\n" + request.additional_info
+    else:
+        session["previously_provided_info"] = request.additional_info
+    
+    # Update session
+    session["intake_data"] = intake_data.dict()
+    session["status"] = "processing"
+    session["message"] = "Processing additional information..."
+    
+    # Process again with updated information
+    from .intake_agents import process_case_intake
+    from .progress import set_progress_callback
+    
+    session["steps"] = []
+    
+    def update_progress(step_data):
+        """Update session with progress steps"""
+        try:
+            if request.case_id in case_sessions:
+                if isinstance(step_data, str):
+                    step_entry = {
+                        "timestamp": datetime.now().isoformat(),
+                        "message": step_data,
+                        "agent": None,
+                        "tool": None,
+                        "target": None
+                    }
+                else:
+                    step_entry = {
+                        "timestamp": datetime.now().isoformat(),
+                        "message": step_data.get("message", ""),
+                        "agent": step_data.get("agent"),
+                        "tool": step_data.get("tool"),
+                        "target": step_data.get("target")
+                    }
+                case_sessions[request.case_id]["steps"].append(step_entry)
+                case_sessions[request.case_id]["message"] = step_entry["message"]
+        except Exception as e:
+            logger.error(f"Error in update_progress callback: {e}")
+    
+    set_progress_callback(update_progress)
+    
+    try:
+        # Pass previously provided info to avoid asking for same things
+        previously_provided = session.get("previously_provided_info", "")
+        result = await process_case_intake(intake_data, previously_provided)
+        
+        if result.get("is_complete"):
+            session["status"] = "approved"
+            session["message"] = "Case intake complete! All information collected."
+        elif result.get("needs_more_info"):
+            session["status"] = "needs_info"
+            session["message"] = "Additional information still needed."
+        else:
+            session["status"] = "pending_lawyer"
+            session["message"] = "Case processed. Ready for review."
+        
+        session["intake_summary"] = result["intake_summary"]
+        session["risk_assessment"] = result["risk_assessment"]
+        session["recommended_action"] = result["recommended_action"]
+        session["needs_more_info"] = result.get("needs_more_info", False)
+        session["missing_info"] = result.get("missing_info", [])
+        session["is_complete"] = result.get("is_complete", False)
+        
+        set_progress_callback(None)
+        
+        return CaseIntakeResponse(
+            case_id=request.case_id,
+            status=session["status"],
+            message=session["message"],
+            steps=session.get("steps", []),
+            needs_more_info=result.get("needs_more_info", False),
+            missing_info=result.get("missing_info", []),
+            is_complete=result.get("is_complete", False),
+            intake_summary=result["intake_summary"],
+            risk_assessment=result["risk_assessment"],
+            recommended_action=result["recommended_action"]
+        )
+    except Exception as e:
+        set_progress_callback(None)
+        logger.error(f"Error processing additional info: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing additional information: {str(e)}")
+
+
 @router.get("/result/{case_id}")
 async def get_case_result(case_id: str):
     """Get final case result"""
@@ -554,6 +739,9 @@ async def get_case_result(case_id: str):
         "intake_summary": session["intake_summary"],
         "risk_assessment": session["risk_assessment"],
         "recommended_action": session["recommended_action"],
+        "needs_more_info": session.get("needs_more_info", False),
+        "missing_info": session.get("missing_info", []),
+        "is_complete": session.get("is_complete", False),
         "lawyer_notes": session.get("lawyer_notes"),
         "lawyer_decision": session.get("lawyer_decision"),
         "created_at": session.get("created_at"),
