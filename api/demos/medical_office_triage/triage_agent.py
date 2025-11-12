@@ -74,7 +74,10 @@ def _safe_makeRecord(self, *args, **kwargs):
         extra = kwargs['extra']
         sanitized_extra = {}
         for key, value in extra.items():
-            if hasattr(value, '__class__'):
+            # Always convert exceptions to strings (they often contain unpicklable objects)
+            if isinstance(value, Exception):
+                sanitized_extra[key] = f"{type(value).__name__}: {str(value)}"
+            elif hasattr(value, '__class__'):
                 class_name = value.__class__.__name__
                 # Convert known unpicklable types (aiohttp headers)
                 if 'MultiDict' in class_name or 'CIMultiDict' in class_name:
@@ -83,12 +86,17 @@ def _safe_makeRecord(self, *args, **kwargs):
                     except:
                         sanitized_extra[key] = f"<{class_name}>"
                 else:
+                    # Try to pickle to check if it's safe
                     try:
                         import pickle
                         pickle.dumps(value)
                         sanitized_extra[key] = value
-                    except:
-                        sanitized_extra[key] = str(value) if value else f"<{class_name}>"
+                    except (TypeError, AttributeError, pickle.PicklingError):
+                        # If pickling fails, convert to string
+                        try:
+                            sanitized_extra[key] = str(value)
+                        except:
+                            sanitized_extra[key] = f"<{class_name}>"
             else:
                 sanitized_extra[key] = value
         kwargs['extra'] = sanitized_extra
@@ -372,41 +380,8 @@ class TriageAgent(BaseAgent):
             vad=silero.VAD.load()
         )
     
-    async def on_enter(self) -> None:
-        """
-        Called when TriageAgent enters the room
-        
-        This overrides BaseAgent's on_enter to:
-        1. Set up context (calls parent)
-        2. Get patient name from room
-        3. Personalize the greeting
-        4. Start conversation with warm welcome
-        """
-        # First call parent to set up context and attributes
-        await super().on_enter()
-        
-        # Get patient name from room
-        patient_name = None
-        try:
-            userdata: UserData = self.session.userdata
-            if userdata.ctx and userdata.ctx.room:
-                room = userdata.ctx.room
-                if room.remote_participants:
-                    # Get first remote participant's name
-                    remote_participant = next(iter(room.remote_participants.values()), None)
-                    if remote_participant and remote_participant.name:
-                        patient_name = remote_participant.name.strip()
-        except Exception:
-            # If we can't get the room, just proceed without personalization
-            pass
-        
-        # Personalize greeting with patient name
-        if patient_name and patient_name.lower() != "patient":
-            greeting = f"Hello {patient_name}! Welcome to our medical office. How can I help you today?"
-        else:
-            greeting = "Hello! Welcome to our medical office. How can I help you today?"
-        
-        await self.session.say(greeting, allow_interruptions=True)
+    # TriageAgent uses BaseAgent's on_enter() which calls generate_reply()
+    # No custom on_enter needed - the LLM will generate appropriate greeting based on instructions
 
     @function_tool
     async def transfer_to_support(self, context: RunContext_T) -> Agent:
@@ -451,7 +426,7 @@ class SupportAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__(
             instructions=load_prompt('support_prompt.yaml'),
-            stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3),
+            stt=deepgram.STT(),
             llm=get_livekit_llm(),
             tts=deepgram.TTS(model="aura-asteria-en"),
             vad=silero.VAD.load()
@@ -485,7 +460,7 @@ class BillingAgent(BaseAgent):
     def __init__(self) -> None:
         super().__init__(
             instructions=load_prompt('billing_prompt.yaml'),
-            stt=deepgram.STTv2(model="flux-general-en", eager_eot_threshold=0.3, eot_threshold=0.3),
+            stt=deepgram.STT(),
             llm=get_livekit_llm(),
             tts=deepgram.TTS(model="aura-asteria-en"),
             vad=silero.VAD.load()
@@ -545,6 +520,9 @@ async def entrypoint(ctx: JobContext):
     if not ctx.room.name.startswith("medical_"):
         logger.info(f"Ignoring room {ctx.room.name} - not a medical office room")
         return
+    
+    # Connect to the room first (required before accessing local_participant)
+    await ctx.connect()
     
     # Create shared state
     userdata = UserData(ctx=ctx)
