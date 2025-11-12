@@ -49,6 +49,48 @@ from livekit.agents import JobContext, WorkerOptions, cli, function_tool, get_jo
 from livekit.agents.voice import Agent, AgentSession
 from livekit.plugins import silero, deepgram
 from utils.livekit_utils import get_livekit_llm
+import logging
+
+# Fix for LiveKit pickling error when logging errors with unpicklable objects
+# This happens when LiveKit tries to log session close events with error objects
+# that contain CIMultiDictProxy (from aiohttp headers) which can't be pickled
+_original_makeRecord = logging.Logger.makeRecord
+
+def _safe_makeRecord(self, *args, **kwargs):
+    """Sanitize extra dict to prevent pickling errors"""
+    if 'extra' in kwargs and kwargs['extra']:
+        extra = kwargs['extra']
+        sanitized_extra = {}
+        for key, value in extra.items():
+            # Always convert exceptions to strings (they often contain unpicklable objects)
+            if isinstance(value, Exception):
+                sanitized_extra[key] = f"{type(value).__name__}: {str(value)}"
+            elif hasattr(value, '__class__'):
+                class_name = value.__class__.__name__
+                # Convert known unpicklable types (aiohttp headers)
+                if 'MultiDict' in class_name or 'CIMultiDict' in class_name:
+                    try:
+                        sanitized_extra[key] = dict(value.items()) if hasattr(value, 'items') else str(value)
+                    except:
+                        sanitized_extra[key] = f"<{class_name}>"
+                else:
+                    # Try to pickle to check if it's safe
+                    try:
+                        import pickle
+                        pickle.dumps(value)
+                        sanitized_extra[key] = value
+                    except (TypeError, AttributeError, pickle.PicklingError):
+                        # If pickling fails, convert to string
+                        try:
+                            sanitized_extra[key] = str(value)
+                        except:
+                            sanitized_extra[key] = f"<{class_name}>"
+            else:
+                sanitized_extra[key] = value
+        kwargs['extra'] = sanitized_extra
+    return _original_makeRecord(self, *args, **kwargs)
+
+logging.Logger.makeRecord = _safe_makeRecord
 
 load_dotenv()
 
@@ -388,36 +430,9 @@ class RestaurantAgent(Agent):
             # Turn detection handled by eager_eot_threshold in STT config
         )
     
-    async def on_enter(self):
-        """
-        Called when the agent enters the room
-        
-        This lifecycle hook:
-        1. Gets the customer's name from the room
-        2. Personalizes the greeting
-        3. Starts the conversation with a warm welcome
-        """
-        # Get participant name from room
-        customer_name = None
-        try:
-            job_ctx = get_job_context()
-            room = job_ctx.room if job_ctx else None
-            if room and room.remote_participants:
-                # Get first remote participant's name
-                remote_participant = next(iter(room.remote_participants.values()), None)
-                if remote_participant and remote_participant.name:
-                    customer_name = remote_participant.name.strip()
-        except Exception:
-            # If we can't get the room, just proceed without personalization
-            pass
-        
-        # Personalize greeting with customer name
-        if customer_name and customer_name.lower() != "customer":
-            greeting = f"Hello {customer_name}! Welcome to our restaurant. How can I help you today?"
-        else:
-            greeting = "Hello! Welcome to our restaurant. How can I help you today?"
-        
-        await self.session.say(greeting, allow_interruptions=True)
+    # RestaurantAgent uses Agent's default on_enter() which calls generate_reply()
+    # The LLM will generate an appropriate dynamic greeting based on instructions
+    # No custom on_enter needed - the greeting will be generated dynamically
 
 
 # ============================================================================
