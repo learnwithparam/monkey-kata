@@ -39,17 +39,20 @@ function FormPageContent() {
   const fieldRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
-    if (!sessionId) {
-      setError('No session ID provided. Please start from the main demo page.');
-      return;
-    }
-
-    // Fetch form structure
+    // Always fetch form structure to display the form
     fetchFormStructure();
-    
-    // Start form filling
-    startFormFilling();
-  }, [sessionId]);
+  }, []);
+
+  // Start auto-filling only if session_id is present
+  useEffect(() => {
+    if (formStructure && sessionId && !isFilling && !isComplete) {
+      // Wait a bit for React to render the form, then start auto-filling
+      const timer = setTimeout(() => {
+        startFormFilling();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [formStructure, sessionId]);
 
   const fetchFormStructure = async () => {
     try {
@@ -75,15 +78,70 @@ function FormPageContent() {
   const startFormFilling = async () => {
     if (!sessionId) return;
 
+    // Wait for form structure to be loaded and rendered
+    if (!formStructure) {
+      setCurrentMessage('Waiting for form to load...');
+      // Retry after a short delay
+      setTimeout(() => startFormFilling(), 500);
+      return;
+    }
+
     setIsFilling(true);
     setError(null);
-    setCurrentMessage('Connecting to form filling agent...');
+    setCurrentMessage('Discovering form structure from HTML...');
 
     try {
+      // Wait a bit for React to render the form
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Find the form element specifically
+      const formElement = document.querySelector('form');
+      let htmlContent = '';
+      
+      if (formElement) {
+        // Get HTML from the form element
+        htmlContent = formElement.outerHTML;
+        setCurrentMessage('Form HTML extracted, sending to agent...');
+        console.log('Extracted form HTML:', htmlContent.substring(0, 200));
+      } else {
+        // Fallback: find form container
+        const formContainer = document.querySelector('[class*="bg-white"][class*="rounded-xl"]');
+        if (formContainer) {
+          htmlContent = formContainer.outerHTML;
+          setCurrentMessage('Form container HTML extracted, sending to agent...');
+        } else {
+          // Last fallback: get all form-related elements
+          const formElements = document.querySelectorAll('input, textarea, select, label');
+          if (formElements.length > 0) {
+            // Create a form wrapper with all form elements
+            const formWrapper = document.createElement('form');
+            formElements.forEach(el => {
+              const clone = el.cloneNode(true);
+              formWrapper.appendChild(clone);
+            });
+            htmlContent = formWrapper.outerHTML;
+            setCurrentMessage('Form elements extracted, sending to agent...');
+          } else {
+            throw new Error('Could not find form element. Please ensure the form is visible.');
+          }
+        }
+      }
+      
+      if (!htmlContent || htmlContent.length < 100) {
+        throw new Error('Could not extract form HTML. Please ensure the form is visible.');
+      }
+      
+      // Send HTML content to parse form structure dynamically
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL}/job-application-form-filling/fill-form-stream?session_id=${encodeURIComponent(sessionId)}`,
         {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            html_content: htmlContent
+          }),
         }
       );
 
@@ -189,21 +247,22 @@ function FormPageContent() {
       .map(field => filledFields.get(field.name) || field);
   };
 
-  if (!sessionId) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <AlertMessage type="error" message="No session ID provided. Please start from the main demo page." />
-          <a
-            href="/demos/job-application-form-filling"
-            className="mt-4 inline-block text-blue-600 hover:text-blue-700"
-          >
-            Go to main demo page
-          </a>
-        </div>
-      </div>
-    );
-  }
+  // Handle manual field updates (when no session_id or manual mode)
+  const handleFieldChange = (fieldName: string, value: string) => {
+    if (sessionId && isFilling) {
+      // Don't allow manual edits during auto-fill
+      return;
+    }
+    
+    setFilledFields(prev => {
+      const updated = new Map(prev);
+      const field = updated.get(fieldName);
+      if (field) {
+        updated.set(fieldName, { ...field, value });
+      }
+      return updated;
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -217,31 +276,45 @@ function FormPageContent() {
             Job Application Form
           </h1>
           <p className="text-lg text-gray-600">
-            Watch as AI automatically fills your application form
+            {sessionId 
+              ? 'Watch as AI automatically fills your application form'
+              : 'Fill out the form manually or upload your resume to auto-fill'}
           </p>
-        </div>
-
-        {/* Status Bar */}
-        <div className="mb-6">
-          <StatusIndicator
-            status={isComplete ? 'completed' : isFilling ? 'processing' : 'idle'}
-            message={currentMessage || (isComplete ? 'Form filled successfully!' : 'Waiting to start...')}
-          />
-          {isFilling && (
+          {!sessionId && (
             <div className="mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Progress</span>
-                <span className="text-sm font-semibold text-gray-900">{Math.round(progress * 100)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress * 100}%` }}
-                ></div>
-              </div>
+              <a
+                href="/demos/job-application-form-filling"
+                className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                Upload Resume to Auto-Fill
+              </a>
             </div>
           )}
         </div>
+
+        {/* Status Bar - Only show when auto-filling */}
+        {sessionId && (
+          <div className="mb-6">
+            <StatusIndicator
+              status={isComplete ? 'completed' : isFilling ? 'processing' : 'idle'}
+              message={currentMessage || (isComplete ? 'Form filled successfully!' : 'Waiting to start...')}
+            />
+            {isFilling && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Progress</span>
+                  <span className="text-sm font-semibold text-gray-900">{Math.round(progress * 100)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${progress * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Error Alert */}
         {error && (
@@ -252,7 +325,7 @@ function FormPageContent() {
 
         {/* Form */}
         {formStructure && (
-          <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200 space-y-8">
+          <form className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200 space-y-8">
             {formStructure.sections.map((section) => (
               <div key={section} className="space-y-4">
                 <h2 className="text-xl font-bold text-gray-900 border-b border-gray-200 pb-2">
@@ -272,7 +345,7 @@ function FormPageContent() {
                       }}
                       className={`transition-all duration-500 ${
                         isHighlighted
-                          ? 'bg-blue-50 border-blue-300 shadow-md scale-[1.02]'
+                          ? 'bg-green-50 border-green-300 shadow-md scale-[1.02]'
                           : hasValue
                           ? 'bg-green-50 border-green-200'
                           : 'bg-white border-gray-200'
@@ -282,7 +355,7 @@ function FormPageContent() {
                         {field.label}
                         {field.required && <span className="text-red-500 ml-1">*</span>}
                         {isHighlighted && (
-                          <SparklesIcon className="w-4 h-4 text-blue-600 inline-block ml-2 animate-pulse" />
+                          <SparklesIcon className="w-4 h-4 text-green-600 inline-block ml-2 animate-pulse" />
                         )}
                         {hasValue && !isHighlighted && (
                           <CheckCircleIcon className="w-4 h-4 text-green-600 inline-block ml-2" />
@@ -290,27 +363,33 @@ function FormPageContent() {
                       </label>
                       {field.type === 'textarea' ? (
                         <textarea
+                          name={field.name}
+                          id={field.name}
                           value={field.value || ''}
-                          readOnly
+                          readOnly={!!sessionId && (isFilling || isComplete)}
+                          onChange={(e) => handleFieldChange(field.name, e.target.value)}
                           rows={field.name === 'work_experience' || field.name === 'education' ? 6 : 3}
-                          className={`w-full px-4 py-3 border-0 rounded-lg focus:ring-0 resize-none transition-all duration-300 ${
+                          className={`w-full px-4 py-3 border-0 rounded-lg focus:ring-2 focus:ring-green-500 resize-none transition-all duration-300 ${
                             hasValue
                               ? 'text-gray-900 bg-transparent'
                               : 'text-gray-400 bg-transparent'
-                          }`}
-                          placeholder={isFilling ? 'Filling...' : 'Waiting...'}
+                          } ${!sessionId || (!isFilling && !isComplete) ? 'cursor-text' : 'cursor-not-allowed'}`}
+                          placeholder={sessionId ? (isFilling ? 'Filling...' : 'Waiting...') : `Enter ${field.label.toLowerCase()}`}
                         />
                       ) : (
                         <input
+                          name={field.name}
+                          id={field.name}
                           type={field.type}
                           value={field.value || ''}
-                          readOnly
-                          className={`w-full px-4 py-3 border-0 rounded-lg focus:ring-0 transition-all duration-300 ${
+                          readOnly={!!sessionId && (isFilling || isComplete)}
+                          onChange={(e) => handleFieldChange(field.name, e.target.value)}
+                          className={`w-full px-4 py-3 border-0 rounded-lg focus:ring-2 focus:ring-green-500 transition-all duration-300 ${
                             hasValue
                               ? 'text-gray-900 bg-transparent'
                               : 'text-gray-400 bg-transparent'
-                          }`}
-                          placeholder={isFilling ? 'Filling...' : 'Waiting...'}
+                          } ${!sessionId || (!isFilling && !isComplete) ? 'cursor-text' : 'cursor-not-allowed'}`}
+                          placeholder={sessionId ? (isFilling ? 'Filling...' : 'Waiting...') : `Enter ${field.label.toLowerCase()}`}
                         />
                       )}
                     </div>
@@ -322,29 +401,38 @@ function FormPageContent() {
             {/* Submit Button */}
             <div className="pt-6 border-t border-gray-200">
               <button
-                disabled={!isComplete}
+                disabled={sessionId ? !isComplete : false}
                 className={`w-full px-6 py-3 rounded-lg font-semibold transition-all ${
-                  isComplete
-                    ? 'bg-green-600 text-white hover:bg-green-700 shadow-md hover:shadow-lg'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  sessionId 
+                    ? (isComplete
+                        ? 'bg-green-600 text-white hover:bg-green-700 shadow-md hover:shadow-lg'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed')
+                    : 'bg-green-600 text-white hover:bg-green-700 shadow-md hover:shadow-lg'
                 }`}
               >
-                {isComplete ? (
+                {sessionId ? (
+                  isComplete ? (
+                    <>
+                      <CheckCircleIcon className="w-5 h-5 inline-block mr-2" />
+                      Submit Application
+                    </>
+                  ) : (
+                    'Form Filling in Progress...'
+                  )
+                ) : (
                   <>
                     <CheckCircleIcon className="w-5 h-5 inline-block mr-2" />
                     Submit Application
                   </>
-                ) : (
-                  'Form Filling in Progress...'
                 )}
               </button>
             </div>
-          </div>
+          </form>
         )}
 
         {!formStructure && !error && (
           <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading form structure...</p>
           </div>
         )}

@@ -9,7 +9,6 @@ import {
   ArrowRightIcon,
   SparklesIcon,
 } from '@heroicons/react/24/outline';
-import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import FileUpload from '@/components/demos/FileUpload';
@@ -47,6 +46,7 @@ export default function JobApplicationFormFillingDemo() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [isFilling, setIsFilling] = useState(false);
+  const [isFormComplete, setIsFormComplete] = useState(false);
   const [parsedResume, setParsedResume] = useState<ResumeData | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -118,10 +118,49 @@ export default function JobApplicationFormFillingDemo() {
       return;
     }
 
+    // Reset completion state
+    setIsFormComplete(false);
+    
     // Open form page in new tab
     const formUrl = `/demos/job-application-form-filling/form?session_id=${sessionId}`;
     window.open(formUrl, '_blank');
     setIsFilling(true);
+    
+    // Start polling for form completion
+    pollFormStatus();
+  };
+
+  const pollFormStatus = async () => {
+    if (!sessionId) return;
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/job-application-form-filling/session/${sessionId}`);
+        if (response.ok) {
+          const session = await response.json();
+          
+          if (session.status === 'completed') {
+            setIsFormComplete(true);
+            setIsFilling(false);
+            clearInterval(pollInterval);
+          } else if (session.status === 'error') {
+            setIsFilling(false);
+            clearInterval(pollInterval);
+          }
+        }
+      } catch (error) {
+        console.error('Error polling form status:', error);
+        // Don't clear interval on error, keep trying
+      }
+    }, 2000); // Poll every 2 seconds
+    
+    // Stop polling after 5 minutes
+    setTimeout(() => {
+      clearInterval(pollInterval);
+      if (isFilling) {
+        setIsFilling(false);
+      }
+    }, 300000);
   };
 
   const resetForm = () => {
@@ -132,6 +171,7 @@ export default function JobApplicationFormFillingDemo() {
     setParsingStatus('');
     setIsParsing(false);
     setIsFilling(false);
+    setIsFormComplete(false);
   };
 
   return (
@@ -159,7 +199,7 @@ export default function JobApplicationFormFillingDemo() {
               href="/demos/job-application-form-filling/job-listing"
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md inline-block"
+              className="bg-gray-900 text-white font-semibold py-3 px-6 rounded-lg hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md inline-block"
             >
               View Job Listing
             </a>
@@ -201,7 +241,7 @@ export default function JobApplicationFormFillingDemo() {
 
                 <ProcessingButton
                   onClick={uploadAndParseResume}
-                  isProcessing={isParsing}
+                  isLoading={isParsing}
                   disabled={!selectedFile}
                   className="w-full"
                 >
@@ -317,24 +357,46 @@ export default function JobApplicationFormFillingDemo() {
               </div>
 
               <div className="space-y-4">
-                <p className="text-gray-600">
-                  Click the button below to open the application form in a new tab. 
-                  Watch as AI automatically fills the form with your resume information.
-                </p>
+                {isFormComplete ? (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-3 mb-2">
+                      <CheckCircleIcon className="w-5 h-5 text-green-600" />
+                      <p className="text-green-800 font-semibold">Form Filling Completed!</p>
+                    </div>
+                    <p className="text-sm text-green-700">
+                      The application form has been successfully filled. You can view it in the form tab.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-gray-600">
+                    Click the button below to open the application form in a new tab. 
+                    Watch as AI automatically fills the form with your resume information.
+                  </p>
+                )}
                 <div className="flex gap-4">
-                  <ProcessingButton
-                    onClick={startFormFilling}
-                    isProcessing={isFilling}
-                    disabled={!sessionId}
-                    className="flex-1"
-                  >
-                    {isFilling ? 'Opening Form...' : (
-                      <>
-                        Start Form Filling
-                        <ArrowRightIcon className="w-5 h-5 ml-2" />
-                      </>
-                    )}
-                  </ProcessingButton>
+                  {isFormComplete ? (
+                    <button
+                      disabled={true}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md inline-flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <CheckCircleIcon className="w-5 h-5 mr-2" />
+                      Form Filling Complete
+                    </button>
+                  ) : (
+                    <ProcessingButton
+                      onClick={startFormFilling}
+                      isLoading={isFilling}
+                      disabled={!sessionId || isFilling}
+                      className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isFilling ? 'Form Filling in Progress...' : (
+                        <>
+                          Start Form Filling
+                          <ArrowRightIcon className="w-5 h-5 ml-2" />
+                        </>
+                      )}
+                    </ProcessingButton>
+                  )}
                   <button
                     onClick={resetForm}
                     className="px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors"

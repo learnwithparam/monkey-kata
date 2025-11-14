@@ -160,10 +160,10 @@ export default function JobListingPage() {
           {/* CTA */}
           <div className="pt-6 border-t border-gray-200">
             <Link
-              href="/demos/job-application-form-filling"
-              className="inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm hover:shadow-md"
+              href="/demos/job-application-form-filling/form"
+              className="inline-flex items-center justify-center w-full sm:w-auto px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md"
             >
-              Apply Now
+              Start Application
             </Link>
           </div>
         </div>

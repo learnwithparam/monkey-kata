@@ -7,14 +7,25 @@ interface ProcessingButtonProps {
   disabled?: boolean;
   children: React.ReactNode;
   icon?: ReactNode;
+  className?: string;
 }
 
-export default function ProcessingButton({ isLoading, onClick, disabled, children, icon }: ProcessingButtonProps) {
+export default function ProcessingButton({ isLoading, onClick, disabled, children, icon, className }: ProcessingButtonProps) {
+  // If className is provided and contains color/styling overrides, use it fully
+  // Otherwise, merge with defaults
+  const hasColorOverride = className && (className.includes('bg-') || className.includes('text-') || className.includes('btn-'));
+  const baseClasses = "w-full btn-accent disabled:opacity-50 disabled:cursor-not-allowed py-4 text-lg font-semibold";
+  const finalClassName = className 
+    ? (hasColorOverride 
+        ? className 
+        : `${baseClasses} ${className}`.replace(/\s+w-full\s+/g, ' ').trim())
+    : baseClasses;
+  
   return (
     <button
       onClick={onClick}
       disabled={isLoading || disabled}
-      className="w-full btn-accent disabled:opacity-50 disabled:cursor-not-allowed py-4 text-lg font-semibold"
+      className={finalClassName}
     >
       {isLoading ? (
         <span className="flex items-center justify-center">

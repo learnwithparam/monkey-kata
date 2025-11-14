@@ -23,7 +23,7 @@ Key Concept: This demo shows how AI agents can automate form completion
 by parsing unstructured documents and intelligently mapping data to form fields.
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, UploadFile, File, Query, Body
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, AsyncGenerator
@@ -41,7 +41,7 @@ from .models import (
 )
 from .resume_parser import parse_resume_pdf
 from .form_agent import fill_form_from_resume, set_progress_callback
-from .form_template import get_form_structure
+from .html_parser import parse_html_form
 
 logger = logging.getLogger(__name__)
 
@@ -107,11 +107,15 @@ Key Responsibilities:
 # STEP 4: STREAMING FORM FILLING
 # ============================================================================
 async def stream_form_filling(
-    session_id: str
+    session_id: str,
+    form_structure: FormStructure
 ) -> AsyncGenerator[str, None]:
     """Stream form filling updates in real-time"""
     try:
+        logger.info(f"Starting stream_form_filling for session: {session_id}")
+        
         if session_id not in sessions:
+            logger.error(f"Session not found: {session_id}")
             yield f"data: {json.dumps({'error': 'Session not found', 'status': 'error'})}\n\n"
             return
         
@@ -119,12 +123,27 @@ async def stream_form_filling(
         resume_data = session.get("resume_data")
         
         if not resume_data:
+            logger.error(f"Resume data not found for session: {session_id}")
             yield f"data: {json.dumps({'error': 'Resume data not found', 'status': 'error'})}\n\n"
             return
         
+        logger.info(f"Found resume data for session: {session_id}")
+        
         # Convert dict to ResumeData model
-        resume_data_obj = ResumeData(**resume_data)
-        form_structure = get_form_structure()
+        try:
+            resume_data_obj = ResumeData(**resume_data)
+            logger.info(f"Parsed resume data: {resume_data_obj.name}")
+        except Exception as e:
+            logger.error(f"Error parsing resume data: {e}", exc_info=True)
+            yield f"data: {json.dumps({'error': f'Invalid resume data: {str(e)}', 'status': 'error'})}\n\n"
+            return
+        
+        if not form_structure or not form_structure.fields:
+            logger.error("No form structure or fields provided")
+            yield f"data: {json.dumps({'error': 'No form structure provided', 'status': 'error'})}\n\n"
+            return
+        
+        logger.info(f"Form structure has {len(form_structure.fields)} fields")
         
         # Set up progress callback
         step_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
@@ -134,6 +153,7 @@ async def stream_form_filling(
             """Update session and queue step for streaming"""
             try:
                 step_queue.put_nowait(progress_data)
+                logger.debug(f"Progress update: {progress_data.get('message', '')}")
             except Exception as e:
                 logger.warning(f"Error queuing progress: {e}")
         
@@ -142,11 +162,14 @@ async def stream_form_filling(
         # Start form filling in background
         async def run_filling():
             try:
+                logger.info("Starting fill_form_from_resume...")
                 async for update in fill_form_from_resume(resume_data_obj, form_structure):
+                    logger.debug(f"Form filling update: {update.get('field_name', 'general')}")
                     step_queue.put_nowait(update)
+                logger.info("Form filling completed successfully")
                 processing_complete.set()
             except Exception as e:
-                logger.error(f"Error in form filling: {e}")
+                logger.error(f"Error in form filling: {e}", exc_info=True)
                 step_queue.put_nowait({
                     "error": str(e),
                     "status": "error",
@@ -158,6 +181,7 @@ async def stream_form_filling(
         
         # Start filling task
         filling_task = asyncio.create_task(run_filling())
+        logger.info("Form filling task started")
         
         # Stream initial connection
         yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting form filling...', 'session_id': session_id}, ensure_ascii=False)}\n\n"
@@ -276,7 +300,15 @@ async def get_job_listing():
 
 @router.get("/form-structure", response_model=FormStructure)
 async def get_form_structure_endpoint():
-    """Get the form structure/template"""
+    """
+    Get a sample form structure (for demo/display purposes only).
+    
+    Note: The actual form filling uses HTML parsing to discover form structure dynamically.
+    This endpoint is only for displaying a sample structure in the UI.
+    """
+    # Return a simple sample structure for UI display
+    # The actual form filling will parse HTML to discover the real structure
+    from .form_template import get_form_structure
     return get_form_structure()
 
 
@@ -366,26 +398,70 @@ async def upload_resume(file: UploadFile = File(...)):
         )
 
 
+class FormFillStreamRequest(BaseModel):
+    """Request body for form filling stream"""
+    html_content: Optional[str] = None  # HTML content to parse form structure from
+
+
 @router.post("/fill-form-stream")
-async def fill_form_stream(session_id: str = Query(..., description="Session ID from resume upload")):
+async def fill_form_stream(
+    session_id: str = Query(..., description="Session ID from resume upload"),
+    request: Optional[FormFillStreamRequest] = Body(None)
+):
     """
     Stream form filling updates in real-time
     
-    This endpoint streams form filling progress field by field,
-    showing how the agent fills each form field.
+    This endpoint:
+    1. Parses HTML content to discover form structure dynamically
+    2. Uses AI agent to fill the discovered form fields
+    3. Streams progress updates in real-time
+    
+    The agent discovers form structure by parsing HTML - no hardcoded templates!
     
     Args:
         session_id: Session ID from resume upload
+        request: Request body with html_content (HTML of the form page)
         
     Returns:
         SSE stream with field-by-field updates
     """
     try:
+        logger.info(f"Starting form filling stream for session: {session_id}")
+        
         if not session_id:
             raise HTTPException(status_code=400, detail="session_id is required")
         
+        # Parse HTML to discover form structure
+        form_structure = None
+        if request and request.html_content:
+            logger.info("Parsing HTML content to discover form structure...")
+            try:
+                form_structure = parse_html_form(request.html_content)
+                logger.info(f"Discovered {len(form_structure.fields)} fields in {len(form_structure.sections)} sections")
+            except Exception as e:
+                logger.error(f"Error parsing HTML: {e}", exc_info=True)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to parse HTML form: {str(e)}"
+                )
+        else:
+            logger.warning("No HTML content provided, cannot discover form structure")
+            raise HTTPException(
+                status_code=400,
+                detail="html_content is required to discover form structure"
+            )
+        
+        if not form_structure or not form_structure.fields:
+            logger.warning("No form fields discovered from HTML")
+            raise HTTPException(
+                status_code=400,
+                detail="No form fields found in HTML content"
+            )
+        
+        logger.info(f"Starting form filling with {len(form_structure.fields)} fields")
+        
         return StreamingResponse(
-            stream_form_filling(session_id),
+            stream_form_filling(session_id, form_structure),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -393,8 +469,10 @@ async def fill_form_stream(session_id: str = Query(..., description="Session ID 
             }
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error starting form filling stream: {e}")
+        logger.error(f"Error starting form filling stream: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error starting form filling: {str(e)}"
