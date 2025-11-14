@@ -156,6 +156,14 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/legal-case-intake",
         challengeHref: "/challenges/legal-case-intake",
         apiSlug: "legal_case_intake"
+      },
+      {
+        icon: <BriefcaseIcon className="w-8 h-8 text-green-600 mr-4" />,
+        title: "Job Application Form Auto-Fill",
+        description: "Upload your resume and watch AI automatically fill your job application form in real-time",
+        demoHref: "/demos/job-application-form-filling",
+        challengeHref: "/challenges/job-application-form-filling",
+        apiSlug: "job_application_form_filling"
       }
     ]
   },
