@@ -23,7 +23,8 @@ demonstrating how agents can extend their capabilities through tool calling.
 
 import json
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable
+from datetime import datetime
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 
@@ -31,6 +32,29 @@ from utils.llm_provider import get_llm
 from .browser_tools import get_all_tools
 
 logger = logging.getLogger(__name__)
+
+# Global callback for progress updates
+_progress_callback: Optional[Callable[[Any], None]] = None
+
+def set_progress_callback(callback: Optional[Callable[[Any], None]]):
+    """Set a callback function to report progress updates"""
+    global _progress_callback
+    _progress_callback = callback
+
+def _report_progress(message: str, agent: str = None, tool: str = None, target: str = None):
+    """Report progress if callback is set"""
+    if _progress_callback:
+        try:
+            step_data = {
+                "timestamp": datetime.now().isoformat(),
+                "message": message,
+                "agent": agent,
+                "tool": tool,
+                "target": target
+            }
+            _progress_callback(step_data)
+        except Exception as e:
+            logger.warning(f"Error in progress callback: {e}")
 
 
 def create_form_filling_agent() -> AgentExecutor:
@@ -107,15 +131,39 @@ async def fill_form_workflow(
         
         # Step 1: Navigate to URL
         logger.info(f"Navigating to: {url}")
+        _report_progress(
+            f"Navigating to {url}",
+            agent="Form Filling Agent",
+            tool="navigate_to_url",
+            target=url
+        )
         nav_result = agent.invoke({
             "input": f"Navigate to the URL: {url}"
         })
+        _report_progress(
+            f"Successfully navigated to {url}",
+            agent="Form Filling Agent",
+            tool="navigate_to_url",
+            target=url
+        )
         
         # Step 2: Detect form fields
         logger.info("Detecting form fields...")
+        _report_progress(
+            "Detecting form fields on the page",
+            agent="Form Filling Agent",
+            tool="detect_form_fields",
+            target=url
+        )
         detect_result = agent.invoke({
             "input": f"Detect all form fields on the current page at {url}"
         })
+        _report_progress(
+            "Form fields detected successfully",
+            agent="Form Filling Agent",
+            tool="detect_form_fields",
+            target=url
+        )
         
         # Step 3: Fill form
         logger.info("Filling form...")
@@ -127,9 +175,21 @@ async def fill_form_workflow(
 Match the data keys to form fields by id, name, or label (case-insensitive).
 Fill each field with its corresponding value."""
         
+        _report_progress(
+            f"Filling form with {len(form_data)} fields",
+            agent="Form Filling Agent",
+            tool="fill_form",
+            target=url
+        )
         fill_result = agent.invoke({
             "input": fill_prompt
         })
+        _report_progress(
+            "Form filled successfully",
+            agent="Form Filling Agent",
+            tool="fill_form",
+            target=url
+        )
         
         result = {
             "status": "success",
@@ -143,11 +203,23 @@ Fill each field with its corresponding value."""
         # Step 4: Submit if requested
         if auto_submit:
             logger.info("Submitting form...")
+            _report_progress(
+                "Submitting the form",
+                agent="Form Filling Agent",
+                tool="submit_form",
+                target=url
+            )
             submit_result = agent.invoke({
                 "input": f"Submit the form on the page at {url}"
             })
             result["form_submission"] = submit_result.get("output", "")
             result["submitted"] = True
+            _report_progress(
+                "Form submitted successfully",
+                agent="Form Filling Agent",
+                tool="submit_form",
+                target=url
+            )
         else:
             result["submitted"] = False
         
@@ -155,6 +227,12 @@ Fill each field with its corresponding value."""
         
     except Exception as e:
         logger.error(f"Error in form filling workflow: {e}")
+        _report_progress(
+            f"Error: {str(e)}",
+            agent="Form Filling Agent",
+            tool="error",
+            target=url
+        )
         return {
             "status": "error",
             "url": url,

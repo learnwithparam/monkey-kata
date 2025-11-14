@@ -237,7 +237,13 @@ export default function MedicalOfficeTriagePage() {
               <VoiceInterface 
                 onDisconnect={disconnect} 
                 currentAgent={currentAgent} 
-                getAgentDisplayName={getAgentDisplayName} 
+                getAgentDisplayName={getAgentDisplayName}
+                examples={[
+                  "I need to schedule an appointment",
+                  "I have a question about my bill",
+                  "I need a prescription refill",
+                  "I want to check my insurance coverage"
+                ]}
               />
             </RoomContext.Provider>
           )}

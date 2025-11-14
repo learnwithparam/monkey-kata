@@ -1,12 +1,10 @@
 import { 
   BookOpenIcon,
   GlobeAltIcon,
-  TagIcon,
   HeartIcon,
   MagnifyingGlassIcon,
   DocumentTextIcon,
   ScaleIcon as LegalIcon,
-  ShoppingBagIcon,
   RocketLaunchIcon,
   MicrophoneIcon,
   ChartBarIcon,
@@ -154,7 +152,7 @@ export const weeksData: WeekData[] = [
       {
         icon: <DocumentTextIcon className="w-8 h-8 text-blue-600 mr-4" />,
         title: "Web Form Filling AI Bot",
-        description: "Navigate websites and fill forms automatically with browser automation",
+        description: "Collect form data via voice conversation, then automatically fill forms with browser automation",
         demoHref: "/demos/web-form-filling",
         challengeHref: "/challenges/web-form-filling",
         apiSlug: "web_form_filling"
@@ -166,14 +164,6 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/legal-case-intake",
         challengeHref: "/challenges/legal-case-intake",
         apiSlug: "legal_case_intake"
-      },
-      {
-        icon: <ShoppingBagIcon className="w-8 h-8 text-purple-600 mr-4" />,
-        title: "Personal Shopping Assistant",
-        description: "AI agent for product recommendations with memory and personalized suggestions",
-        demoHref: "/demos/personal-shopping",
-        challengeHref: "/challenges/personal-shopping",
-        apiSlug: "personal_shopping"
       }
     ]
   },

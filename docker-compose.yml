@@ -113,6 +113,27 @@ services:
       - api
     restart: unless-stopped
 
+  # Web Form Filling Voice Agent
+  form-agent:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    working_dir: /app/demos/web_form_filling
+    volumes:
+      - ./api:/app
+      - /app/__pycache__
+    env_file:
+      - ./api/.env
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    command: python form_voice_agent.py dev
+    networks:
+      - ai-bootcamp-network
+    depends_on:
+      - api
+    restart: unless-stopped
+
 
 
 volumes:

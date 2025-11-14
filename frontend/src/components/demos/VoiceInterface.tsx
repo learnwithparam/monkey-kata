@@ -11,12 +11,14 @@ interface VoiceInterfaceProps {
   onDisconnect: () => void;
   currentAgent?: string;
   getAgentDisplayName?: (agent: string) => string;
+  examples?: string[];
 }
 
 export default function VoiceInterface({ 
   onDisconnect, 
   currentAgent = '',
-  getAgentDisplayName = (agent: string) => agent
+  getAgentDisplayName = (agent: string) => agent,
+  examples
 }: VoiceInterfaceProps) {
   const localParticipant = useLocalParticipant();
   const room = useRoomContext();
@@ -345,20 +347,12 @@ export default function VoiceInterface({
           <strong>Example commands:</strong>
         </p>
         <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
-          {currentAgent ? (
-            <>
-              <li>&quot;I need to schedule an appointment&quot;</li>
-              <li>&quot;I have a question about my bill&quot;</li>
-              <li>&quot;I need a prescription refill&quot;</li>
-              <li>&quot;I want to check my insurance coverage&quot;</li>
-            </>
+          {examples && examples.length > 0 ? (
+            examples.map((example, index) => (
+              <li key={index}>&quot;{example}&quot;</li>
+            ))
           ) : (
-            <>
-              <li>&quot;What&apos;s on the menu?&quot;</li>
-              <li>&quot;I&apos;d like a Caesar Salad&quot;</li>
-              <li>&quot;What&apos;s in my current order?&quot;</li>
-              <li>&quot;I&apos;m ready to place my order&quot;</li>
-            </>
+            <li>Speak naturally to interact with the AI assistant</li>
           )}
         </ul>
       </div>

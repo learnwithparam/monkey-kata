@@ -160,7 +160,15 @@ export default function RestaurantBookingPage() {
           ) : (
             <RoomContext.Provider value={room}>
               <RoomAudioRenderer />
-              <VoiceInterface onDisconnect={disconnect} />
+              <VoiceInterface 
+                onDisconnect={disconnect}
+                examples={[
+                  "What's on the menu?",
+                  "I'd like a Caesar Salad",
+                  "What's in my current order?",
+                  "I'm ready to place my order"
+                ]}
+              />
             </RoomContext.Provider>
           )}
         </div>
