@@ -150,14 +150,6 @@ export const weeksData: WeekData[] = [
         apiSlug: "competitor_analysis"
       },
       {
-        icon: <DocumentTextIcon className="w-8 h-8 text-blue-600 mr-4" />,
-        title: "Web Form Filling AI Bot",
-        description: "Collect form data via voice conversation, then automatically fill forms with browser automation",
-        demoHref: "/demos/web-form-filling",
-        challengeHref: "/challenges/web-form-filling",
-        apiSlug: "web_form_filling"
-      },
-      {
         icon: <LegalIcon className="w-8 h-8 text-red-600 mr-4" />,
         title: "Legal Case Intake Workflow",
         description: "Client intake with AI-powered case assessment and human lawyer review",

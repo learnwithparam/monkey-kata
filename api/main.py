@@ -19,7 +19,6 @@ from demos.travel_support_assistant.main import router as travel_support_router
 from demos.image_to_drawing.main import router as image_to_drawing_router
 from demos.lead_scoring.main import router as lead_scoring_router
 from demos.competitor_analysis.main import router as competitor_analysis_router
-from demos.web_form_filling.main import router as web_form_filling_router
 from demos.legal_case_intake.main import router as legal_case_intake_router
 
 # Load environment variables
@@ -33,7 +32,7 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 AI Bootcamp API starting up...")
     app_state["started"] = True
-    app_state["demos"] = ["bedtime-story-generator", "website-rag", "document-qa-chatbot", "cv-analyzer", "restaurant-booking", "medical-office-triage", "travel-support", "image-to-drawing", "lead-scoring", "competitor-analysis", "web-form-filling", "legal-case-intake"]
+    app_state["demos"] = ["bedtime-story-generator", "website-rag", "document-qa-chatbot", "cv-analyzer", "restaurant-booking", "medical-office-triage", "travel-support", "image-to-drawing", "lead-scoring", "competitor-analysis", "legal-case-intake"]
     yield
     # Shutdown
     print("🛑 AI Bootcamp API shutting down...")
@@ -57,7 +56,6 @@ app.include_router(travel_support_router)
 app.include_router(image_to_drawing_router)
 app.include_router(lead_scoring_router)
 app.include_router(competitor_analysis_router)
-app.include_router(web_form_filling_router)
 app.include_router(legal_case_intake_router)
 
 # CORS middleware
