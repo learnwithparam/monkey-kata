@@ -119,7 +119,11 @@ async def fill_form_from_resume(
 
 async def map_resume_data_to_field(resume_data: ResumeData, field: FormField) -> str:
     """
-    Map resume data to a specific form field.
+    Intelligently map resume data to a form field using AI.
+    
+    This function uses an AI agent to understand the form field context
+    and automatically extract the appropriate value from resume data,
+    similar to how browser-use or playwright AI agents work.
     
     Args:
         resume_data: Parsed resume data
@@ -128,97 +132,77 @@ async def map_resume_data_to_field(resume_data: ResumeData, field: FormField) ->
     Returns:
         String value for the field
     """
-    field_name = field.name.lower()
+    provider = get_llm_provider()
     
-    # Direct mappings
-    if field_name == "full_name":
-        return resume_data.name
+    # Format resume data for the agent
+    resume_summary = f"""Resume Data Available:
+- Name: {resume_data.name}
+- Email: {resume_data.email}
+- Phone: {resume_data.phone or "Not provided"}
+- Address: {resume_data.address or "Not provided"}
+- Work Experience: {len(resume_data.work_experience)} position(s)
+  {chr(10).join([f"  • {exp.role} at {exp.company} ({exp.start_date} - {exp.end_date or 'Present'})" for exp in resume_data.work_experience[:3]])}
+- Education: {len(resume_data.education)} entry/entries
+  {chr(10).join([f"  • {edu.degree} from {edu.institution}" + (f" ({edu.graduation_date})" if edu.graduation_date else "") for edu in resume_data.education[:3]])}
+- Skills: {', '.join(resume_data.skills[:10]) if resume_data.skills else "None"}
+- Summary: {resume_data.summary or "Not provided"}"""
     
-    elif field_name == "email":
-        return resume_data.email
-    
-    elif field_name == "phone":
-        return resume_data.phone or ""
-    
-    elif field_name == "address":
-        return resume_data.address or ""
-    
-    elif field_name == "work_experience":
-        # Format work experience as text
-        if not resume_data.work_experience:
-            return "No work experience listed"
-        
-        formatted = []
-        for exp in resume_data.work_experience:
-            exp_text = f"{exp.role} at {exp.company}"
-            if exp.start_date:
-                exp_text += f" ({exp.start_date}"
-                if exp.end_date:
-                    exp_text += f" - {exp.end_date}"
-                else:
-                    exp_text += " - Present"
-                exp_text += ")"
-            if exp.description:
-                exp_text += f"\n{exp.description}"
-            formatted.append(exp_text)
-        
-        return "\n\n".join(formatted)
-    
-    elif field_name == "education":
-        # Format education as text
-        if not resume_data.education:
-            return "No education listed"
-        
-        formatted = []
-        for edu in resume_data.education:
-            edu_text = f"{edu.degree}"
-            if edu.institution:
-                edu_text += f" from {edu.institution}"
-            if edu.graduation_date:
-                edu_text += f" ({edu.graduation_date})"
-            if edu.gpa:
-                edu_text += f" - GPA: {edu.gpa}"
-            formatted.append(edu_text)
-        
-        return "\n".join(formatted)
-    
-    elif field_name == "skills":
-        # Format skills as comma-separated or list
-        if not resume_data.skills:
-            return "No skills listed"
-        
-        return ", ".join(resume_data.skills)
-    
-    else:
-        # Use LLM for intelligent mapping if field doesn't match directly
-        provider = get_llm_provider()
-        
-        prompt = f"""Given the following resume data and form field, extract the appropriate value.
+    # Create intelligent prompt for the AI agent
+    prompt = f"""You are an AI agent that automatically fills form fields by intelligently mapping resume data to form fields.
 
-Resume Data:
-Name: {resume_data.name}
-Email: {resume_data.email}
-Phone: {resume_data.phone or "Not provided"}
-Address: {resume_data.address or "Not provided"}
-Work Experience: {len(resume_data.work_experience)} positions
-Education: {len(resume_data.education)} entries
-Skills: {', '.join(resume_data.skills[:5]) if resume_data.skills else "None"}
+Your task: Analyze the form field and extract the most appropriate value from the resume data.
 
-Form Field:
-Name: {field.name}
-Label: {field.label}
-Section: {field.section}
-Type: {field.type}
+Form Field Information:
+- Field Name: {field.name}
+- Field Label: {field.label}
+- Field Type: {field.type}
+- Section: {field.section}
+- Required: {field.required}
 
-Extract the most appropriate value from the resume data for this field.
-If no relevant data is found, return an empty string.
+{resume_summary}
 
-Return only the value, no explanation."""
+Instructions:
+1. Understand what information the form field is asking for based on its name, label, and section
+2. Find the most relevant data from the resume that matches this field
+3. Format the data appropriately for the field type:
+   - For text/textarea fields: Provide formatted, readable text
+   - For email fields: Provide email address only
+   - For tel/phone fields: Provide phone number only
+   - For work experience fields: Format as a clear list with company, role, dates, and description
+   - For education fields: Format as a clear list with degree, institution, and dates
+   - For skills fields: Format as comma-separated list or bullet points
+4. If the field asks for multiple items (like work experience or education), format them clearly with line breaks
+5. If no relevant data exists in the resume, return an empty string
+
+Return ONLY the value to fill in the field. Do not include explanations, labels, or additional text.
+Format the output exactly as it should appear in the form field."""
+    
+    try:
+        value = await provider.generate_text(
+            prompt,
+            temperature=0.1,  # Low temperature for consistent, accurate extraction
+            max_tokens=500
+        )
         
-        try:
-            value = await provider.generate_text(prompt, temperature=0.1, max_tokens=200)
-            return value.strip()
-        except Exception as e:
-            logger.warning(f"Error mapping field {field.name} with LLM: {e}")
-            return ""
+        # Clean up the response - remove any explanations or extra text
+        value = value.strip()
+        
+        # Remove common prefixes that LLMs sometimes add
+        prefixes_to_remove = [
+            "The value is:",
+            "Value:",
+            "Answer:",
+            "Field value:",
+            "Here's the value:",
+        ]
+        for prefix in prefixes_to_remove:
+            if value.lower().startswith(prefix.lower()):
+                value = value[len(prefix):].strip()
+        
+        return value
+        
+    except Exception as e:
+        logger.error(f"Error mapping field {field.name} with AI agent: {e}")
+        # Fallback: return empty string if AI fails
+        return ""
 
