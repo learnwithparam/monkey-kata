@@ -164,6 +164,14 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/job-application-form-filling",
         challengeHref: "/challenges/job-application-form-filling",
         apiSlug: "job_application_form_filling"
+      },
+      {
+        icon: <UserGroupIcon className="w-8 h-8 text-purple-600 mr-4" />,
+        title: "Influencer Discovery Agent",
+        description: "Use browser automation and AI to find Instagram influencers matching your collaboration criteria",
+        demoHref: "/demos/influencer-discovery",
+        challengeHref: "/challenges/influencer-discovery",
+        apiSlug: "influencer_discovery"
       }
     ]
   },
