@@ -1,2 +1,0 @@
-# Influencer Discovery Demo
-

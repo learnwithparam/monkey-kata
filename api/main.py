@@ -21,7 +21,6 @@ from demos.lead_scoring.main import router as lead_scoring_router
 from demos.competitor_analysis.main import router as competitor_analysis_router
 from demos.legal_case_intake.main import router as legal_case_intake_router
 from demos.job_application_form_filling.main import router as job_application_form_filling_router
-from demos.influencer_discovery.main import router as influencer_discovery_router
 
 # Load environment variables
 load_dotenv()
@@ -34,7 +33,7 @@ async def lifespan(app: FastAPI):
     # Startup
     print("🚀 AI Bootcamp API starting up...")
     app_state["started"] = True
-    app_state["demos"] = ["bedtime-story-generator", "website-rag", "document-qa-chatbot", "cv-analyzer", "restaurant-booking", "medical-office-triage", "travel-support", "image-to-drawing", "lead-scoring", "competitor-analysis", "legal-case-intake", "job-application-form-filling", "influencer-discovery"]
+    app_state["demos"] = ["bedtime-story-generator", "website-rag", "document-qa-chatbot", "cv-analyzer", "restaurant-booking", "medical-office-triage", "travel-support", "image-to-drawing", "lead-scoring", "competitor-analysis", "legal-case-intake", "job-application-form-filling"]
     yield
     # Shutdown
     print("🛑 AI Bootcamp API shutting down...")
@@ -60,7 +59,6 @@ app.include_router(lead_scoring_router)
 app.include_router(competitor_analysis_router)
 app.include_router(legal_case_intake_router)
 app.include_router(job_application_form_filling_router)
-app.include_router(influencer_discovery_router)
 
 # CORS middleware
 app.add_middleware(
