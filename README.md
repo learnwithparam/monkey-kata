@@ -178,6 +178,22 @@ ELEVENLABS_API_KEY=your-elevenlabs-key-here
 LIVEKIT_API_KEY=your-livekit-key-here
 ```
 
+#### **Browser Setup (for Amazon Product Shopping Demo)**
+The Amazon Product Shopping demo requires a browser with Chrome DevTools Protocol (CDP) enabled:
+
+```bash
+# Start Chrome with CDP enabled (macOS/Linux)
+google-chrome --remote-debugging-port=9222
+
+# Or on macOS with Chrome installed via Homebrew
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --remote-debugging-port=9222
+
+# Or set environment variable
+export BROWSER_CDP_URL=http://localhost:9222
+```
+
+**Note:** Keep the browser window open while using the demo. The AI agent will control this browser instance.
+
 #### **Vector Database Configuration**
 ```bash
 # Qdrant (recommended)

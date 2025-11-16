@@ -18,6 +18,7 @@ import {
   ChatBubbleLeftRightIcon,
   PhotoIcon,
   UserGroupIcon,
+  ShoppingCartIcon,
 } from '@heroicons/react/24/outline';
 
 export interface Demo {
@@ -164,7 +165,7 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/job-application-form-filling",
         challengeHref: "/challenges/job-application-form-filling",
         apiSlug: "job_application_form_filling"
-      }
+      },
     ]
   },
   {

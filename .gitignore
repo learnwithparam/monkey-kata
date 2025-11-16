@@ -92,5 +92,9 @@ yarn-error.log*
 tmp/
 temp/
 
+# Browser automation videos
+**/videos/
+*.webm
+
 # Examples directory (excluded from git)
 examples/

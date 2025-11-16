@@ -92,9 +92,13 @@ async def health_check():
 async def get_challenge(demo_name: str):
     """Get README content for a specific demo"""
     try:
+        # Use demo_name directly as folder name (folders use snake_case, URLs use kebab-case)
+        # Convert kebab-case to snake_case for folder lookup
+        folder_name = demo_name.replace("-", "_")
+        
         # Get the base directory (parent of api directory)
         base_dir = Path(__file__).parent
-        readme_path = base_dir / "demos" / demo_name / "README.md"
+        readme_path = base_dir / "demos" / folder_name / "README.md"
         
         if not readme_path.exists():
             raise HTTPException(status_code=404, detail=f"Challenge not found for demo: {demo_name}")
@@ -104,6 +108,7 @@ async def get_challenge(demo_name: str):
         
         return {
             "demo_name": demo_name,
+            "folder_name": folder_name,
             "content": content
         }
         

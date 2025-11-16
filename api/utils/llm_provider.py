@@ -1280,6 +1280,154 @@ def get_llm(temperature: float = 0.3):
 
 
 # ============================================================================
+# STEP 7: LITELLM COMPATIBILITY (for browser-use and other integrations)
+# ============================================================================
+"""
+LiteLLM Compatibility:
+LiteLLM provides a unified interface to 100+ LLM providers.
+This function creates a ChatLiteLLM instance that works with browser-use
+and other tools that require LangChain-compatible LLMs.
+
+Key Learning: LiteLLM uses a provider/model format like:
+- fireworks/accounts/fireworks/models/qwen3-235b-a22b-instruct-2507
+- openrouter/deepseek/deepseek-r1-0528-qwen3-8b:free
+- gemini/gemini-2.5-flash
+- openai/gpt-4o-mini
+
+Reference: https://docs.litellm.ai/docs/langchain/
+"""
+def get_litellm_llm(temperature: float = 0.3):
+    """
+    Get LangChain ChatLiteLLM instance using our shared provider system.
+    
+    This function creates a ChatLiteLLM instance that works with browser-use
+    and other tools that require LangChain-compatible LLMs via LiteLLM.
+    
+    Args:
+        temperature: Temperature for text generation (default: 0.3)
+    
+    Returns:
+        LangChain ChatLiteLLM instance configured with our provider
+        
+    Example:
+        from utils.llm_provider import get_litellm_llm
+        
+        llm = get_litellm_llm(temperature=0.3)
+        agent = Agent(browser=browser, llm=llm, task=task)
+    """
+    try:
+        from langchain_community.chat_models import ChatLiteLLM
+        from pydantic import ConfigDict
+    except ImportError:
+        raise ImportError(
+            "langchain-community is required. Install with: pip install langchain-community"
+        )
+    
+    config = get_provider_config()
+    provider_name = config["provider_name"]
+    model_name = config["model"]
+    
+    # Convert model name to LiteLLM format
+    # LiteLLM expects format: provider/model_name
+    if provider_name == "fireworks":
+        # Fireworks models can be used as-is or with fireworks/ prefix
+        litellm_model = model_name if model_name.startswith("fireworks/") else f"fireworks/{model_name}"
+    elif provider_name == "openrouter":
+        # OpenRouter models can be used as-is or with openrouter/ prefix
+        litellm_model = model_name if model_name.startswith("openrouter/") else f"openrouter/{model_name}"
+    elif provider_name == "gemini":
+        # Gemini models need gemini/ prefix
+        litellm_model = model_name if model_name.startswith("gemini/") else f"gemini/{model_name}"
+    elif provider_name == "openai":
+        # OpenAI models can be used as-is or with openai/ prefix
+        litellm_model = model_name if model_name.startswith("openai/") else f"openai/{model_name}"
+    else:
+        raise ValueError(f"Unsupported provider for LiteLLM: {provider_name}")
+    
+    # Set API key in environment for LiteLLM
+    # LiteLLM reads API keys from environment variables
+    import os
+    if provider_name == "fireworks":
+        os.environ["FIREWORKS_API_KEY"] = config["api_key"]
+    elif provider_name == "openrouter":
+        os.environ["OPENROUTER_API_KEY"] = config["api_key"]
+    elif provider_name == "gemini":
+        os.environ["GEMINI_API_KEY"] = config["api_key"]
+    elif provider_name == "openai":
+        os.environ["OPENAI_API_KEY"] = config["api_key"]
+    
+    # Create a wrapper class that adds the provider and model attributes
+    # browser-use expects both 'provider' and 'model' attributes on the LLM object
+    # Based on browser-use source, it accesses llm.model or llm.model_name
+    class ChatLiteLLMWithProvider(ChatLiteLLM):
+        """Wrapper for ChatLiteLLM that adds provider and model attributes for browser-use compatibility"""
+        model_config = ConfigDict(extra='allow')
+        
+        def __init__(self, provider: str, model: str, **kwargs):
+            super().__init__(model=model, **kwargs)
+            # Store the model value - ensure it's a string
+            # browser-use accesses agent.llm.model_name, so we MUST set model_name
+            model_str = str(model) if model else ''
+            
+            # Store in instance variables that will persist
+            self._browser_use_provider = provider
+            self._browser_use_model = model_str
+            
+            # browser-use accesses llm.model_name, so set it using object.__setattr__ to bypass Pydantic
+            object.__setattr__(self, 'provider', provider)
+            object.__setattr__(self, 'model', model_str)
+            object.__setattr__(self, 'model_name', model_str)  # This is what browser-use uses!
+            
+            # Also set in __dict__ for direct access
+            self.__dict__['provider'] = provider
+            self.__dict__['model'] = model_str
+            self.__dict__['model_name'] = model_str
+        
+        def __getattribute__(self, name):
+            """Override __getattribute__ to ensure model_name, model, and provider are always accessible"""
+            # browser-use accesses agent.llm.model_name, so we MUST return it correctly
+            # Always use object.__getattribute__ first to avoid infinite recursion
+            if name == 'model_name':
+                # This is what browser-use uses! Return the stored model value
+                try:
+                    return object.__getattribute__(self, '_browser_use_model')
+                except AttributeError:
+                    # Fall back to parent's model if available
+                    try:
+                        parent_model = super(ChatLiteLLMWithProvider, self).__getattribute__('model')
+                        return str(parent_model) if parent_model else ''
+                    except (AttributeError, TypeError):
+                        return ''
+            elif name == 'model':
+                # Try to get from stored value first
+                try:
+                    return object.__getattribute__(self, '_browser_use_model')
+                except AttributeError:
+                    # Fall back to parent's model
+                    try:
+                        return super(ChatLiteLLMWithProvider, self).__getattribute__('model')
+                    except (AttributeError, TypeError):
+                        return ''
+            elif name == 'provider':
+                # Try to get from stored value first
+                try:
+                    return object.__getattribute__(self, '_browser_use_provider')
+                except AttributeError:
+                    return 'unknown'
+            # For all other attributes, use normal access
+            return super(ChatLiteLLMWithProvider, self).__getattribute__(name)
+    
+    # Create ChatLiteLLM instance with provider
+    llm = ChatLiteLLMWithProvider(
+        provider=provider_name,
+        model=litellm_model,
+        temperature=temperature
+    )
+    
+    return llm
+
+
+# ============================================================================
 # LEARNING CHECKLIST
 # ============================================================================
 """
