@@ -21,7 +21,12 @@
 1. **Clone and setup**
    ```bash
    git clone <repository-url>
-   cd ai-bootcamp-demos
+   cd <repository-name>
+   ```
+1a. **.env files on Frontend and API**
+   ```bash
+   cp api/.env.example api/.env
+   cp frontend/.env.example frontend/.env
    ```
 
 2. **Start all services**
