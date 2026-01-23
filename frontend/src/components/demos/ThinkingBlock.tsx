@@ -191,8 +191,8 @@ function ThinkingEventItem({
         {/* Footer: timestamp and duration */}
         <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
           {showTimestamp && <span>{formattedTime}</span>}
-          {event.duration_ms && <span>{event.duration_ms}ms</span>}
-          {event.progress !== undefined && (
+          {event.duration_ms !== undefined && event.duration_ms > 0 && <span>{event.duration_ms}ms</span>}
+          {event.progress !== undefined && event.progress >= 0 && (
             <div className="flex items-center gap-1">
               <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
                 <div

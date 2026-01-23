@@ -18,7 +18,7 @@ Usage:
 
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, AsyncGenerator, Callable, List
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -130,7 +130,7 @@ class ThinkingStreamer:
         event = ThinkingEvent(
             category=category,
             content=content,
-            timestamp=datetime.now().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
             agent=agent or self.agent_name,
             tool=tool,
             target=target,

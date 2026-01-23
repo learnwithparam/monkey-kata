@@ -448,7 +448,7 @@ export default function LegalContractAnalyzerDemo() {
             Upload any document (PDF, Word, text) and get instant AI-powered analysis, key insights, and intelligent Q&A about your documents.
           </p>
           <Link
-            href="/challenges/website-rag"
+            href="/challenges/document-qa-chatbot"
             className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md"
           >
             View Learning Challenges
