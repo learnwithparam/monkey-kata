@@ -29,6 +29,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional, AsyncGenerator
 import json
+import asyncio
 import uuid
 import tempfile
 import shutil
@@ -299,7 +300,7 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
     # Step 4: Generate embedding for the question
     yield f"data: {json.dumps({'status': 'processing', 'message': 'Finding relevant content in document...'})}\n\n"
     
-    await thinking_streamer.emit_thought("reasoning", "Converting your question into a vector embedding...")
+    await thinking_streamer.emit_thinking("reasoning", "Converting your question into a vector embedding...")
     query_embedding_task = asyncio.create_task(document_processor.generate_embeddings([request.question]))
     
     # Concurrent wait for embedding and thinking events
@@ -312,7 +313,7 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
     query_embedding = await query_embedding_task
     
     # Step 5: Find most relevant chunks using similarity search
-    await thinking_streamer.emit_thought("reasoning", "Searching for the most relevant document sections...")
+    await thinking_streamer.emit_thinking("reasoning", "Searching for the most relevant document sections...")
     relevant_chunks = rag_pipeline.retrieve_relevant_chunks(
         query_embedding[0],
         embeddings,

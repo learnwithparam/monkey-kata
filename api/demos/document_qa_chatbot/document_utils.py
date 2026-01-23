@@ -23,6 +23,7 @@ Step 5: RAG Generation - How to create prompts with document context
 
 import os
 import uuid
+import asyncio
 import numpy as np
 from typing import List, Dict, Any, Optional, AsyncGenerator, Union
 from dataclasses import dataclass
@@ -378,7 +379,7 @@ class RAGPipeline:
         
         if thinking_streamer:
             asyncio.run_coroutine_threadsafe(
-                thinking_streamer.emit_thought("analysis", f"Initializing vector store collection: {collection_name}"),
+                thinking_streamer.emit_thinking("analysis", f"Initializing vector store collection: {collection_name}"),
                 asyncio.get_event_loop()
             )
             
@@ -401,7 +402,7 @@ class RAGPipeline:
         # Store embeddings in vector store
         if thinking_streamer:
             asyncio.run_coroutine_threadsafe(
-                thinking_streamer.emit_thought("processing", f"Indexing {len(documents)} document chunks..."),
+                thinking_streamer.emit_thinking("processing", f"Indexing {len(documents)} document chunks..."),
                 asyncio.get_event_loop()
             )
             
@@ -414,7 +415,7 @@ class RAGPipeline:
         # Query vector store for similar chunks
         if thinking_streamer:
             asyncio.run_coroutine_threadsafe(
-                thinking_streamer.emit_thought("reasoning", "Performing similarity search for most relevant chunks..."),
+                thinking_streamer.emit_thinking("reasoning", "Performing similarity search for most relevant chunks..."),
                 asyncio.get_event_loop()
             )
             
@@ -430,7 +431,7 @@ class RAGPipeline:
             
             if thinking_streamer:
                 asyncio.run_coroutine_threadsafe(
-                    thinking_streamer.emit_thought("analysis", f"Retrieved {len(found_chunks)} relevant chunks from document."),
+                    thinking_streamer.emit_thinking("analysis", f"Retrieved {len(found_chunks)} relevant chunks from document."),
                     asyncio.get_event_loop()
                 )
             
@@ -481,7 +482,7 @@ Question: {question}
 Answer directly and concisely:"""
         
         if thinking_streamer:
-            await thinking_streamer.emit_thought("processing", "Synthesizing answer from retrieved context...")
+            await thinking_streamer.emit_thinking("processing", "Synthesizing answer from retrieved context...")
         
         # Stream answer from LLM
         try:

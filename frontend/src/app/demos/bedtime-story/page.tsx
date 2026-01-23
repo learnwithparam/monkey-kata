@@ -326,7 +326,12 @@ export default function BedtimeStoryPage() {
 
               {isGenerating && workflowSteps.length > 0 && (
                 <div className="mb-6">
-                  <ThinkingBlock events={workflowSteps} title="Story Planner" maxHeight="300px" />
+                  <ThinkingBlock 
+                    events={workflowSteps} 
+                    title="Story Planner" 
+                    maxHeight="300px"
+                    defaultExpanded={false}
+                  />
                 </div>
               )}
 
@@ -358,12 +363,7 @@ export default function BedtimeStoryPage() {
                             />
                           </div>
 
-                          {isGenerating && (
-                            <div className="flex items-center p-4 bg-white rounded-lg border border-gray-200">
-                              <div className="animate-pulse bg-green-500 h-3 w-3 rounded-full mr-3"></div>
-                              <span className="text-sm text-gray-700 font-medium">AI is writing your story...</span>
-                            </div>
-                          )}
+
                         </div>
               ) : (
                 <div className="flex items-center justify-center py-20 text-gray-500">

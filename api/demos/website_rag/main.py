@@ -30,6 +30,7 @@ from pydantic import BaseModel, HttpUrl
 from typing import List, Dict, Any, Optional, AsyncGenerator
 import json
 import time
+from datetime import datetime
 
 from utils.llm_provider import get_llm_provider
 from .rag_utils import SimpleRAGPipeline, WebScraper, EmbeddingProvider, DocumentChunk

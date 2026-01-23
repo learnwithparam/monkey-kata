@@ -252,7 +252,7 @@ async def score_candidates_parallel(
         
         # Score the candidate
         if thinking_streamer:
-            await thinking_streamer.emit_thought("agent", f"Starting evaluation for candidate: {candidate.name}")
+            await thinking_streamer.emit_thinking("agent", f"Starting evaluation for candidate: {candidate.name}")
             
         score = await score_candidate(candidate, job_description, additional_feedback, thinking_streamer)
         results.append(score)
@@ -392,7 +392,7 @@ async def generate_emails_parallel(
     async def generate_email(candidate: ScoredCandidate) -> dict:
         proceed_with_candidate = candidate.id in top_candidate_ids
         if thinking_streamer:
-            await thinking_streamer.emit_thought("agent", f"Generating personalized email for {candidate.name}")
+            await thinking_streamer.emit_thinking("agent", f"Generating personalized email for {candidate.name}")
             
         email_content = await generate_email_for_candidate(candidate, proceed_with_candidate, thinking_streamer)
         
