@@ -14,6 +14,7 @@ import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import CustomSelect from '@/components/CustomSelect';
+import ThinkingBlock from '@/components/demos/ThinkingBlock';
 
 interface CaseIntakeRequest {
   client_name: string;
@@ -25,17 +26,20 @@ interface CaseIntakeRequest {
   additional_info?: string;
 }
 
+interface StepData {
+  timestamp: string;
+  message: string;
+  agent?: string;
+  tool?: string;
+  target?: string;
+  category?: string;
+}
+
 interface CaseIntakeResponse {
   case_id: string;
   status: string;
   message: string;
-  steps?: Array<{
-    timestamp: string;
-    message: string;
-    agent?: string;
-    tool?: string;
-    target?: string;
-  }>;
+  steps?: StepData[];
   needs_more_info?: boolean;
   missing_info?: string[];
   is_complete?: boolean;
@@ -59,13 +63,7 @@ export default function LegalCaseIntakeDemo() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [additionalInfo, setAdditionalInfo] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [workflowSteps, setWorkflowSteps] = useState<Array<{
-    timestamp: string;
-    message: string;
-    agent?: string;
-    tool?: string;
-    target?: string;
-  }>>([]);
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);;
 
   const submitCase = async () => {
     if (!caseData.client_name || !caseData.client_email || !caseData.case_type || !caseData.case_description) {
@@ -98,7 +96,7 @@ export default function LegalCaseIntakeDemo() {
       }
 
       const decoder = new TextDecoder('utf-8');
-      const steps: Array<{ timestamp: string; message: string; agent?: string; tool?: string; target?: string }> = [];
+      const steps: StepData[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -383,7 +381,7 @@ export default function LegalCaseIntakeDemo() {
 
                 <ProcessingButton
                   onClick={submitCase}
-                  isProcessing={isProcessing}
+                  isLoading={isProcessing}
                   disabled={!caseData.client_name || !caseData.client_email || !caseData.case_type || !caseData.case_description}
                   className="w-full"
                 >
@@ -418,69 +416,33 @@ export default function LegalCaseIntakeDemo() {
                     message={caseStatus.message}
                   />
                   
-                  {/* Multi-Agent Workflow Steps */}
+                  {/* Multi-Agent Workflow Steps - Using ThinkingBlock */}
                   {workflowSteps.length > 0 && (
-                    <div className="mt-6 space-y-3">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                        <SparklesIcon className="h-4 w-4 text-blue-600 mr-2" />
-                        Multi-Agent Workflow
-                      </h3>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {workflowSteps.map((step, index) => {
-                      const getStatusColor = () => {
-                        if (step.tool === 'agent_complete' || step.tool === 'workflow_complete') return 'bg-green-500';
-                        if (step.tool === 'agent_invoke') return 'bg-blue-500 animate-pulse';
-                        if (step.tool === 'agent_processing' || step.tool === 'crew_execution' || step.tool === 'data_parsing') return 'bg-purple-500 animate-pulse';
-                        return 'bg-gray-400';
-                      };
-
-                      const getAgentColor = (agent: string | undefined) => {
-                        if (!agent) return 'bg-gray-200 text-gray-700';
-                        if (agent.includes('Intake')) return 'bg-blue-100 text-blue-700';
-                        if (agent.includes('Review')) return 'bg-purple-100 text-purple-700';
-                        if (agent.includes('Workflow') || agent.includes('Orchestrator')) return 'bg-green-100 text-green-700';
-                        return 'bg-gray-100 text-gray-700';
-                      };
-
-                      return (
-                        <div
-                          key={index}
-                          className="flex items-start gap-3 p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-all"
-                        >
-                          <div className="flex-shrink-0 mt-0.5">
-                            <div className={`w-3 h-3 ${getStatusColor()} rounded-full`}></div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            {step.agent && (
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className={`text-xs font-semibold px-2 py-1 rounded ${getAgentColor(step.agent)}`}>
-                                  {step.agent}
-                                </span>
-                                {step.tool && step.tool !== 'agent_invoke' && step.tool !== 'agent_complete' && step.tool !== 'workflow_complete' && (
-                                  <span className="text-xs text-gray-600 font-mono bg-gray-100 px-2 py-1 rounded">
-                                    {step.tool}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            <p className="text-sm font-medium text-gray-900 break-words">
-                              {step.message}
-                            </p>
-                            {step.target && (
-                              <p className="text-xs text-gray-600 mt-1 font-mono bg-gray-50 px-2 py-1 rounded inline-block">
-                                {step.target}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-500 mt-2">
-                              {new Date(step.timestamp).toLocaleTimeString()}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                    <div className="mt-6">
+                      <ThinkingBlock
+                        events={workflowSteps.map(step => ({
+                          category: step.category || (
+                            step.tool === 'agent_complete' || step.tool === 'workflow_complete' ? 'complete' :
+                            step.tool === 'agent_invoke' ? 'agent' :
+                            step.tool === 'agent_processing' ? 'processing' :
+                            step.tool === 'crew_execution' ? 'processing' :
+                            step.tool === 'data_parsing' ? 'analysis' :
+                            'processing'
+                          ),
+                          content: step.message,
+                          timestamp: step.timestamp,
+                          agent: step.agent,
+                          tool: step.tool,
+                          target: step.target,
+                        }))}
+                        title="Multi-Agent Workflow"
+                        maxHeight="400px"
+                        autoScroll={true}
+                        collapsible={true}
+                        defaultExpanded={true}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -545,7 +507,7 @@ export default function LegalCaseIntakeDemo() {
                     />
                     <ProcessingButton
                       onClick={submitAdditionalInfo}
-                      isProcessing={isProcessing}
+                      isLoading={isProcessing}
                       disabled={!additionalInfo.trim()}
                       className="w-full"
                     >

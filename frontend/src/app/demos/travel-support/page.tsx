@@ -9,6 +9,11 @@ import {
 import ChatInput from '@/components/demos/ChatInput';
 import AlertMessage from '@/components/demos/AlertMessage';
 import ChatMessages, { ChatMessage } from '@/components/demos/ChatMessages';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+
+interface StepData extends ThinkingEvent {
+  id: string;
+}
 
 interface ToolCall {
   tool_name: string;
@@ -31,6 +36,7 @@ export default function TravelSupportPage() {
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
   const [sessionId] = useState(() => `session_${Date.now()}`);
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
 
   useEffect(() => {
     // Fetch available tools on mount
@@ -71,6 +77,7 @@ export default function TravelSupportPage() {
     setMessage('');
     setIsAsking(true);
     setCurrentAnswer('');
+    setWorkflowSteps([]);
 
     // Add user message
     addMessage({
@@ -131,6 +138,21 @@ export default function TravelSupportPage() {
                 });
                 setIsAsking(false);
                 return;
+              }
+
+              if (data.thinking) {
+                const step = data.thinking as ThinkingEvent;
+                setWorkflowSteps(prev => {
+                  const newSteps = [...prev];
+                  const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+                  
+                  if (existingStepIndex >= 0) {
+                    newSteps[existingStepIndex] = { ...step, id: newSteps[existingStepIndex].id };
+                  } else {
+                    newSteps.push({ ...step, id: Math.random().toString(36).substr(2, 9) });
+                  }
+                  return newSteps;
+                });
               }
 
               if (data.tool_calls) {
@@ -343,10 +365,14 @@ export default function TravelSupportPage() {
               <div className="border-t border-gray-200 pt-4 mt-auto">
                   <div className="space-y-3">
                     {isAsking && (
-                      <AlertMessage
-                        type="info"
-                      message="Processing your request..."
-                      />
+                      <div className="space-y-3">
+                        <ThinkingBlock 
+                          events={workflowSteps} 
+                          title="Support Strategy" 
+                          maxHeight="200px"
+                          autoScroll={true}
+                        />
+                      </div>
                     )}
                     
                     <ChatInput

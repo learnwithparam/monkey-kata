@@ -19,6 +19,7 @@ import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import FileUpload from '@/components/demos/FileUpload';
+import ThinkingBlock from '@/components/demos/ThinkingBlock';
 
 interface ProcessingStatus {
   document_id: string;
@@ -40,6 +41,15 @@ interface CVAnalysisResult {
   format_score: number;
 }
 
+interface StepData {
+  timestamp: string;
+  message: string;
+  agent?: string;
+  tool?: string;
+  target?: string;
+  category?: string;
+}
+
 export default function CVAnalyzerDemo() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [jobDescription, setJobDescription] = useState('');
@@ -49,6 +59,7 @@ export default function CVAnalyzerDemo() {
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isGeminiProvider, setIsGeminiProvider] = useState(false);
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Check provider on mount
@@ -144,9 +155,11 @@ export default function CVAnalyzerDemo() {
     setIsAnalyzing(true);
     setAnalysisError(null);
     setAnalysisResult(null);
+    setWorkflowSteps([]);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cv-analyzer/analyze/${currentStatus.document_id}`, {
+      // Use streaming endpoint for real-time agent visibility
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/cv-analyzer/analyze-stream/${currentStatus.document_id}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -160,8 +173,66 @@ export default function CVAnalyzerDemo() {
         throw new Error('Failed to analyze CV');
       }
 
-      const analysis = await response.json();
-      setAnalysisResult(analysis);
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      const decoder = new TextDecoder('utf-8');
+      const steps: StepData[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr) continue;
+
+              let data;
+              try {
+                data = JSON.parse(jsonStr);
+              } catch {
+                console.warn('Failed to parse JSON line:', jsonStr.substring(0, 100));
+                continue;
+              }
+
+              if (data.step) {
+                const newStep = {
+                  ...data.step,
+                  timestamp: data.step.timestamp || new Date().toISOString()
+                };
+                steps.push(newStep);
+                setWorkflowSteps([...steps]);
+              }
+
+              if (data.done) {
+                if (data.result) {
+                  setAnalysisResult(data.result);
+                }
+                if (data.error) {
+                  setAnalysisError(data.error);
+                }
+                setIsAnalyzing(false);
+                return;
+              }
+
+              if (data.error) {
+                setAnalysisError(data.error);
+                setIsAnalyzing(false);
+                return;
+              }
+            } catch (parseError) {
+              console.error('Error parsing chunk:', parseError);
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('Analysis error:', error);
       setAnalysisError('Failed to analyze CV. Please try again.');
@@ -487,16 +558,40 @@ export default function CVAnalyzerDemo() {
             </div>
           )}
 
-          {/* Loading State */}
+          {/* Loading State with Agent Workflow */}
           {isAnalyzing && (
-            <div className="bg-white rounded-xl p-12 shadow-sm border border-gray-200">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-2xl mb-6">
+            <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-2xl mb-4">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600"></div>
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Analyzing Your CV</h3>
                 <p className="text-gray-600">Our AI agents are working hard to provide you with comprehensive insights...</p>
               </div>
+              
+              {/* Real-time Agent Workflow */}
+              {workflowSteps.length > 0 && (
+                <ThinkingBlock
+                  events={workflowSteps.map(step => ({
+                    category: step.category || (
+                      step.tool === 'agent_complete' ? 'complete' :
+                      step.tool === 'agent_invoke' ? 'agent' :
+                      step.tool === 'llm_call' ? 'reasoning' :
+                      'processing'
+                    ),
+                    content: step.message,
+                    timestamp: step.timestamp,
+                    agent: step.agent,
+                    tool: step.tool,
+                    target: step.target,
+                  }))}
+                  title="Multi-Agent Workflow"
+                  maxHeight="400px"
+                  autoScroll={true}
+                  collapsible={false}
+                  defaultExpanded={true}
+                />
+              )}
             </div>
           )}
 

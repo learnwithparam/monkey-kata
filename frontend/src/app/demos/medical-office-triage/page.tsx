@@ -8,6 +8,11 @@ import { RoomAudioRenderer, RoomContext } from '@livekit/components-react';
 import SubmitButton from '@/components/demos/SubmitButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import VoiceInterface from '@/components/demos/VoiceInterface';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+
+interface StepData extends ThinkingEvent {
+  id: string;
+}
 
 interface ConnectionDetails {
   server_url: string;
@@ -23,6 +28,7 @@ export default function MedicalOfficeTriagePage() {
   const [error, setError] = useState('');
   const [participantName, setParticipantName] = useState('');
   const [currentAgent, setCurrentAgent] = useState<string>('');
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
   const room = useMemo(() => new Room(), []);
 
   useEffect(() => {
@@ -62,9 +68,34 @@ export default function MedicalOfficeTriagePage() {
       updateAgent(); // Check immediately
     };
 
+    const handleDataReceived = (payload: Uint8Array) => {
+      const decoder = new TextDecoder();
+      const str = decoder.decode(payload);
+      try {
+        const data = JSON.parse(str);
+        if (data.thinking) {
+          const step = data.thinking as ThinkingEvent;
+          setWorkflowSteps(prev => {
+            const newSteps = [...prev];
+            const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+            
+            if (existingStepIndex >= 0) {
+              newSteps[existingStepIndex] = { ...step, id: newSteps[existingStepIndex].id };
+            } else {
+              newSteps.push({ ...step, id: Math.random().toString(36).substr(2, 9) });
+            }
+            return newSteps;
+          });
+        }
+      } catch (err) {
+        console.error('Error parsing data message:', err);
+      }
+    };
+
     room.on(RoomEvent.Disconnected, onDisconnected);
     room.on(RoomEvent.MediaDevicesError, onMediaDevicesError);
     room.on(RoomEvent.ParticipantConnected, onParticipantConnected);
+    room.on(RoomEvent.DataReceived, handleDataReceived);
     
     // Set up listeners for existing remote participants
     room.remoteParticipants.forEach((participant) => {
@@ -78,6 +109,7 @@ export default function MedicalOfficeTriagePage() {
       room.off(RoomEvent.Disconnected, onDisconnected);
       room.off(RoomEvent.MediaDevicesError, onMediaDevicesError);
       room.off(RoomEvent.ParticipantConnected, onParticipantConnected);
+      room.off(RoomEvent.DataReceived, handleDataReceived);
       
       // Clean up attribute change listeners
       room.remoteParticipants.forEach((participant) => {
@@ -163,6 +195,7 @@ export default function MedicalOfficeTriagePage() {
     setIsConnected(false);
     setConnectionDetails(null);
     setCurrentAgent('');
+    setWorkflowSteps([]);
   };
 
   const getAgentDisplayName = (agentName: string) => {
@@ -245,6 +278,13 @@ export default function MedicalOfficeTriagePage() {
                   "I want to check my insurance coverage"
                 ]}
               />
+              <div className="mt-8">
+                <ThinkingBlock 
+                  events={workflowSteps} 
+                  title="Agent Context & Routing" 
+                  autoScroll={true}
+                />
+              </div>
             </RoomContext.Provider>
           )}
         </div>

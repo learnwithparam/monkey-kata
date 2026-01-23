@@ -48,8 +48,10 @@ Multi-agent systems allow you to:
 5. Scale by adding new specialized agents
 """
 import logging
+import json
+from datetime import datetime
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Any
 
 from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli
@@ -341,6 +343,29 @@ class BaseAgent(Agent):
 
         return next_agent
 
+    async def emit_thought(self, category: str, content: str, metadata: Optional[dict[str, Any]] = None) -> None:
+        """
+        Emits a thinking event to the frontend via LiveKit Data Message
+        """
+        if not self.session or not self.session.room:
+            return
+
+        thought = {
+            "category": category,
+            "content": content,
+            "timestamp": datetime.now().isoformat(),
+            "agent": self.__class__.__name__,
+            "metadata": metadata or {}
+        }
+        
+        try:
+            # Send as data message to all participants
+            await self.session.room.local_participant.publish_data(
+                json.dumps({"thinking": thought}).encode('utf-8')
+            )
+        except Exception as e:
+            logger.error(f"Error publishing thought: {e}")
+
 
 # ============================================================================
 # STEP 4: SPECIALIZED AGENTS
@@ -380,6 +405,10 @@ class TriageAgent(BaseAgent):
             vad=silero.VAD.load()
         )
     
+    async def on_enter(self) -> None:
+        await super().on_enter()
+        await self.emit_thought("analysis", "Triage agent active. Ready to assist patient and route to appropriate department.")
+    
     # TriageAgent uses BaseAgent's on_enter() which calls generate_reply()
     # No custom on_enter needed - the LLM will generate appropriate greeting based on instructions
 
@@ -394,6 +423,7 @@ class TriageAgent(BaseAgent):
         - Medical records requests
         - General healthcare questions
         """
+        await self.emit_thought("planning", "Identified need for clinical support. Initiating transfer to Patient Support team.")
         await self.session.say("I'll transfer you to our Patient Support team who can help with your medical services request.")
         return await self._transfer_to_agent("support", context)
 
@@ -408,6 +438,7 @@ class TriageAgent(BaseAgent):
         - Payment plans
         - Billing inquiries
         """
+        await self.emit_thought("planning", "Identified billing/insurance inquiry. Initiating transfer to Medical Billing department.")
         await self.session.say("I'll transfer you to our Medical Billing department who can assist with your insurance and payment questions.")
         return await self._transfer_to_agent("billing", context)
 
@@ -431,6 +462,10 @@ class SupportAgent(BaseAgent):
             tts=deepgram.TTS(model="aura-asteria-en"),
             vad=silero.VAD.load()
         )
+
+    async def on_enter(self) -> None:
+        await super().on_enter()
+        await self.emit_thought("analysis", "Support agent active. Ready to help with appointments, refills, and records.")
 
     @function_tool
     async def transfer_to_triage(self, context: RunContext_T) -> Agent:
@@ -465,6 +500,10 @@ class BillingAgent(BaseAgent):
             tts=deepgram.TTS(model="aura-asteria-en"),
             vad=silero.VAD.load()
         )
+
+    async def on_enter(self) -> None:
+        await super().on_enter()
+        await self.emit_thought("analysis", "Billing agent active. Ready to assist with insurance and payments.")
 
     @function_tool
     async def transfer_to_triage(self, context: RunContext_T) -> Agent:
@@ -501,6 +540,7 @@ Multi-Agent Initialization:
 - Agents can transfer to each other using their transfer tools
 """
 async def entrypoint(ctx: JobContext):
+    from datetime import datetime # Ensure datetime is available
     """
     Main entrypoint for the medical office triage agent system.
     

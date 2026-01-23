@@ -28,15 +28,33 @@ def set_log_capture_callback(callback: Optional[Callable[[str], None]]):
     global _log_capture_callback
     _log_capture_callback = callback
 
-def report_progress(message: str, agent: str = None, tool: str = None, target: str = None):
+def report_progress(message: str, agent: str = None, tool: str = None, target: str = None, category: str = None):
     """Report progress if callback is set"""
     if _progress_callback:
         try:
+            # Determine category from tool if not provided
+            if not category:
+                if tool in ["search_web", "scrape_website"]:
+                    category = "tool_use"
+                elif tool == "agent_invoke":
+                    category = "agent"
+                elif tool == "agent_complete" or tool == "workflow_complete":
+                    category = "complete"
+                elif tool == "agent_processing":
+                    category = "processing"
+                elif tool == "crew_execution":
+                    category = "processing"
+                elif tool == "data_parsing":
+                    category = "analysis"
+                else:
+                    category = "processing"
+            
             step_data = {
                 "message": message,
                 "agent": agent,
                 "tool": tool,
-                "target": target
+                "target": target,
+                "category": category
             }
             _progress_callback(step_data)
         except Exception as e:

@@ -33,6 +33,7 @@ import json
 from datetime import datetime
 
 from .agents import run_competitor_analysis
+from utils.thinking_streamer import ThinkingStreamer, create_thinking_callback
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +171,7 @@ async def stream_analysis_steps(
     competitors: List[str],
     focus_areas: List[str]
 ) -> AsyncGenerator[str, None]:
-    """Stream analysis steps in real-time"""
+    """Stream analysis steps in real-time with deep LLM reasoning visibility"""
     from .tools import set_progress_callback
     
     # Create a queue to collect steps
@@ -178,6 +179,9 @@ async def stream_analysis_steps(
     analysis_complete = asyncio.Event()
     analysis_error = None
     final_report = None
+    
+    # Create ThinkingStreamer for deep LLM reasoning capture
+    thinking_streamer = ThinkingStreamer(agent_name="Competitor Analysis")
     
     try:
         session = analysis_sessions[session_id]
@@ -196,7 +200,8 @@ async def stream_analysis_steps(
                             "message": step_data,
                             "agent": None,
                             "tool": None,
-                            "target": None
+                            "target": None,
+                            "category": "processing"
                         }
                     else:
                         step_entry = {
@@ -204,7 +209,8 @@ async def stream_analysis_steps(
                             "message": step_data.get("message", ""),
                             "agent": step_data.get("agent"),
                             "tool": step_data.get("tool"),
-                            "target": step_data.get("target")
+                            "target": step_data.get("target"),
+                            "category": step_data.get("category", "processing")
                         }
                     
                     analysis_sessions[session_id]["steps"].append(step_entry)
@@ -220,8 +226,32 @@ async def stream_analysis_steps(
             except Exception as e:
                 logger.error(f"Error in update_progress callback: {e}")
         
-        # Set the progress callback
+        # Set the progress callback for tool-level updates
         set_progress_callback(update_progress)
+        
+        # Add callback to capture ThinkingStreamer events to the queue
+        def capture_thinking_event(event):
+            """Capture thinking events and add to step queue"""
+            try:
+                step_entry = {
+                    "timestamp": event.timestamp,
+                    "message": event.content,
+                    "agent": event.agent,
+                    "tool": event.tool,
+                    "target": event.target,
+                    "category": event.category,
+                    "metadata": event.metadata,
+                    "progress": event.progress,
+                    "duration_ms": event.duration_ms
+                }
+                if session_id in analysis_sessions:
+                    analysis_sessions[session_id]["steps"].append(step_entry)
+                step_queue.put_nowait(step_entry)
+                logger.info(f"Captured thinking event: {event.content[:50]}...")
+            except Exception as e:
+                logger.warning(f"Error capturing thinking event: {e}")
+        
+        thinking_streamer.add_callback(capture_thinking_event)
         
         # Start analysis in background
         async def run_analysis():
@@ -230,21 +260,23 @@ async def stream_analysis_steps(
                 report = await run_competitor_analysis(
                     company_name=company_name,
                     competitors=competitors,
-                    focus_areas=focus_areas
+                    focus_areas=focus_areas,
+                    thinking_streamer=thinking_streamer
                 )
                 session["status"] = "completed"
-                session["message"] = "✅ Analysis complete! Report generated successfully."
+                session["message"] = "Analysis complete! Report generated successfully."
                 session["report"] = report
                 final_report = report
                 analysis_complete.set()
             except Exception as e:
                 session["status"] = "error"
-                session["message"] = f"❌ Error: {str(e)}"
+                session["message"] = f"Error: {str(e)}"
                 session["error"] = str(e)
                 analysis_error = str(e)
                 analysis_complete.set()
             finally:
                 set_progress_callback(None)
+                thinking_streamer.close()
         
         # Start analysis task
         analysis_task = asyncio.create_task(run_analysis())

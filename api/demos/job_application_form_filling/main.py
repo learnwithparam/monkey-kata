@@ -184,6 +184,13 @@ async def stream_form_filling(
         logger.info("Form filling task started")
         
         # Stream initial connection
+        thinking_analysis = {'thinking': {'category': 'analysis', 'content': f'Analyzing resume for {resume_data_obj.name}...', 'timestamp': asyncio.get_event_loop().time()}}
+        yield f"data: {json.dumps(thinking_analysis, ensure_ascii=False)}\n\n"
+        await asyncio.sleep(0.5)
+        thinking_planning = {'thinking': {'category': 'planning', 'content': f'Mapping resume data to {len(form_structure.fields)} form fields across {len(form_structure.sections)} sections...', 'timestamp': asyncio.get_event_loop().time()}}
+        yield f"data: {json.dumps(thinking_planning, ensure_ascii=False)}\n\n"
+        await asyncio.sleep(0.5)
+        
         yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting form filling...', 'session_id': session_id}, ensure_ascii=False)}\n\n"
         
         # Stream updates
@@ -220,6 +227,11 @@ async def stream_form_filling(
                         filled_fields.append(field)
                         
                         field_data = {
+                            "thinking": {
+                                "category": "processing",
+                                "content": f"Extracted {update['field_label']} from resume.",
+                                "timestamp": asyncio.get_event_loop().time()
+                            },
                             "field": {
                                 "name": update["field_name"],
                                 "label": update["field_label"],

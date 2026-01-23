@@ -22,15 +22,18 @@ Key Concept: Each agent has a specific role. They work together as a team,
 with each agent handling a different part of the competitor analysis workflow.
 """
 
-from typing import List
+from typing import List, Optional
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.callbacks import BaseCallbackHandler
 
 from utils.llm_provider import get_llm
+from utils.thinking_streamer import ThinkingStreamer
+from utils.thinking_callback import ThinkingCallbackHandler
 from .tools import get_all_tools
 
 
-def create_research_agent() -> AgentExecutor:
+def create_research_agent(callbacks: Optional[List[BaseCallbackHandler]] = None) -> AgentExecutor:
     """
     Create a Research Agent specialized in gathering competitor information.
     
@@ -38,6 +41,9 @@ def create_research_agent() -> AgentExecutor:
     - Searches the web for competitor information
     - Scrapes competitor websites
     - Gathers market data and trends
+    
+    Args:
+        callbacks: Optional list of callback handlers for streaming thinking
     
     Returns:
         AgentExecutor ready to use
@@ -66,10 +72,15 @@ Be thorough and gather information from multiple sources. Focus on facts and dat
     ])
     
     agent = create_openai_tools_agent(llm, tools, prompt)
-    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+    return AgentExecutor(
+        agent=agent, 
+        tools=tools, 
+        verbose=True,
+        callbacks=callbacks or []
+    )
 
 
-def create_analysis_agent() -> AgentExecutor:
+def create_analysis_agent(callbacks: Optional[List[BaseCallbackHandler]] = None) -> AgentExecutor:
     """
     Create an Analysis Agent specialized in analyzing competitor data.
     
@@ -77,6 +88,9 @@ def create_analysis_agent() -> AgentExecutor:
     - Analyzes competitor strengths and weaknesses
     - Identifies market positioning
     - Compares competitors to target company
+    
+    Args:
+        callbacks: Optional list of callback handlers for streaming thinking
     
     Returns:
         AgentExecutor ready to use
@@ -99,10 +113,15 @@ Be analytical and provide clear, actionable insights."""),
     ])
     
     agent = create_openai_tools_agent(llm, tools, prompt)
-    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+    return AgentExecutor(
+        agent=agent, 
+        tools=tools, 
+        verbose=True,
+        callbacks=callbacks or []
+    )
 
 
-def create_report_agent() -> AgentExecutor:
+def create_report_agent(callbacks: Optional[List[BaseCallbackHandler]] = None) -> AgentExecutor:
     """
     Create a Report Agent specialized in creating comprehensive reports.
     
@@ -110,6 +129,9 @@ def create_report_agent() -> AgentExecutor:
     - Synthesizes research and analysis into reports
     - Structures information clearly
     - Creates executive summaries
+    
+    Args:
+        callbacks: Optional list of callback handlers for streaming thinking
     
     Returns:
         AgentExecutor ready to use
@@ -133,13 +155,19 @@ Be clear, concise, and professional in your writing."""),
     ])
     
     agent = create_openai_tools_agent(llm, tools, prompt)
-    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+    return AgentExecutor(
+        agent=agent, 
+        tools=tools, 
+        verbose=True,
+        callbacks=callbacks or []
+    )
 
 
 async def run_competitor_analysis(
     company_name: str,
     competitors: List[str],
-    focus_areas: List[str]
+    focus_areas: List[str],
+    thinking_streamer: Optional[ThinkingStreamer] = None
 ) -> str:
     """
     Run a complete competitor analysis workflow using multiple agents.
@@ -153,11 +181,23 @@ async def run_competitor_analysis(
         company_name: Name of the company being analyzed
         competitors: List of competitor company names
         focus_areas: List of areas to focus on (e.g., ["pricing", "features", "market share"])
+        thinking_streamer: Optional ThinkingStreamer for real-time reasoning visualization
     
     Returns:
         Comprehensive competitor analysis report
     """
     from .tools import _report_progress
+    
+    # Create callbacks for agent reasoning if streamer is provided
+    callbacks = []
+    if thinking_streamer:
+        research_callback = ThinkingCallbackHandler(thinking_streamer, agent_name="Research Agent")
+        analysis_callback = ThinkingCallbackHandler(thinking_streamer, agent_name="Analysis Agent")
+        report_callback = ThinkingCallbackHandler(thinking_streamer, agent_name="Report Agent")
+    else:
+        research_callback = None
+        analysis_callback = None
+        report_callback = None
     
     # Step 1: Research Phase - Single comprehensive research task
     _report_progress(
@@ -166,7 +206,10 @@ async def run_competitor_analysis(
         tool="agent_invoke",
         target=f"Analyzing {company_name} vs {', '.join(competitors)}"
     )
-    research_agent = create_research_agent()
+    
+    # Create agent with thinking callbacks
+    research_callbacks = [research_callback] if research_callback else []
+    research_agent = create_research_agent(callbacks=research_callbacks)
     
     # Create a single comprehensive research query instead of many small ones
     research_prompt = f"""Research and gather comprehensive information about the following competitors:
@@ -201,7 +244,8 @@ Use web search and website scraping tools to gather this information. Be thoroug
         tool="agent_invoke",
         target="Processing research data"
     )
-    analysis_agent = create_analysis_agent()
+    analysis_callbacks = [analysis_callback] if analysis_callback else []
+    analysis_agent = create_analysis_agent(callbacks=analysis_callbacks)
     
     analysis_prompt = f"""Based on the following research data, analyze the competitive landscape:
 
@@ -235,7 +279,8 @@ Please provide:
         tool="agent_invoke",
         target="Creating final report"
     )
-    report_agent = create_report_agent()
+    report_callbacks = [report_callback] if report_callback else []
+    report_agent = create_report_agent(callbacks=report_callbacks)
     
     report_prompt = f"""Create a structured competitor analysis report in JSON format based on the following:
 

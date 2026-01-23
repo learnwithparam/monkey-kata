@@ -29,16 +29,17 @@ and makes the system more maintainable.
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, AsyncGenerator
 import asyncio
 import uuid
+import json
 import os
 import logging
 import tempfile
 import shutil
 from utils.llm_provider import get_llm_provider, get_provider_config
 from .cv_utils import CVDocumentProcessor
-from .cv_agentic_analyzer import CVAnalyzer
+from .cv_agentic_analyzer import CVAnalyzer, set_cv_progress_callback, report_cv_progress
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -425,6 +426,110 @@ async def analyze_cv(document_id: str, job_description: Optional[str] = None):
     except Exception as e:
         logger.error(f"Error analyzing CV: {e}")
         raise HTTPException(status_code=500, detail=f"Error analyzing CV: {str(e)}")
+
+
+@router.post("/analyze-stream/{document_id}")
+async def analyze_cv_stream(document_id: str, job_description: Optional[str] = None):
+    """
+    Analyze CV using multi-agent system with real-time streaming
+    
+    This endpoint streams agent activities in real-time, showing:
+    - Which agent is currently running
+    - What each agent is doing
+    - Progress through the multi-agent workflow
+    
+    Args:
+        document_id: ID of the processed document
+        job_description: Optional job description for targeted analysis
+    
+    Returns:
+        SSE stream of agent activities followed by final results
+    """
+    async def stream_analysis() -> AsyncGenerator[str, None]:
+        step_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
+        analysis_complete = asyncio.Event()
+        analysis_result = None
+        analysis_error = None
+        
+        def capture_progress(step_data):
+            """Capture progress events to queue for streaming"""
+            try:
+                step_queue.put_nowait(step_data)
+            except asyncio.QueueFull:
+                logger.warning("Progress queue full, dropping event")
+        
+        try:
+            if document_id not in document_data:
+                yield f"data: {json.dumps({'error': 'Document not found'})}\n\n"
+                return
+            
+            if processing_status[document_id]["status"] != "completed":
+                yield f"data: {json.dumps({'error': 'Document processing not completed'})}\n\n"
+                return
+            
+            # Get document content
+            document_content = document_data[document_id]["content"]
+            
+            # Set up progress callback
+            set_cv_progress_callback(capture_progress)
+            
+            yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting multi-agent CV analysis...'})}\n\n"
+            
+            # Run analysis in background
+            async def run_analysis():
+                nonlocal analysis_result, analysis_error
+                try:
+                    result = await cv_analyzer.analyze_cv(document_content, job_description or "")
+                    analysis_result = result
+                    analysis_complete.set()
+                except Exception as e:
+                    analysis_error = str(e)
+                    analysis_complete.set()
+                finally:
+                    set_cv_progress_callback(None)
+            
+            # Start analysis task
+            analysis_task = asyncio.create_task(run_analysis())
+            
+            # Stream progress events
+            while not analysis_complete.is_set():
+                try:
+                    step_data = await asyncio.wait_for(step_queue.get(), timeout=0.1)
+                    yield f"data: {json.dumps({'step': step_data})}\n\n"
+                except asyncio.TimeoutError:
+                    continue
+            
+            # Drain any remaining steps
+            while not step_queue.empty():
+                try:
+                    step_data = step_queue.get_nowait()
+                    yield f"data: {json.dumps({'step': step_data})}\n\n"
+                except asyncio.QueueEmpty:
+                    break
+            
+            # Send final result
+            if analysis_error:
+                yield f"data: {json.dumps({'done': True, 'status': 'error', 'error': analysis_error})}\n\n"
+            elif analysis_result:
+                yield f"data: {json.dumps({'done': True, 'status': 'completed', 'result': {'overall_score': analysis_result.overall_score, 'strengths': analysis_result.strengths, 'weaknesses': analysis_result.weaknesses, 'improvement_suggestions': analysis_result.improvement_suggestions, 'keyword_match_score': analysis_result.keyword_match_score, 'experience_relevance': analysis_result.experience_relevance, 'skills_alignment': analysis_result.skills_alignment, 'format_score': analysis_result.format_score}})}\n\n"
+            
+            await analysis_task
+            
+        except Exception as e:
+            logger.error(f"Error in streaming analysis: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            set_cv_progress_callback(None)
+    
+    return StreamingResponse(
+        stream_analysis(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 # Learning Objectives
 # ============================================================================

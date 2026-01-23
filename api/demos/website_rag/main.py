@@ -248,9 +248,16 @@ async def generate_rag_stream(request: QuestionRequest) -> AsyncGenerator[str, N
     # Step 3: Notify frontend we're starting
     yield f"data: {json.dumps({'status': 'connected', 'message': 'Processing your question...'})}\n\n"
     
+    # Thinking Step: Analysis
+    thinking_analysis = {'thinking': {'category': 'analysis', 'content': f'Analyzing question: "{request.question}"', 'timestamp': datetime.now().isoformat()}}
+    yield f"data: {json.dumps(thinking_analysis)}\n\n"
+    
     # Step 4: Generate embedding for the question
     yield f"data: {json.dumps({'status': 'processing', 'message': 'Analyzing question...'})}\n\n"
     query_embedding = await embedding_provider.generate_embeddings([request.question])
+    
+    # Thinking Step: Planning
+    yield f"data: {json.dumps({'thinking': {'category': 'planning', 'content': 'Searching vector database for relevant content chunks', 'timestamp': datetime.now().isoformat()}})}\n\n"
     
     # Step 5: Find most relevant chunks using similarity search
     yield f"data: {json.dumps({'status': 'processing', 'message': 'Finding relevant information...'})}\n\n"
@@ -260,6 +267,10 @@ async def generate_rag_stream(request: QuestionRequest) -> AsyncGenerator[str, N
         documents,
         request.max_chunks
     )
+    
+    # Thinking Step: Processing
+    thinking_processing = {'thinking': {'category': 'processing', 'content': f'Found {len(relevant_chunks)} relevant content chunks. Synthesizing answer...', 'timestamp': datetime.now().isoformat()}}
+    yield f"data: {json.dumps(thinking_processing)}\n\n"
     
     # Step 6: Send sources to frontend (for transparency)
     # Frontend expects 'content' field, not 'preview'
@@ -284,6 +295,9 @@ async def generate_rag_stream(request: QuestionRequest) -> AsyncGenerator[str, N
     except Exception as e:
         # Handle any other errors gracefully
         yield f"data: {json.dumps({'error': f'Error generating response: {str(e)}', 'status': 'error'})}\n\n"
+    
+    # Thinking Step: Complete
+    yield f"data: {json.dumps({'thinking': {'category': 'complete', 'content': 'Final answer generated based on website content.', 'timestamp': datetime.now().isoformat()}})}\n\n"
     
     # Step 8: Signal completion
     yield f"data: {json.dumps({'done': True, 'status': 'completed'})}\n\n"

@@ -35,6 +35,7 @@ import shutil
 import os
 
 from utils.llm_provider import get_llm_provider
+from utils.thinking_streamer import ThinkingStreamer, create_thinking_callback
 from .document_utils import DocumentProcessor, RAGPipeline, DocumentChunk
 
 # ============================================================================
@@ -251,6 +252,16 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
     """
     document_id = request.document_id
     
+    # Initialize thinking streamer
+    thinking_streamer = ThinkingStreamer()
+    step_queue = asyncio.Queue()
+    
+    # Add callback to thinking streamer to push events into our local queue
+    def on_thinking_event(event):
+        step_queue.put_nowait(event)
+    
+    thinking_streamer.add_callback(on_thinking_event)
+    
     # Step 1: Verify document has been processed
     if document_id not in processing_status or processing_status[document_id]["status"] != "completed":
         yield f"data: {json.dumps({'error': f'Document not yet processed. Please wait for processing to complete.', 'status': 'error'})}\n\n"
@@ -267,17 +278,53 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
     # Step 3: Notify frontend we're starting
     yield f"data: {json.dumps({'status': 'connected', 'message': 'Analyzing your question...'})}\n\n"
     
+    # Helper for streaming thinking steps while we wait for long tasks
+    async def stream_thinking():
+        while True:
+            try:
+                # Check for new thinking steps in the queue
+                while not step_queue.empty():
+                    step = step_queue.get_nowait()
+                    yield f"data: {json.dumps({'thinking': step.__dict__})}\n\n"
+                
+                # If we're done generating, exit the loop
+                if getattr(stream_thinking, "complete", False):
+                    break
+                    
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.error(f"Error in thinking stream: {e}")
+                break
+    
     # Step 4: Generate embedding for the question
     yield f"data: {json.dumps({'status': 'processing', 'message': 'Finding relevant content in document...'})}\n\n"
-    query_embedding = await document_processor.generate_embeddings([request.question])
+    
+    await thinking_streamer.emit_thought("reasoning", "Converting your question into a vector embedding...")
+    query_embedding_task = asyncio.create_task(document_processor.generate_embeddings([request.question]))
+    
+    # Concurrent wait for embedding and thinking events
+    while not query_embedding_task.done():
+        while not step_queue.empty():
+            step = step_queue.get_nowait()
+            yield f"data: {json.dumps({'thinking': step.__dict__})}\n\n"
+        await asyncio.sleep(0.1)
+        
+    query_embedding = await query_embedding_task
     
     # Step 5: Find most relevant chunks using similarity search
+    await thinking_streamer.emit_thought("reasoning", "Searching for the most relevant document sections...")
     relevant_chunks = rag_pipeline.retrieve_relevant_chunks(
         query_embedding[0],
         embeddings,
         documents,
-        request.max_chunks
+        request.max_chunks,
+        thinking_streamer=thinking_streamer
     )
+    
+    # Drain remaining thinking events from the queue
+    while not step_queue.empty():
+        step = step_queue.get_nowait()
+        yield f"data: {json.dumps({'thinking': step.__dict__})}\n\n"
     
     # Step 6: Send sources to frontend (for transparency)
     # Frontend expects 'content' field
@@ -287,7 +334,11 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
     yield f"data: {json.dumps({'status': 'generating', 'message': 'Generating answer...'})}\n\n"
     
     try:
-        async for chunk in rag_pipeline.generate_answer_stream(request.question, relevant_chunks):
+        async for chunk in rag_pipeline.generate_answer_stream(request.question, relevant_chunks, thinking_streamer=thinking_streamer):
+            # Drain thinking events before yielding content
+            while not step_queue.empty():
+                step = step_queue.get_nowait()
+                yield f"data: {json.dumps({'thinking': step.__dict__})}\n\n"
             yield f"data: {json.dumps({'content': chunk})}\n\n"
     except (RuntimeError, StopIteration) as e:
         # StopIteration and some RuntimeErrors indicate normal completion

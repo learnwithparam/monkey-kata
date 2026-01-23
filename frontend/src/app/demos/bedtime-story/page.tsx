@@ -7,6 +7,7 @@ import CustomSelect from '@/components/CustomSelect';
 import SubmitButton from '@/components/demos/SubmitButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import { normalizeSpacing } from '@/utils/textFormatting';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
 
 interface StoryRequest {
   character_name: string;
@@ -33,6 +34,7 @@ export default function BedtimeStoryPage() {
   const [themes, setThemes] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [isGeminiProvider, setIsGeminiProvider] = useState(false);
+  const [workflowSteps, setWorkflowSteps] = useState<ThinkingEvent[]>([]);
 
   // Load data on component mount
   useEffect(() => {
@@ -78,6 +80,7 @@ export default function BedtimeStoryPage() {
     setStory('');
     setStoryMetadata(null);
     setError('');
+    setWorkflowSteps([]);
 
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/bedtime-story/stream`, {
@@ -119,6 +122,22 @@ export default function BedtimeStoryPage() {
               // Handle content streaming
               if (data.content) {
                 setStory(prev => prev + data.content);
+              }
+
+              // Handle thinking events
+              if (data.thinking) {
+                const step = data.thinking as ThinkingEvent;
+                setWorkflowSteps(prev => {
+                  const newSteps = [...prev];
+                  const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+                  
+                  if (existingStepIndex >= 0) {
+                    newSteps[existingStepIndex] = { ...step };
+                  } else {
+                    newSteps.push({ ...step });
+                  }
+                  return newSteps;
+                });
               }
 
               // Handle metadata
@@ -304,6 +323,12 @@ export default function BedtimeStoryPage() {
                 </div>
                 <h2 className="text-xl font-bold text-gray-900">Your Story</h2>
               </div>
+
+              {isGenerating && workflowSteps.length > 0 && (
+                <div className="mb-6">
+                  <ThinkingBlock events={workflowSteps} title="Story Planner" maxHeight="300px" />
+                </div>
+              )}
 
                       {story ? (
                         <div className="space-y-6">

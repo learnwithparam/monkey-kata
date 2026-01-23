@@ -778,6 +778,8 @@ async def generate_chat_stream(
                         "timestamp": datetime.now().isoformat()
                     })
                     # Stream tool call info
+                    thinking_planning = {'thinking': {'category': 'planning', 'content': f'Decided to use {tool_name} to fulfill your request.', 'timestamp': datetime.now().isoformat()}}
+                    yield f"data: {json.dumps(thinking_planning)}\n\n"
                     yield f"data: {json.dumps({'tool_calls': [tool_calls_used[-1]], 'type': 'tools'})}\n\n"
             
             # Handle tool call execution results
@@ -795,6 +797,9 @@ async def generate_chat_stream(
                     
                     # Find matching tool call and update result
                     if result_name:
+                        # Emit a thinking event for the tool execution
+                        thinking_processing = {'thinking': {'category': 'processing', 'content': f'Executed {result_name} and received data.', 'timestamp': datetime.now().isoformat()}}
+                        yield f"data: {json.dumps(thinking_processing)}\n\n"
                         for tool_call in tool_calls_used:
                             if tool_call["tool_name"] == result_name:
                                 tool_call["result"] = result_content

@@ -29,7 +29,7 @@ more maintainable.
 
 import asyncio
 import logging
-from typing import Dict, List, Any, Optional, TypedDict
+from typing import Dict, List, Any, Optional, TypedDict, Callable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -39,6 +39,43 @@ from langgraph.graph import StateGraph, END
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Global progress callback for agent activities
+_progress_callback: Optional[Callable[[dict], None]] = None
+
+def set_cv_progress_callback(callback: Optional[Callable[[dict], None]]):
+    """Set a callback function to report CV analysis progress"""
+    global _progress_callback
+    _progress_callback = callback
+
+def report_cv_progress(message: str, agent: str = None, tool: str = None, target: str = None, category: str = None):
+    """Report progress if callback is set"""
+    if _progress_callback:
+        try:
+            # Determine category from tool if not provided
+            if not category:
+                if tool == "agent_invoke":
+                    category = "agent"
+                elif tool == "agent_complete":
+                    category = "complete"
+                elif tool == "llm_call":
+                    category = "reasoning"
+                elif tool == "parsing":
+                    category = "analysis"
+                else:
+                    category = "processing"
+            
+            step_data = {
+                "timestamp": datetime.now().isoformat(),
+                "message": message,
+                "agent": agent,
+                "tool": tool,
+                "target": target,
+                "category": category
+            }
+            _progress_callback(step_data)
+        except Exception as e:
+            logger.warning(f"Error in CV progress callback: {e}")
 
 # ============================================================================
 # STEP 1: STATE DEFINITION
@@ -186,6 +223,21 @@ class CVContentExtractor:
         try:
             cv_content = state["cv_content"]
             
+            # Report agent start
+            report_cv_progress(
+                "Starting content extraction from CV",
+                agent="Content Extractor",
+                tool="agent_invoke",
+                target="Parsing CV structure"
+            )
+            
+            report_cv_progress(
+                "Analyzing CV to extract personal info, experience, skills...",
+                agent="Content Extractor",
+                tool="llm_call",
+                target="Structured extraction"
+            )
+            
             extraction_prompt = """
             Extract key information from this CV in JSON format:
             
@@ -243,6 +295,12 @@ class CVContentExtractor:
                 }
             
             logger.info("CV content extracted successfully")
+            report_cv_progress(
+                "CV content extracted and structured successfully",
+                agent="Content Extractor",
+                tool="agent_complete",
+                target="Extraction complete"
+            )
             
         except (ValueError, Exception) as e:
             # Handle blocked content or API errors
@@ -290,6 +348,13 @@ class CVStrengthsAnalyzer:
             cv_content = state["cv_content"]
             extracted = state["analysis_results"].get("extracted_content", {})
             
+            report_cv_progress(
+                "Analyzing CV strengths and positive attributes",
+                agent="Strengths Analyzer",
+                tool="agent_invoke",
+                target="Identifying key strengths"
+            )
+            
             strengths_prompt = """
             Analyze this CV and identify its key strengths:
             
@@ -327,6 +392,12 @@ class CVStrengthsAnalyzer:
                 ]
             
             logger.info(f"Identified {len(state['strengths'])} strengths")
+            report_cv_progress(
+                f"Identified {len(state['strengths'])} key strengths",
+                agent="Strengths Analyzer",
+                tool="agent_complete",
+                target="Strengths analysis complete"
+            )
             
         except (ValueError, Exception) as e:
             # Handle blocked content or API errors
@@ -373,6 +444,13 @@ class CVWeaknessesAnalyzer:
             cv_content = state["cv_content"]
             job_description = state.get("job_description", "")
             
+            report_cv_progress(
+                "Analyzing CV for areas of improvement",
+                agent="Weaknesses Analyzer",
+                tool="agent_invoke",
+                target="Identifying gaps and weaknesses"
+            )
+            
             weaknesses_prompt = """
             Analyze this CV and identify areas for improvement:
             
@@ -409,6 +487,12 @@ class CVWeaknessesAnalyzer:
                 ]
             
             logger.info(f"Identified {len(state['weaknesses'])} weaknesses")
+            report_cv_progress(
+                f"Identified {len(state['weaknesses'])} areas for improvement",
+                agent="Weaknesses Analyzer",
+                tool="agent_complete",
+                target="Weaknesses analysis complete"
+            )
             
         except (ValueError, Exception) as e:
             # Handle blocked content or API errors
@@ -458,6 +542,13 @@ class CVImprovementSuggester:
             weaknesses = state.get("weaknesses", [])
             job_description = state.get("job_description", "")
             
+            report_cv_progress(
+                "Generating improvement suggestions based on analysis",
+                agent="Improvement Suggester",
+                tool="agent_invoke",
+                target="Creating actionable recommendations"
+            )
+            
             suggestions_prompt = """
             Based on the CV analysis, provide actionable improvement suggestions:
             
@@ -500,6 +591,12 @@ class CVImprovementSuggester:
                 ]
             
             logger.info(f"Generated {len(state['improvement_suggestions'])} suggestions")
+            report_cv_progress(
+                f"Generated {len(state['improvement_suggestions'])} improvement suggestions",
+                agent="Improvement Suggester",
+                tool="agent_complete",
+                target="Suggestions ready"
+            )
             
         except (ValueError, Exception) as e:
             # Handle blocked content or API errors
@@ -551,6 +648,13 @@ class CVScorer:
             weaknesses = state.get("weaknesses", [])
             job_description = state.get("job_description", "")
             extracted = state["analysis_results"].get("extracted_content", {})
+            
+            report_cv_progress(
+                "Calculating CV quality scores based on analysis",
+                agent="CV Scorer",
+                tool="agent_invoke",
+                target="Scoring CV across multiple criteria"
+            )
             
             scoring_prompt = """Score this CV on a scale of 1-100 for each category. Return ONLY a JSON object:
 
@@ -611,6 +715,12 @@ Return ONLY the JSON object."""
                         f"experience={state['experience_relevance']}, "
                         f"skills={state['skills_alignment']}, "
                         f"format={state['format_score']}"
+                    )
+                    report_cv_progress(
+                        f"CV scored: Overall score {state['score']}/100",
+                        agent="CV Scorer",
+                        tool="agent_complete",
+                        target="All scores calculated"
                     )
                     return state
                 except (json_module.JSONDecodeError, ValueError, KeyError) as e:

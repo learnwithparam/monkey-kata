@@ -11,6 +11,7 @@ import ProcessingButton from '@/components/demos/ProcessingButton';
 import ChatInput from '@/components/demos/ChatInput';
 import AlertMessage from '@/components/demos/AlertMessage';
 import ChatMessages, { ChatMessage } from '@/components/demos/ChatMessages';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
 
 interface ProcessingStatus {
   url: string;
@@ -30,6 +31,7 @@ export default function WebsiteRAGDemo() {
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus | null>(null);
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
+  const [workflowSteps, setWorkflowSteps] = useState<ThinkingEvent[]>([]);
   
   const questionInputRef = useRef<HTMLInputElement>(null);
 
@@ -169,6 +171,7 @@ export default function WebsiteRAGDemo() {
     setQuestion('');
     setIsAsking(true);
     setCurrentAnswer('');
+    setWorkflowSteps([]);
 
     addMessage({
       type: 'user',
@@ -228,6 +231,21 @@ export default function WebsiteRAGDemo() {
                 });
                 setIsAsking(false);
                 return;
+              }
+
+              if (data.thinking) {
+                const step = data.thinking as ThinkingEvent;
+                setWorkflowSteps(prev => {
+                  const newSteps = [...prev];
+                  const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+                  
+                  if (existingStepIndex >= 0) {
+                    newSteps[existingStepIndex] = { ...step };
+                  } else {
+                    newSteps.push({ ...step });
+                  }
+                  return newSteps;
+                });
               }
 
               if (data.sources) {
@@ -411,10 +429,13 @@ export default function WebsiteRAGDemo() {
                     )}
                     
                     {isAsking && (
-                      <AlertMessage
-                        type="info"
-                        message="AI is thinking and will respond shortly..."
-                      />
+                      <div className="mb-4">
+                        <ThinkingBlock 
+                          events={workflowSteps} 
+                          title="Website AI Thinking" 
+                          maxHeight="200px"
+                        />
+                      </div>
                     )}
                     
                     <ChatInput

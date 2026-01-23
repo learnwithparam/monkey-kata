@@ -13,6 +13,11 @@ import ChatInput from '@/components/demos/ChatInput';
 import AlertMessage from '@/components/demos/AlertMessage';
 import FileUpload from '@/components/demos/FileUpload';
 import ChatMessages, { ChatMessage } from '@/components/demos/ChatMessages';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+
+interface StepData extends ThinkingEvent {
+  id: string;
+}
 
 interface ProcessingStatus {
   document_id: string;
@@ -41,6 +46,7 @@ export default function LegalContractAnalyzerDemo() {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [keyTerms, setKeyTerms] = useState<KeyTerm[]>([]);
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
   
   const questionInputRef = useRef<HTMLInputElement>(null);
 
@@ -228,6 +234,7 @@ export default function LegalContractAnalyzerDemo() {
     setQuestion(''); // Clear input immediately
     setIsAsking(true);
     setCurrentAnswer('');
+    setWorkflowSteps([]); // Clear previous thinking steps
 
     // Add user message
     addMessage({
@@ -292,6 +299,22 @@ export default function LegalContractAnalyzerDemo() {
                 });
                 setIsAsking(false);
                 return;
+              }
+
+              if (data.thinking) {
+                console.log('Received thinking step:', data.thinking);
+                const step = data.thinking as ThinkingEvent;
+                setWorkflowSteps(prev => {
+                  const newSteps = [...prev];
+                  const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+                  
+                  if (existingStepIndex >= 0) {
+                    newSteps[existingStepIndex] = { ...step, id: newSteps[existingStepIndex].id };
+                  } else {
+                    newSteps.push({ ...step, id: Math.random().toString(36).substr(2, 9) });
+                  }
+                  return newSteps;
+                });
               }
 
               if (data.sources) {
@@ -520,10 +543,13 @@ export default function LegalContractAnalyzerDemo() {
                     )}
                     
                     {isAsking && (
-                      <AlertMessage
-                        type="info"
-                        message="AI is analyzing your document and will respond shortly..."
-                      />
+                      <div className="mb-4">
+                        <ThinkingBlock 
+                          events={workflowSteps} 
+                          title="RAG Pipeline Thinking"
+                          autoScroll={true}
+                        />
+                      </div>
                     )}
                     
                     <ChatInput

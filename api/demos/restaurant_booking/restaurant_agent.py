@@ -50,6 +50,9 @@ from livekit.agents.voice import Agent, AgentSession
 from livekit.plugins import silero, deepgram
 from utils.livekit_utils import get_livekit_llm
 import logging
+import json
+from datetime import datetime
+from typing import Optional, Any
 
 # Fix for LiveKit pickling error when logging errors with unpicklable objects
 # This happens when LiveKit tries to log session close events with error objects
@@ -258,6 +261,9 @@ async def add_item_to_order(item_name: str) -> str:
     
     if item_found:
         order_items.append(item_found)
+        agent = get_job_context().room.local_participant.attributes.get("agent_instance")
+        if agent and hasattr(agent, "emit_thought"):
+             await agent.emit_thought("processing", f"Added {item_found['name']} to order.")
         return f"Added {item_found['name']} (${item_found['price']:.2f}) to your order."
     else:
         return f"I couldn't find '{item_name}' on the menu. Could you please specify the exact item name?"
@@ -429,6 +435,33 @@ class RestaurantAgent(Agent):
             tools=[add_item_to_order, view_current_order, get_menu_items, place_order],
             # Turn detection handled by eager_eot_threshold in STT config
         )
+    
+    async def on_enter(self) -> None:
+        """Called when agent enters the room"""
+        await self.emit_thought("analysis", "Restaurant booking agent active. Ready to take orders.")
+    
+    async def emit_thought(self, category: str, content: str, metadata: Optional[dict[str, Any]] = None) -> None:
+        """
+        Emits a thinking event to the frontend via LiveKit Data Message
+        """
+        if not self.session or not self.session.room:
+            return
+
+        thought = {
+            "category": category,
+            "content": content,
+            "timestamp": datetime.now().isoformat(),
+            "agent": self.__class__.__name__,
+            "metadata": metadata or {}
+        }
+        
+        try:
+            # Send as data message to all participants
+            await self.session.room.local_participant.publish_data(
+                json.dumps({"thinking": thought}).encode('utf-8')
+            )
+        except Exception as e:
+            logging.error(f"Error publishing thought: {e}")
     
     # RestaurantAgent uses Agent's default on_enter() which calls generate_reply()
     # The LLM will generate an appropriate dynamic greeting based on instructions

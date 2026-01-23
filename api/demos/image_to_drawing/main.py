@@ -16,9 +16,13 @@ Step 2: Image Generation - Use LLM provider to generate coloring page
 Step 3: API Endpoints - Expose functionality via HTTP
 """
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from fastapi.responses import Response
+from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi.responses import Response, StreamingResponse
 from utils.llm_provider import get_llm_provider
+from utils.thinking_streamer import ThinkingStreamer
+import asyncio
+import json
+from typing import Optional
 
 router = APIRouter(prefix="/image-to-drawing", tags=["image-to-drawing"])
 
@@ -41,9 +45,16 @@ Currently supported providers:
 - OpenRouter - Learning challenge! 🎓
 - Gemini - Learning challenge! 🎓
 """
-async def generate_coloring_page(image_bytes: bytes) -> bytes:
+async def generate_coloring_page(image_bytes: bytes, session_id: Optional[str] = None) -> bytes:
     """Generate coloring page using configured LLM provider"""
     provider = get_llm_provider()
+    
+    if session_id:
+        ThinkingStreamer.add_event(session_id, "analysis", "Analyzing image composition and identifying key subjects...")
+        await asyncio.sleep(0.5)
+        ThinkingStreamer.add_event(session_id, "planning", "Preparing coloring book transformation instructions...")
+        await asyncio.sleep(0.5)
+        ThinkingStreamer.add_event(session_id, "processing", "Transforming image to line art sketch...")
     
     prompt = (
         "Convert the provided input image into a coloring book sketch. "
@@ -57,6 +68,9 @@ async def generate_coloring_page(image_bytes: bytes) -> bytes:
         prompt=prompt
     )
     
+    if session_id:
+        ThinkingStreamer.add_event(session_id, "processing", "Finalizing sketch and cleaning up line work...")
+    
     return generated_image
 
 
@@ -69,7 +83,10 @@ API Endpoints:
 - GET /health: Health check
 """
 @router.post("/convert")
-async def convert_image(file: UploadFile = File(...)):
+async def convert_image(
+    file: UploadFile = File(...),
+    session_id: Optional[str] = None
+):
     """
     Convert an uploaded image to a coloring book page using LLM image generation
     
@@ -108,7 +125,7 @@ async def convert_image(file: UploadFile = File(...)):
         download_filename = f"{name_without_ext}-colorbook.png"
         
         # Use LLM image generation to create coloring page
-        generated_image = await generate_coloring_page(image_bytes)
+        generated_image = await generate_coloring_page(image_bytes, session_id)
         
         return Response(
             content=generated_image,
@@ -125,6 +142,17 @@ async def convert_image(file: UploadFile = File(...)):
             status_code=500,
             detail=f"Failed to generate coloring page: {str(e)}"
         )
+
+
+@router.get("/stream/{session_id}")
+async def stream_thinking(session_id: str):
+    """Stream thinking events for image processing"""
+    async def event_generator():
+        async for event in ThinkingStreamer.stream_events(session_id):
+            yield f"data: {json.dumps(event.to_dict())}\n\n"
+        yield f"data: {json.dumps({'done': True})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/health")

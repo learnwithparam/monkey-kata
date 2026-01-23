@@ -13,6 +13,7 @@ import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import StructuredAnalysisReport from '@/components/demos/StructuredAnalysisReport';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
 
 interface AnalysisRequest {
   company_name: string;
@@ -20,6 +21,17 @@ interface AnalysisRequest {
   focus_areas?: string[];
 }
 
+interface StepData {
+  timestamp: string;
+  message: string;
+  agent?: string;
+  tool?: string;
+  target?: string;
+  category?: string;
+  metadata?: Record<string, unknown>;
+  progress?: number;
+  duration_ms?: number;
+}
 
 interface AnalysisResult {
   session_id: string;
@@ -28,13 +40,7 @@ interface AnalysisResult {
   competitors: string[];
   report?: string;
   error?: string;
-  steps?: Array<{
-    timestamp: string;
-    message: string;
-    agent?: string;
-    tool?: string;
-    target?: string;
-  }>;
+  steps?: StepData[];
 }
 
 interface AnalysisResponse {
@@ -43,13 +49,7 @@ interface AnalysisResponse {
   message: string;
   company_name: string;
   competitors: string[];
-  steps?: Array<{
-    timestamp: string;
-    message: string;
-    agent?: string;
-    tool?: string;
-    target?: string;
-  }>;
+  steps?: StepData[];
 }
 
 export default function CompetitorAnalysisDemo() {
@@ -333,9 +333,9 @@ export default function CompetitorAnalysisDemo() {
 
               {/* Action Buttons */}
               <div className="flex gap-4">
-                <ProcessingButton
+              <ProcessingButton
                   onClick={startAnalysis}
-                  isProcessing={isProcessing}
+                  isLoading={isProcessing}
                   disabled={!companyName.trim() || !competitors.trim()}
                   className="flex-1"
                 >
@@ -380,67 +380,32 @@ export default function CompetitorAnalysisDemo() {
                   message={analysisStatus.message}
                 />
                 
-                {/* Agent Workflow Steps */}
+                {/* Agent Workflow Steps - Now using ThinkingBlock for better visualization */}
                 {(analysisResult?.steps && analysisResult.steps.length > 0) && (
-                  <div className="mt-6 space-y-3">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <SparklesIcon className="h-4 w-4 text-blue-600 mr-2" />
-                      Multi-Agent Workflow
-                    </h3>
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {analysisResult.steps.map((step, index) => {
-                        const getStatusColor = () => {
-                          if (step.tool === 'agent_complete') return 'bg-green-500';
-                          if (step.tool === 'agent_invoke') return 'bg-blue-500 animate-pulse';
-                          if (step.tool === 'search_web' || step.tool === 'scrape_website') return 'bg-purple-500 animate-pulse';
-                          return 'bg-gray-400';
-                        };
-
-                        const getAgentColor = (agent: string | undefined) => {
-                          if (!agent) return 'bg-gray-200 text-gray-700';
-                          if (agent.includes('Research')) return 'bg-blue-100 text-blue-700';
-                          if (agent.includes('Analysis')) return 'bg-purple-100 text-purple-700';
-                          if (agent.includes('Report')) return 'bg-green-100 text-green-700';
-                          return 'bg-gray-100 text-gray-700';
-                        };
-
-                        return (
-                          <div
-                            key={index}
-                            className="flex items-start gap-3 p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-all"
-                          >
-                            <div className="flex-shrink-0 mt-0.5">
-                              <div className={`w-3 h-3 ${getStatusColor()} rounded-full`}></div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              {step.agent && (
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span className={`text-xs font-semibold px-2 py-1 rounded ${getAgentColor(step.agent)}`}>
-                                    {step.agent}
-                                  </span>
-                                  {step.tool && step.tool !== 'agent_invoke' && step.tool !== 'agent_complete' && (
-                                    <span className="text-xs text-gray-600 font-mono bg-gray-100 px-2 py-1 rounded">
-                                      {step.tool}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              <p className="text-sm font-medium text-gray-900 break-words">
-                                {step.message}
-                              </p>
-                              {step.target && (
-                                <p className="text-xs text-gray-600 mt-1 font-mono bg-gray-50 px-2 py-1 rounded inline-block">
-                                  {step.target}
-                                </p>
-                              )}
-                              <p className="text-xs text-gray-500 mt-2">
-                                {new Date(step.timestamp).toLocaleTimeString()}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                  <div className="mt-6">
+                    <ThinkingBlock
+                      events={analysisResult.steps.map(step => ({
+                        category: step.category || (
+                          step.tool === 'agent_complete' ? 'complete' :
+                          step.tool === 'agent_invoke' ? 'agent' :
+                          step.tool === 'search_web' || step.tool === 'scrape_website' ? 'tool_use' :
+                          'processing'
+                        ),
+                        content: step.message,
+                        timestamp: step.timestamp,
+                        agent: step.agent,
+                        tool: step.tool,
+                        target: step.target,
+                        metadata: step.metadata,
+                        progress: step.progress,
+                        duration_ms: step.duration_ms,
+                      }))}
+                      title="Multi-Agent Workflow"
+                      maxHeight="400px"
+                      autoScroll={true}
+                      collapsible={true}
+                      defaultExpanded={true}
+                    />
                   </div>
                 )}
                 

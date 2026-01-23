@@ -9,6 +9,11 @@ import {
 } from '@heroicons/react/24/outline';
 import StatusIndicator from '@/components/demos/StatusIndicator';
 import AlertMessage from '@/components/demos/AlertMessage';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+
+interface StepData extends ThinkingEvent {
+  id: string;
+}
 
 interface FormField {
   name: string;
@@ -36,6 +41,7 @@ function FormPageContent() {
   const [progress, setProgress] = useState(0);
   const [currentMessage, setCurrentMessage] = useState('');
   const [highlightedField, setHighlightedField] = useState<string | null>(null);
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
   const fieldRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
@@ -89,6 +95,7 @@ function FormPageContent() {
     setIsFilling(true);
     setError(null);
     setCurrentMessage('Discovering form structure from HTML...');
+    setWorkflowSteps([]);
 
     try {
       // Wait a bit for React to render the form
@@ -180,6 +187,21 @@ function FormPageContent() {
               if (data.status === 'connected') {
                 setCurrentMessage(data.message || 'Starting form filling...');
                 continue;
+              }
+
+              if (data.thinking) {
+                const step = data.thinking as ThinkingEvent;
+                setWorkflowSteps(prev => {
+                  const newSteps = [...prev];
+                  const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+                  
+                  if (existingStepIndex >= 0) {
+                    newSteps[existingStepIndex] = { ...step, id: newSteps[existingStepIndex].id };
+                  } else {
+                    newSteps.push({ ...step, id: Math.random().toString(36).substr(2, 9) });
+                  }
+                  return newSteps;
+                });
               }
 
               if (data.field) {
@@ -305,12 +327,18 @@ function FormPageContent() {
                   <span className="text-sm text-gray-600">Progress</span>
                   <span className="text-sm font-semibold text-gray-900">{Math.round(progress * 100)}%</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
                   <div
                     className="bg-green-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${progress * 100}%` }}
                   ></div>
                 </div>
+                
+                <ThinkingBlock 
+                  events={workflowSteps} 
+                  title="Form Filling Intelligence" 
+                  autoScroll={true}
+                />
               </div>
             )}
           </div>

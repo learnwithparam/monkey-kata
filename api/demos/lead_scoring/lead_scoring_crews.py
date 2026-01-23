@@ -24,8 +24,10 @@ part of the workflow, making the system modular and maintainable.
 
 import asyncio
 import logging
-from typing import List
+from typing import List, Optional
 from crewai import Agent, Crew, Process, Task
+
+from utils.thinking_streamer import ThinkingStreamer, create_thinking_callback
 
 # Import our shared LLM provider utilities
 from utils.llm_provider import get_crewai_llm
@@ -53,7 +55,8 @@ us to customize the task description with candidate-specific information.
 async def score_candidate(
     candidate: Candidate,
     job_description: str,
-    additional_feedback: str = ""
+    additional_feedback: str = "",
+    thinking_streamer: Optional[ThinkingStreamer] = None
 ) -> CandidateScore:
     """
     Score a single candidate using CrewAI
@@ -165,11 +168,14 @@ REMEMBER:
         )
         
         # Create crew
+        callbacks = [create_thinking_callback(thinking_streamer, agent_name="HR Evaluator")] if thinking_streamer else []
+        
         crew = Crew(
             agents=[hr_agent],
             tasks=[evaluate_task],
             process=Process.sequential,
             verbose=True,
+            callbacks=callbacks
         )
         
         # Run crew in thread pool to avoid blocking
@@ -216,7 +222,8 @@ async def score_candidates_parallel(
     candidates: List[Candidate],
     job_description: str,
     additional_feedback: str = "",
-    progress_callback=None
+    progress_callback=None,
+    thinking_streamer: Optional[ThinkingStreamer] = None
 ) -> List[CandidateScore]:
     """
     Score multiple candidates in parallel with progress tracking
@@ -244,7 +251,10 @@ async def score_candidates_parallel(
             progress_callback(idx, total, candidate.name, None)
         
         # Score the candidate
-        score = await score_candidate(candidate, job_description, additional_feedback)
+        if thinking_streamer:
+            await thinking_streamer.emit_thought("agent", f"Starting evaluation for candidate: {candidate.name}")
+            
+        score = await score_candidate(candidate, job_description, additional_feedback, thinking_streamer)
         results.append(score)
         
         # Update progress after scoring with the actual score result
@@ -271,7 +281,8 @@ with the candidate (invitation) or not (rejection).
 """
 async def generate_email_for_candidate(
     candidate: ScoredCandidate,
-    proceed_with_candidate: bool
+    proceed_with_candidate: bool,
+    thinking_streamer: Optional[ThinkingStreamer] = None
 ) -> str:
     """
     Generate email for a single candidate using CrewAI
@@ -339,11 +350,14 @@ either inviting them for a Zoom call or letting them know we are pursuing other 
         )
         
         # Create crew
+        callbacks = [create_thinking_callback(thinking_streamer, agent_name="Email Coordinator")] if thinking_streamer else []
+        
         crew = Crew(
             agents=[email_agent],
             tasks=[email_task],
             process=Process.sequential,
             verbose=True,
+            callbacks=callbacks
         )
         
         # Run crew in thread pool to avoid blocking
@@ -359,7 +373,8 @@ either inviting them for a Zoom call or letting them know we are pursuing other 
 
 async def generate_emails_parallel(
     scored_candidates: List[ScoredCandidate],
-    top_candidate_ids: set
+    top_candidate_ids: set,
+    thinking_streamer: Optional[ThinkingStreamer] = None
 ) -> List[dict]:
     """
     Generate emails for all candidates in parallel
@@ -376,7 +391,10 @@ async def generate_emails_parallel(
     """
     async def generate_email(candidate: ScoredCandidate) -> dict:
         proceed_with_candidate = candidate.id in top_candidate_ids
-        email_content = await generate_email_for_candidate(candidate, proceed_with_candidate)
+        if thinking_streamer:
+            await thinking_streamer.emit_thought("agent", f"Generating personalized email for {candidate.name}")
+            
+        email_content = await generate_email_for_candidate(candidate, proceed_with_candidate, thinking_streamer)
         
         return {
             "candidate_id": candidate.id,

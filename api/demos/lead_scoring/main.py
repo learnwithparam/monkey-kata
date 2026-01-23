@@ -32,8 +32,13 @@ import uuid
 import logging
 import csv
 import io
+import json
+from datetime import datetime
+from fastapi.responses import StreamingResponse
+from typing import AsyncGenerator
 
 from utils.llm_provider import get_llm_provider
+from utils.thinking_streamer import ThinkingStreamer, create_thinking_callback
 from .lead_scoring_crews import score_candidates_parallel, generate_emails_parallel
 from .models import Candidate, CandidateScore, ScoredCandidate
 
@@ -274,7 +279,8 @@ async def process_lead_scoring(
     session_id: str,
     candidates: List[Candidate],
     job_description: str,
-    feedback: str
+    feedback: str,
+    thinking_streamer: Optional[ThinkingStreamer] = None
 ):
     """Background task to score leads with progress tracking"""
     try:
@@ -354,7 +360,8 @@ async def process_lead_scoring(
             candidates,
             job_description,
             feedback,
-            progress_callback=update_progress
+            progress_callback=update_progress,
+            thinking_streamer=thinking_streamer
         )
         
         # Store scores
@@ -622,6 +629,89 @@ async def get_emails(session_id: str):
         session_id=session_id,
         emails=emails,
         total_emails=len(emails)
+    )
+
+
+@router.get("/stream/{session_id}")
+async def stream_session(session_id: str):
+    """
+    Stream session updates (progress and thinking) via SSE
+    """
+    if session_id not in processing_sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        session = processing_sessions[session_id]
+        queue = asyncio.Queue()
+        
+        # Create thinking streamer for this session
+        thinking_streamer = ThinkingStreamer()
+        
+        def on_event(event):
+            queue.put_nowait(event)
+            
+        thinking_streamer.add_callback(on_event)
+        
+        # We need to restart the processing task with our streamer
+        # or find a way to attach it. For simplicity, we'll start it here 
+        # if it's not already completed.
+        if session["status"] == "processing" or session["status"] == "scoring":
+            candidates = [Candidate(**c) for c in session["candidates"]]
+            job_desc = session["job_description"]
+            feedback = session["feedback"]
+            
+            # Restart or continue (in this demo, we'll just start it again with the streamer)
+            asyncio.create_task(
+                process_lead_scoring(session_id, candidates, job_desc, feedback, thinking_streamer)
+            )
+
+        # Helper to get current status
+        def get_status_data():
+            s = processing_sessions[session_id]
+            return {
+                "status": s["status"],
+                "message": s.get("message", ""),
+                "progress": s.get("progress", 0),
+                "current_candidate": s.get("current_candidate"),
+                "scored_count": s.get("scored_count", 0),
+                "workflow_stage": s.get("workflow_stage"),
+                "partial_results": s.get("partial_results", [])
+            }
+
+        last_status = None
+        
+        while True:
+            # Check for thinking events
+            try:
+                while not queue.empty():
+                    event = queue.get_nowait()
+                    yield f"data: {json.dumps({'thinking': event.__dict__})}\n\n"
+            except Exception:
+                pass
+                
+            # Check for status changes
+            current_status = get_status_data()
+            if current_status != last_status:
+                yield f"data: {json.dumps({'status_update': current_status})}\n\n"
+                last_status = current_status
+            
+            if current_status["status"] == "completed" or current_status["status"] == "error":
+                # Final drain
+                while not queue.empty():
+                    event = queue.get_nowait()
+                    yield f"data: {json.dumps({'thinking': event.__dict__})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                break
+                
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
     )
 
 

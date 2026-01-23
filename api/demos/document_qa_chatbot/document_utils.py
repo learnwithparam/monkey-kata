@@ -24,11 +24,13 @@ Step 5: RAG Generation - How to create prompts with document context
 import os
 import uuid
 import numpy as np
-from typing import List, Dict, Any, Optional, AsyncGenerator
+from typing import List, Dict, Any, Optional, AsyncGenerator, Union
 from dataclasses import dataclass
 from datetime import datetime
 import tempfile
 import shutil
+
+from utils.thinking_streamer import ThinkingStreamer
 
 # LlamaIndex for document parsing
 from llama_index.core import SimpleDirectoryReader
@@ -327,7 +329,8 @@ class RAGPipeline:
         query_embedding: List[float], 
         document_embeddings: List[List[float]], 
         documents: List[DocumentChunk], 
-        max_chunks: int = 5
+        max_chunks: int = 5,
+        thinking_streamer: Optional[ThinkingStreamer] = None
     ) -> List[DocumentChunk]:
         """
         Find the most relevant document chunks using a vector store
@@ -345,14 +348,15 @@ class RAGPipeline:
         
         # Use vector store for efficient similarity search
         # We're using Chroma here, but you could swap it with Pinecone, Weaviate, etc.
-        return self._retrieve_with_vector_store(query_embedding, document_embeddings, documents, max_chunks)
+        return self._retrieve_with_vector_store(query_embedding, document_embeddings, documents, max_chunks, thinking_streamer)
     
     def _retrieve_with_vector_store(
         self,
         query_embedding: List[float],
         document_embeddings: List[List[float]],
         documents: List[DocumentChunk],
-        max_chunks: int
+        max_chunks: int,
+        thinking_streamer: Optional[ThinkingStreamer] = None
     ) -> List[DocumentChunk]:
         """
         Use vector store for efficient similarity search
@@ -371,6 +375,13 @@ class RAGPipeline:
         
         # Create a collection (similar to a database table)
         collection_name = f"chunks_{uuid.uuid4().hex[:8]}"
+        
+        if thinking_streamer:
+            asyncio.run_coroutine_threadsafe(
+                thinking_streamer.emit_thought("analysis", f"Initializing vector store collection: {collection_name}"),
+                asyncio.get_event_loop()
+            )
+            
         collection = client.create_collection(
             name=collection_name,
             metadata={"hnsw:space": "cosine"}  # Use cosine similarity
@@ -388,6 +399,12 @@ class RAGPipeline:
             })
         
         # Store embeddings in vector store
+        if thinking_streamer:
+            asyncio.run_coroutine_threadsafe(
+                thinking_streamer.emit_thought("processing", f"Indexing {len(documents)} document chunks..."),
+                asyncio.get_event_loop()
+            )
+            
         collection.add(
             embeddings=document_embeddings,
             ids=ids,
@@ -395,6 +412,12 @@ class RAGPipeline:
         )
         
         # Query vector store for similar chunks
+        if thinking_streamer:
+            asyncio.run_coroutine_threadsafe(
+                thinking_streamer.emit_thought("reasoning", "Performing similarity search for most relevant chunks..."),
+                asyncio.get_event_loop()
+            )
+            
         results = collection.query(
             query_embeddings=[query_embedding],
             n_results=min(max_chunks, len(documents))
@@ -403,14 +426,23 @@ class RAGPipeline:
         # Extract indices from results
         if results['ids'] and len(results['ids']) > 0:
             top_indices = [int(idx) for idx in results['ids'][0]]
-            return [documents[i] for i in top_indices if i < len(documents)]
+            found_chunks = [documents[i] for i in top_indices if i < len(documents)]
+            
+            if thinking_streamer:
+                asyncio.run_coroutine_threadsafe(
+                    thinking_streamer.emit_thought("analysis", f"Retrieved {len(found_chunks)} relevant chunks from document."),
+                    asyncio.get_event_loop()
+                )
+            
+            return found_chunks
         
         return []
     
     async def generate_answer_stream(
         self, 
         question: str, 
-        relevant_chunks: List[DocumentChunk]
+        relevant_chunks: List[DocumentChunk],
+        thinking_streamer: Optional[ThinkingStreamer] = None
     ) -> AsyncGenerator[str, None]:
         """
         Generate streaming answer using LLM with retrieved document context
@@ -447,6 +479,9 @@ Document content:
 Question: {question}
 
 Answer directly and concisely:"""
+        
+        if thinking_streamer:
+            await thinking_streamer.emit_thought("processing", "Synthesizing answer from retrieved context...")
         
         # Stream answer from LLM
         try:

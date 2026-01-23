@@ -40,6 +40,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import AsyncGenerator
 import json
+import asyncio
 
 from utils.llm_provider import get_llm_provider, get_provider_config, _fix_streaming_chunk_spacing
 
@@ -173,6 +174,14 @@ async def generate_story_stream(request: StoryRequest) -> AsyncGenerator[str, No
     """
     # Step 1: Notify frontend that connection is established
     yield f"data: {json.dumps({'status': 'connected', 'message': 'Starting story generation...'})}\n\n"
+    
+    # Step 1.1: Emit thinking events for the creative process
+    thinking_analysis = {'thinking': {'category': 'analysis', 'content': f'Developing a story for a {request.character_age}-year-old named {request.character_name} with the theme of {request.story_theme}...', 'timestamp': 'now'}}
+    yield f"data: {json.dumps(thinking_analysis)}\n\n"
+    await asyncio.sleep(0.5)
+    yield f"data: {json.dumps({'thinking': {'category': 'planning', 'content': 'Planning the narrative arc and moral lesson...', 'timestamp': 'now'}})}\n\n"
+    await asyncio.sleep(0.5)
+    yield f"data: {json.dumps({'thinking': {'category': 'processing', 'content': 'Weaving the tale together...', 'timestamp': 'now'}})}\n\n"
     
     try:
         # Step 2: Build the prompt from user inputs
