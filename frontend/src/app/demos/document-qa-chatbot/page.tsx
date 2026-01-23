@@ -15,9 +15,7 @@ import FileUpload from '@/components/demos/FileUpload';
 import ChatMessages, { ChatMessage } from '@/components/demos/ChatMessages';
 import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
 
-interface StepData extends ThinkingEvent {
-  id: string;
-}
+
 
 interface ProcessingStatus {
   document_id: string;
@@ -46,7 +44,7 @@ export default function LegalContractAnalyzerDemo() {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [keyTerms, setKeyTerms] = useState<KeyTerm[]>([]);
-  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
+
   
   const questionInputRef = useRef<HTMLInputElement>(null);
 
@@ -234,7 +232,7 @@ export default function LegalContractAnalyzerDemo() {
     setQuestion(''); // Clear input immediately
     setIsAsking(true);
     setCurrentAnswer('');
-    setWorkflowSteps([]); // Clear previous thinking steps
+
 
     // Add user message
     addMessage({
@@ -248,6 +246,7 @@ export default function LegalContractAnalyzerDemo() {
       id: typingMessageId,
       type: 'assistant',
       content: '',
+      thinking: [], // Initialize thinking array
       isTyping: true,
     });
 
@@ -301,21 +300,27 @@ export default function LegalContractAnalyzerDemo() {
                 return;
               }
 
-              if (data.thinking) {
-                console.log('Received thinking step:', data.thinking);
-                const step = data.thinking as ThinkingEvent;
-                setWorkflowSteps(prev => {
-                  const newSteps = [...prev];
-                  const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+                if (data.thinking) {
+                  console.log('Received thinking step:', data.thinking);
+                  const step = data.thinking as ThinkingEvent;
                   
-                  if (existingStepIndex >= 0) {
-                    newSteps[existingStepIndex] = { ...step, id: newSteps[existingStepIndex].id };
-                  } else {
-                    newSteps.push({ ...step, id: Math.random().toString(36).substr(2, 9) });
-                  }
-                  return newSteps;
-                });
-              }
+                  setMessages(prev => {
+                    const newMessages = [...prev];
+                    const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
+                    if (typingMessage) {
+                      const currentThinking = typingMessage.thinking || [];
+                      // Check for duplicates
+                      const isDuplicate = currentThinking.some(
+                        s => s.content === step.content && s.category === step.category
+                      );
+                      
+                      if (!isDuplicate) {
+                        typingMessage.thinking = [...currentThinking, step];
+                      }
+                    }
+                    return newMessages;
+                  });
+                }
 
               if (data.sources) {
                 console.log('Received sources:', data.sources);
@@ -332,6 +337,21 @@ export default function LegalContractAnalyzerDemo() {
                   const newMessages = [...prev];
                   const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
                   if (typingMessage) {
+                    // Ensure thinking process is marked as complete when content starts arriving
+                    const currentThinking = typingMessage.thinking || [];
+                    const hasComplete = currentThinking.some(e => e.category === 'complete');
+                    
+                    if (!hasComplete && currentThinking.length > 0) {
+                      typingMessage.thinking = [
+                        ...currentThinking,
+                        {
+                          category: 'complete',
+                          content: 'Analysis complete',
+                          timestamp: new Date().toISOString()
+                        }
+                      ];
+                    }
+
                     typingMessage.content = finalAnswer;
                     typingMessage.isTyping = false;
                   }
@@ -346,6 +366,21 @@ export default function LegalContractAnalyzerDemo() {
                   const newMessages = [...prev];
                   const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
                   if (typingMessage) {
+                    // Fallback: Ensure thinking process is marked as complete if not done yet
+                    const currentThinking = typingMessage.thinking || [];
+                    const hasComplete = currentThinking.some(e => e.category === 'complete');
+                    
+                    if (!hasComplete && currentThinking.length > 0) {
+                      typingMessage.thinking = [
+                        ...currentThinking,
+                        {
+                          category: 'complete',
+                          content: 'Analysis complete',
+                          timestamp: new Date().toISOString()
+                        }
+                      ];
+                    }
+
                     typingMessage.content = finalAnswer;
                     typingMessage.sources = finalSources;
                     typingMessage.isTyping = false;
@@ -542,15 +577,7 @@ export default function LegalContractAnalyzerDemo() {
                       />
                     )}
                     
-                    {isAsking && (
-                      <div className="mb-4">
-                        <ThinkingBlock 
-                          events={workflowSteps} 
-                          title="RAG Pipeline Thinking"
-                          autoScroll={true}
-                        />
-                      </div>
-                    )}
+
                     
                     <ChatInput
                       value={question}
