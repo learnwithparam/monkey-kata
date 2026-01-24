@@ -29,7 +29,7 @@ export default function Home() {
                   key={index}
                   title={category.title}
                 >
-                  {category.demos.map((demo: { icon: React.ReactNode; title: string; description: string; demoHref?: string; challengeHref?: string; isComingSoon?: boolean }, demoIndex: number) => (
+                  {category.demos.map((demo, demoIndex) => (
                     <DemoCard
                       key={demoIndex}
                       icon={demo.icon}
@@ -38,6 +38,7 @@ export default function Home() {
                       demoHref={demo.demoHref}
                       challengeHref={demo.challengeHref}
                       isComingSoon={demo.isComingSoon}
+                      learnings={demo.learnings}
                     />
                   ))}
                 </WeekSection>
