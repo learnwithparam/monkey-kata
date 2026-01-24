@@ -12,7 +12,7 @@ export default function Navigation() {
         <div className="flex justify-between items-center h-16 sm:h-18">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <Link href="/" className="text-xl sm:text-2xl md:text-3xl font-bold hover:opacity-80 transition-colors" aria-label="AI Bootcamp Demos - Home">
+            <Link href="/" className="text-xl sm:text-2xl md:text-3xl font-bold hover:opacity-80 transition-colors" aria-label="AI Engineering Demos - Home">
               <span className="text-brand-purple">learnwith</span><span className="text-brand-teal">param</span>
             </Link>
           </div>
@@ -26,8 +26,8 @@ export default function Navigation() {
               <Link href="#about" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">
                 About
               </Link>
-              <Link href="https://learnwithparam.com" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">
-                Bootcamp
+              <Link href="https://www.skool.com/learnwithparam" target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">
+                Community
               </Link>
             </nav>
           </div>
@@ -35,11 +35,13 @@ export default function Navigation() {
           {/* CTA Button - Desktop Only */}
           <div className="hidden lg:flex items-center">
             <Link 
-              href="https://learnwithparam.com?utm_source=demos&utm_medium=ai-bootcamp&utm_campaign=demo-site" 
+              href="https://www.skool.com/learnwithparam" 
+              target="_blank" 
+              rel="noopener noreferrer"
               className="btn-primary text-sm hover:scale-105 inline-block"
-              aria-label="Enroll in AI Bootcamp"
+              aria-label="Join the community"
             >
-              Enroll Now
+              Join the community
             </Link>
           </div>
             
@@ -76,19 +78,23 @@ export default function Navigation() {
                 About
               </Link>
               <Link 
-                href="https://learnwithparam.com" 
+                href="https://www.skool.com/learnwithparam" 
+                target="_blank" 
+                rel="noopener noreferrer"
                 className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
                 onClick={() => setIsMenuOpen(false)}
               >
-                Bootcamp
+                Community
               </Link>
               <div className="pt-4 border-t border-gray-200">
                 <Link 
-                  href="https://learnwithparam.com?utm_source=demos&utm_medium=ai-bootcamp&utm_campaign=demo-site" 
+                  href="https://www.skool.com/learnwithparam" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
                   className="btn-primary text-base hover:scale-105 w-full text-center block"
-                  aria-label="Enroll in AI Bootcamp"
+                  aria-label="Join the community"
                 >
-                  Enroll Now
+                  Join the community
                 </Link>
               </div>
             </div>

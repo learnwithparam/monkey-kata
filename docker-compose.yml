@@ -20,7 +20,7 @@ services:
       - FRONTEND_URL=http://localhost:4020
     command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     restart: unless-stopped
 
   frontend:
@@ -39,7 +39,7 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:4010
     command: npm run dev
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     depends_on:
       - api
     restart: unless-stopped
@@ -56,7 +56,7 @@ services:
       - QDRANT__SERVICE__HTTP_PORT=6333
       - QDRANT__SERVICE__GRPC_PORT=6334
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     restart: unless-stopped
 
   # Caching - Redis
@@ -68,7 +68,7 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     restart: unless-stopped
 
   # Restaurant Booking Voice Agent
@@ -87,7 +87,7 @@ services:
       - PYTHONUNBUFFERED=1
     command: python restaurant_agent.py dev
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     depends_on:
       - api
     restart: unless-stopped
@@ -108,7 +108,7 @@ services:
       - PYTHONUNBUFFERED=1
     command: python triage_agent.py dev
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     depends_on:
       - api
     restart: unless-stopped
@@ -120,5 +120,5 @@ volumes:
   redis_data:
 
 networks:
-  ai-bootcamp-network:
+  ai-engineering-network:
     driver: bridge

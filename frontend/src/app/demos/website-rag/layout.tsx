@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Website Chatbot | AI Bootcamp Demos",
+  title: "Website Chatbot | AI Engineering Demos",
   description: "Transform any website into an intelligent assistant. Simply add a URL and start having meaningful conversations about their services and offerings.",
 };
 

@@ -1,9 +1,9 @@
-# AI Bootcamp Demos - Cross-Platform Development Makefile
+# AI Engineering by Param Harrison - Cross-Platform Development Makefile
 .PHONY: help install dev build start stop clean logs api frontend
 
 # Default target
 help: ## Show this help message
-	@echo "AI Bootcamp Demos - Cross-Platform Available Commands:"
+	@echo "AI Engineering by Param Harrison - Cross-Platform Available Commands:"
 	@echo "Detected OS: $(OS)"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'

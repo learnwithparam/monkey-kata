@@ -220,7 +220,7 @@ PINECONE_API_KEY=your-pinecone-key-here
 - [LinkedIn](https://www.linkedin.com/in/paramanantham/)
 - [Twitter](https://x.com/learnwithparam)
 - [Website](https://learnwithparam.com)
-- [AI Bootcamp](https://learnwithparam.com/ai-engineering-bootcamp)
+- [AI Engineering](https://learnwithparam.com/ai-engineering)
 
 ---
 

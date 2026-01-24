@@ -21,6 +21,7 @@ from demos.lead_scoring.main import router as lead_scoring_router
 from demos.competitor_analysis.main import router as competitor_analysis_router
 from demos.legal_case_intake.main import router as legal_case_intake_router
 from demos.job_application_form_filling.main import router as job_application_form_filling_router
+from demos.invoice_parser.main import router as invoice_parser_router
 
 # Load environment variables
 load_dotenv()
@@ -31,17 +32,17 @@ app_state = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("🚀 AI Bootcamp API starting up...")
+    print("🚀 AI Engineering API starting up...")
     app_state["started"] = True
-    app_state["demos"] = ["bedtime-story-generator", "website-rag", "document-qa-chatbot", "cv-analyzer", "restaurant-booking", "medical-office-triage", "travel-support", "image-to-drawing", "lead-scoring", "competitor-analysis", "legal-case-intake", "job-application-form-filling"]
+    app_state["demos"] = ["bedtime-story-generator", "website-rag", "document-qa-chatbot", "cv-analyzer", "restaurant-booking", "medical-office-triage", "travel-support", "image-to-drawing", "lead-scoring", "competitor-analysis", "legal-case-intake", "job-application-form-filling", "invoice-parser"]
     yield
     # Shutdown
-    print("🛑 AI Bootcamp API shutting down...")
+    print("🛑 AI Engineering API shutting down...")
 
 # Create FastAPI app
 app = FastAPI(
-    title="AI Bootcamp Demo API",
-    description="API for AI Bootcamp demos and examples",
+    title="AI Engineering Demo API",
+    description="API for AI Engineering demos and examples",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -59,6 +60,7 @@ app.include_router(lead_scoring_router)
 app.include_router(competitor_analysis_router)
 app.include_router(legal_case_intake_router)
 app.include_router(job_application_form_filling_router)
+app.include_router(invoice_parser_router)
 
 # CORS middleware
 app.add_middleware(
@@ -77,7 +79,7 @@ app.add_middleware(
 # Health check endpoint
 @app.get("/")
 async def root():
-    return {"message": "AI Bootcamp Demo API is running!", "status": "healthy"}
+    return {"message": "AI Engineering Demo API is running!", "status": "healthy"}
 
 @app.get("/health")
 async def health_check():

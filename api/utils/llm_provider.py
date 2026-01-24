@@ -639,12 +639,13 @@ if OPENROUTER_AVAILABLE:
         
         def __init__(self, api_key: str, model: str = "minimax/minimax-m2:free"):
             self.api_key = api_key
-            self.model = model
+            # Strip openrouter/ prefix if present (used by LiteLLM but not direct OpenRouter API)
+            self.model = model.replace("openrouter/", "") if model else model
             # OpenRouter uses OpenAI-compatible format with different base URL
             # Prepare custom headers for OpenRouter
             default_headers = {
                 "HTTP-Referer": os.getenv("OPENROUTER_HTTP_REFERER", ""),
-                "X-Title": os.getenv("OPENROUTER_APP_NAME", "AI Bootcamp for Software Engineers")
+                "X-Title": os.getenv("OPENROUTER_APP_NAME", "AI Engineering by Param Harrison")
             }
             # Filter out empty values
             headers = {k: v for k, v in default_headers.items() if v}
@@ -729,10 +730,9 @@ if OPENROUTER_AVAILABLE:
                     else:
                         # For other API errors, don't retry
                         if isinstance(e, APIError):
-                            raise APIError(
-                                f"OpenRouter API error: {str(e)}. "
-                                f"Model: {self.model}"
-                            ) from e
+                            # Just re-raise the API error as-is if it's already an instance
+                            raise e
+                        
                         # Re-raise non-rate-limit errors immediately
                         raise
             
@@ -830,7 +830,8 @@ if FIREWORKS_AVAILABLE:
         
         def __init__(self, api_key: str, model: str = "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"):
             self.api_key = api_key
-            self.model = model
+            # Strip fireworks/ prefix if present (used by LiteLLM but not direct Fireworks API)
+            self.model = model.replace("fireworks/", "") if model else model
             self.base_url = "https://api.fireworks.ai/inference/v1/chat/completions"
         
         async def generate_text(self, prompt: str, **kwargs) -> str:
@@ -1081,7 +1082,7 @@ OpenRouter also supports:
 - OPENROUTER_HTTP_REFERER=your-url (optional)
 - OPENROUTER_APP_NAME=your-app-name (optional)
 """
-def get_llm_provider() -> LLMProvider:
+def get_llm_provider(model: Optional[str] = None) -> LLMProvider:
     """
     Factory function: Automatically selects and creates the right provider
     
@@ -1091,6 +1092,9 @@ def get_llm_provider() -> LLMProvider:
     2. Provider preference (LLM_PROVIDER env var)
     3. Availability of libraries
     
+    Args:
+        model: Optional specific model to use (overrides environment default)
+    
     Returns:
         An instance of LLMProvider (FireworksAI, OpenRouter, Gemini, or OpenAI)
     """
@@ -1098,19 +1102,22 @@ def get_llm_provider() -> LLMProvider:
     config = get_provider_config()
     provider_name = config["provider_name"]
     
+    # Use provided model or fall back to config model
+    target_model = model if model else config["model"]
+    
     # Create provider instance based on config
     if provider_name == "fireworks" and FIREWORKS_AVAILABLE:
-        print(f"🤖 Using FireworksAI provider with model: {config['model']}")
-        return FireworksAIProvider(api_key=config["api_key"], model=config["model"])
+        print(f"🤖 Using FireworksAI provider with model: {target_model}")
+        return FireworksAIProvider(api_key=config["api_key"], model=target_model)
     elif provider_name == "openrouter" and OPENROUTER_AVAILABLE:
-        print(f"🤖 Using OpenRouter provider with model: {config['model']}")
-        return OpenRouterProvider(api_key=config["api_key"], model=config["model"])
+        print(f"🤖 Using OpenRouter provider with model: {target_model}")
+        return OpenRouterProvider(api_key=config["api_key"], model=target_model)
     elif provider_name == "gemini" and GEMINI_AVAILABLE:
-        print(f"🤖 Using Google Gemini provider with model: {config['model']}")
-        return GeminiProvider(api_key=config["api_key"], model=config["model"])
+        print(f"🤖 Using Google Gemini provider with model: {target_model}")
+        return GeminiProvider(api_key=config["api_key"], model=target_model)
     elif provider_name == "openai" and OPENAI_AVAILABLE:
-        print(f"🤖 Using OpenAI provider with model: {config['model']}")
-        return OpenAIProvider(api_key=config["api_key"], model=config["model"])
+        print(f"🤖 Using OpenAI provider with model: {target_model}")
+        return OpenAIProvider(api_key=config["api_key"], model=target_model)
     else:
         raise ValueError(f"Provider {provider_name} is not available. Install required dependencies.")
 

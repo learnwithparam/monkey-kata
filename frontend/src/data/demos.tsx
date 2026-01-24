@@ -33,8 +33,8 @@ export interface Demo {
 
 // Utility to find demo by challenge slug
 export function findDemoByChallengeSlug(slug: string): Demo | null {
-  for (const week of weeksData) {
-    for (const demo of week.demos) {
+  for (const category of categoriesData) {
+    for (const demo of category.demos) {
       if (demo.challengeHref === `/challenges/${slug}`) {
         return demo;
       }
@@ -43,18 +43,16 @@ export function findDemoByChallengeSlug(slug: string): Demo | null {
   return null;
 }
 
-export interface WeekData {
-  weekNumber: string;
-  weekTitle: string;
-  weekColor: string;
+export interface CategoryData {
+  title: string;
+  color: string;
   demos: Demo[];
 }
 
-export const weeksData: WeekData[] = [
+export const categoriesData: CategoryData[] = [
   {
-    weekNumber: "Week 1",
-    weekTitle: "AI Foundation — LLMs, Prompts & RAG",
-    weekColor: "bg-purple-100 text-purple-800",
+    title: "LLM & Prompting",
+    color: "bg-purple-100 text-purple-800",
     demos: [
       {
         icon: <BookOpenIcon className="w-8 h-8 text-purple-600 mr-4" />,
@@ -64,6 +62,36 @@ export const weeksData: WeekData[] = [
         challengeHref: "/challenges/bedtime-story-generator",
         apiSlug: "bedtime_story_generator"
       },
+      {
+        icon: <BriefcaseIcon className="w-8 h-8 text-indigo-600 mr-4" />,
+        title: "CV Analyzer & Improvement Suggester",
+        description: "AI-powered CV analysis with personalized improvement suggestions to land your dream job",
+        demoHref: "/demos/cv-analyzer",
+        challengeHref: "/challenges/cv-analyzer",
+        apiSlug: "cv_analyzer"
+      },
+      {
+        icon: <PhotoIcon className="w-8 h-8 text-pink-600 mr-4" />,
+        title: "Image to Coloring Book Converter",
+        description: "Upload a photo and convert it into a printable coloring book page with simple image processing",
+        demoHref: "/demos/image-to-drawing",
+        challengeHref: "/challenges/image-to-drawing",
+        apiSlug: "image_to_drawing"
+      },
+      {
+        icon: <DocumentTextIcon className="w-8 h-8 text-emerald-600 mr-4" />,
+        title: "Invoice Parser & Structured Data",
+        description: "Vision-enabled extraction of structured data from invoices. Supports Images (all providers) and PDFs (Gemini only) with Pydantic validation",
+        demoHref: "/demos/invoice-parser",
+        challengeHref: "/challenges/invoice-parser",
+        apiSlug: "invoice_parser"
+      }
+    ]
+  },
+  {
+    title: "RAG",
+    color: "bg-blue-100 text-blue-800",
+    demos: [
       {
         icon: <GlobeAltIcon className="w-8 h-8 text-blue-600 mr-4" />,
         title: "Website FAQ Chatbot",
@@ -79,21 +107,12 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/document-qa-chatbot",
         challengeHref: "/challenges/document-qa-chatbot",
         apiSlug: "document_qa_chatbot"
-      },
-      {
-        icon: <BriefcaseIcon className="w-8 h-8 text-indigo-600 mr-4" />,
-        title: "CV Analyzer & Improvement Suggester",
-        description: "AI-powered CV analysis with personalized improvement suggestions to land your dream job",
-        demoHref: "/demos/cv-analyzer",
-        challengeHref: "/challenges/cv-analyzer",
-        apiSlug: "cv_analyzer"
       }
     ]
   },
   {
-    weekNumber: "Week 2",
-    weekTitle: "Building Reliable Conversational Systems",
-    weekColor: "bg-blue-100 text-blue-800",
+    title: "Agentic RAG",
+    color: "bg-indigo-100 text-indigo-800",
     demos: [
       {
         icon: <ChatBubbleLeftRightIcon className="w-8 h-8 text-purple-600 mr-4" />,
@@ -102,7 +121,13 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/travel-support",
         challengeHref: "/challenges/travel-support",
         apiSlug: "travel_support_assistant"
-      },
+      }
+    ]
+  },
+  {
+    title: "AI Agents & Workflows",
+    color: "bg-green-100 text-green-800",
+    demos: [
       {
         icon: <PhoneIcon className="w-8 h-8 text-orange-600 mr-4" />,
         title: "Restaurant Booking Voice AI",
@@ -110,45 +135,6 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/restaurant-booking",
         challengeHref: "/challenges/restaurant-booking",
         apiSlug: "restaurant_booking"
-      },
-      {
-        icon: <HeartIcon className="w-8 h-8 text-red-600 mr-4" />,
-        title: "Medical Office Triage Voice AI",
-        description: "Multi-agent voice AI system that routes patients to specialized departments with context preservation",
-        demoHref: "/demos/medical-office-triage",
-        challengeHref: "/challenges/medical-office-triage",
-        apiSlug: "medical_office_triage"
-      },
-      {
-        icon: <PhotoIcon className="w-8 h-8 text-pink-600 mr-4" />,
-        title: "Image to Coloring Book Converter",
-        description: "Upload a photo and convert it into a printable coloring book page with simple image processing",
-        demoHref: "/demos/image-to-drawing",
-        challengeHref: "/challenges/image-to-drawing",
-        apiSlug: "image_to_drawing"
-      }
-    ]
-  },
-  {
-    weekNumber: "Week 3",
-    weekTitle: "AI Agents & Workflows",
-    weekColor: "bg-green-100 text-green-800",
-    demos: [
-      {
-        icon: <UserGroupIcon className="w-8 h-8 text-green-600 mr-4" />,
-        title: "Lead Scoring & Email Generation",
-        description: "Score candidates against job descriptions and generate personalized emails using AI-powered multi-crew workflows",
-        demoHref: "/demos/lead-scoring",
-        challengeHref: "/challenges/lead-scoring",
-        apiSlug: "lead_scoring"
-      },
-      {
-        icon: <MagnifyingGlassIcon className="w-8 h-8 text-green-600 mr-4" />,
-        title: "Competitor Analysis Research Agent",
-        description: "Research competitors and analyze market positioning using multi-agent workflows",
-        demoHref: "/demos/competitor-analysis",
-        challengeHref: "/challenges/competitor-analysis",
-        apiSlug: "competitor_analysis"
       },
       {
         icon: <LegalIcon className="w-8 h-8 text-red-600 mr-4" />,
@@ -165,7 +151,37 @@ export const weeksData: WeekData[] = [
         demoHref: "/demos/job-application-form-filling",
         challengeHref: "/challenges/job-application-form-filling",
         apiSlug: "job_application_form_filling"
+      }
+    ]
+  },
+  {
+    title: "Multi Agent Systems",
+    color: "bg-red-100 text-red-800",
+    demos: [
+      {
+        icon: <HeartIcon className="w-8 h-8 text-red-600 mr-4" />,
+        title: "Medical Office Triage Voice AI",
+        description: "Multi-agent voice AI system that routes patients to specialized departments with context preservation",
+        demoHref: "/demos/medical-office-triage",
+        challengeHref: "/challenges/medical-office-triage",
+        apiSlug: "medical_office_triage"
       },
+      {
+        icon: <UserGroupIcon className="w-8 h-8 text-green-600 mr-4" />,
+        title: "Lead Scoring & Email Generation",
+        description: "Score candidates against job descriptions and generate personalized emails using AI-powered multi-crew workflows",
+        demoHref: "/demos/lead-scoring",
+        challengeHref: "/challenges/lead-scoring",
+        apiSlug: "lead_scoring"
+      },
+      {
+        icon: <MagnifyingGlassIcon className="w-8 h-8 text-green-600 mr-4" />,
+        title: "Competitor Analysis Research Agent",
+        description: "Research competitors and analyze market positioning using multi-agent workflows",
+        demoHref: "/demos/competitor-analysis",
+        challengeHref: "/challenges/competitor-analysis",
+        apiSlug: "competitor_analysis"
+      }
     ]
   }
 ];

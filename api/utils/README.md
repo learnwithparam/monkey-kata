@@ -1,7 +1,7 @@
 # LLM Provider
 ==============
 
-A flexible, multi-provider LLM integration system for the AI Bootcamp demos.
+A flexible, multi-provider LLM integration system for the AI Engineering demos.
 
 ## 🎯 Learning Objectives
 

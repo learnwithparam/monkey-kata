@@ -25,8 +25,8 @@ export async function generateMetadata(
   const demoTitle = challengeTitleMap[resolvedParams.slug];
   
   const title = demoTitle 
-    ? `${demoTitle} Challenge | AI Bootcamp Demos`
-    : "Challenge | AI Bootcamp Demos";
+    ? `${demoTitle} Challenge | AI Engineering Demos`
+    : "Challenge | AI Engineering Demos";
   
   const description = demoTitle
     ? `Complete learning objectives and hands-on exercises for ${demoTitle}`

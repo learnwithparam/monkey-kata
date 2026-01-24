@@ -8,11 +8,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "AI Bootcamp Demos | learnwithparam",
-  description: "Interactive demos and examples from the AI Bootcamp for Software Engineers course",
+  title: "AI Engineering Demos | by Param Harrison",
+  description: "Interactive demos and examples from AI Engineering by Param Harrison",
   keywords: [
     "AI demos",
-    "AI bootcamp",
+    "AI engineering",
     "software engineering demos", 
     "AI engineering examples",
     "LLM demos",
@@ -34,15 +34,15 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "https://learnwithparam.com/demos",
     siteName: "learnwithparam",
-    title: "AI Bootcamp Demos | learnwithparam",
-    description: "Interactive demos and examples from the AI Bootcamp for Software Engineers course",
+    title: "AI Engineering Demos | by Param Harrison",
+    description: "Interactive demos and examples from AI Engineering by Param Harrison",
   },
   twitter: {
     card: "summary_large_image",
     site: "@learnwithparam",
     creator: "@learnwithparam",
-    title: "AI Bootcamp Demos | learnwithparam",
-    description: "Interactive demos and examples from the AI Bootcamp for Software Engineers course",
+    title: "AI Engineering Demos | by Param Harrison",
+    description: "Interactive demos and examples from AI Engineering by Param Harrison",
   },
   alternates: {
     canonical: "https://learnwithparam.com/demos",
@@ -61,8 +61,8 @@ export default function RootLayout({
         <meta name="theme-color" content="#000000" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="AI Bootcamp Demos" />
-        <meta name="application-name" content="AI Bootcamp Demos" />
+        <meta name="apple-mobile-web-app-title" content="AI Engineering Demos" />
+        <meta name="application-name" content="AI Engineering Demos" />
         <meta name="msapplication-TileColor" content="#000000" />
         
         {/* Essential SEO meta tags */}
