@@ -6,8 +6,7 @@ from .service import (
     process_url_background, 
     generate_rag_stream, 
     processing_status, 
-    url_documents, 
-    url_embeddings
+    vector_store
 )
 
 router = APIRouter(prefix="/website-rag", tags=["website-rag"])
@@ -71,10 +70,9 @@ async def ask_question_stream(request: QuestionRequest):
 @router.post("/clear")
 async def clear_all_sessions():
     """Clear all processed URLs (useful for testing)"""
-    url_documents.clear()
-    url_embeddings.clear()
+    vector_store.clear()
     processing_status.clear()
-    return {"message": "All sessions cleared"}
+    return {"message": "All sessions cleared and vector store reset"}
 
 
 @router.get("/health")
@@ -83,6 +81,8 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "website-rag",
-        "urls_processed": len(url_documents),
-        "total_documents": sum(len(docs) for docs in url_documents.values())
+        # We can't easily count "urls" in chroma without scanning, 
+        # so we'll just show total chunks if possible or just success
+        "vector_store": "chromadb",
+        "collection_count": vector_store.collection.count()
     }

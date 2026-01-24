@@ -7,10 +7,11 @@ Learn Retrieval-Augmented Generation (RAG) by building a real chatbot that scrap
 Master the fundamentals of **Retrieval-Augmented Generation (RAG)** through hands-on implementation:
 
 - **Web Scraping & Content Extraction:** Extract meaningful text content from live website URLs.
-- **Text Pre-processing:** Implement semantic chunking strategies to prepare content for search.
-- **Vector Embeddings & Similarity Search:** Convert text into vectors and build a searchable index.
-- **RAG Pipeline:** Integrate retrieved context with an LLM prompt to generate accurate, sourced answers.
-- **System Optimization:** Understand RAG's limitations and how to improve performance and quality.
+- **Robust Text Chunking:** Use recursive strategies (`RecursiveCharacterTextSplitter`) to preserve document structure.
+- **Vector Embeddings & Storage:** Persist embeddings in a Vector Database (**ChromaDB**) for instant retrieval.
+- **Hybrid Retrieval (Reranking):** Combine embedding search with Cross-Encoder reranking for high-accuracy results.
+- **RAG Pipeline:** Integrates retrieved context with an LLM prompt to generate accurate, sourced answers.
+- **System Optimization:** Understand chunking trade-offs and how to handle data persistence.
 
 ## Quick Start
 
@@ -104,14 +105,20 @@ Follow these incremental challenges to build your application. Each one adds a n
   ```
 
 - **Your Task:**
+ 
+   1. Take the scraped text and use a **robust text splitter** (specifically `RecursiveCharacterTextSplitter`) to break it into chunks.
+      - *Why?* Simple character splitting cuts sentences in half. Recursive splitting respects paragraphs and headers.
 
-  1. Take the scraped text and use a **text splitter** (e.g., `RecursiveCharacterTextSplitter`) to break it into small, overlapping chunks (e.g., 500 chars with 50 char overlap).
+   2. Use the `EMBEDDING_MODEL` to create a **vector embedding** for each chunk.
 
-  2. Use the `EMBEDDING_MODEL` to create a **vector embedding** for each chunk.
+   3. Store these embeddings in a **persistent vector database** (we use **ChromaDB**).
+      - *Why?* In-memory dictionaries lose data on restart. A real vector store persists data and scales to millions of vectors.
 
-  3. Store these embeddings in an **in-memory vector store** (like FAISS or ChromaDB). This is your website's searchable "memory."
+- **Pro Tip:**
+  - **Bad Chunking:** Splitting every 500 chars blindly.
+  - **Good Chunking:** `RecursiveCharacterTextSplitter` tries to split by `\n\n` (paragraphs) first, then `\n` (lines), then words. This keeps ideas together.
 
-- **Key Concepts:** Text Chunking, Embedding Models, Vector Databases, Ingestion Pipeline.
+- **Key Concepts:** Recursive Text Chunking, Embedding Models, Persistent Vector Databases (ChromaDB).
 
 -----
 
@@ -139,16 +146,23 @@ Follow these incremental challenges to build your application. Each one adds a n
   ```
 
 - **Your Task:**
+ 
+   1. **Retrieve Candidates:** Generate an embedding for the question and find the top-20 chunks using similarity search. (Fast, but maybe "fuzzy").
 
-  1. When a user asks a question, generate an embedding for the **question itself**.
+   2. **Refine with Reranking:** Use a **Cross-Encoder model** to re-score those 20 chunks against the question.
+      - *Why?* Bi-encoders (embeddings) are fast but lose nuance. Cross-encoders are slow but understand deep semantic relationships.
 
-  2. Perform a **similarity search** against your vector store to find the `top-k` (e.g., top 3) most relevant text chunks.
+   3. **Select Top-K:** Pick the top 5 chunks with the highest reranker scores.
 
-  3. **Engineer a RAG prompt:** Create a new prompt that includes *only* these relevant chunks as context.
+   4. **Engineer a RAG prompt:** Create a new prompt that includes *only* these high-quality chunks.
 
-  4. Send this *new prompt* to the LLM and display the answer.
+   5. Send this prompt to the LLM.
 
-- **Key Concepts:** RAG Pipeline, Similarity Search, RAG Prompt Engineering.
+- **Pro Tip:**
+  - **Retrieval:** "Find everything that looks vaguely like a car." (Top 20)
+  - **Reranking:** "Which of these is exactly a 1998 Honda Civic?" (Top 5)
+  
+- **Key Concepts:** Hybrid Search, Reranking, Cross-Encoders, RAG Pipeline.
 
 -----
 
@@ -231,7 +245,8 @@ EMBEDDING_MODEL=all-MiniLM-L6-v2  # Fast & cheap
 
 **Next Steps:**
 
-- Implement a persistent vector database (Pinecone, Weaviate, Chroma, Qdrant, PgVector).
-- Implement **recursive scraping** (Challenge 8: give it one URL, and it finds and scrapes all links on that page).
-- Add a **re-ranking** step after retrieval to improve the quality of chunks sent to the LLM.
-- Implement caching (e.g., with Redis) to avoid re-scraping and re-embedding the same URL.
+- **Implement Vision RAG:** Can you add an agent that screenshots the page and answers questions about layout or images? (Hint: `gpt-4-vision`)
+- **Citation Precision:** Highlight exactly which sentence in the source answered the question.
+- **Latency Optimization:** Reranking adds time. Can you optimize it? (e.g. smaller cross-encoder, concurrent requests).
+
+

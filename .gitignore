@@ -98,3 +98,8 @@ temp/
 
 # Examples directory (excluded from git)
 examples/
+
+# AI / RAG
+chroma_db/
+backend/chroma_db/
+backend/*.db
