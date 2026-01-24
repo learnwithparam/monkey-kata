@@ -978,13 +978,16 @@ if FIREWORKS_AVAILABLE:
 Generic Provider Configuration:
 - Returns raw provider configuration (api_key, model, base_url, provider_name)
 - Can be used by any consumer (AutoGen, LiveKit, direct API calls, etc.)
-- Centralizes all provider detection logic in one place
+- Requires explicit LLM_PROVIDER to be set (no priority fallback)
 
 This is the core function that all other functions use internally.
 """
 def get_provider_config():
     """
     Get generic provider configuration
+    
+    Requires LLM_PROVIDER environment variable to be set explicitly.
+    Supported values: "fireworks", "openrouter", "gemini", "openai"
     
     Returns:
         dict with:
@@ -999,60 +1002,170 @@ def get_provider_config():
         config = get_provider_config()
         # Use config['api_key'], config['model'], config['base_url'] for any API client
     """
-    provider_type = os.getenv("LLM_PROVIDER", "").lower()
+    provider_type = os.getenv("LLM_PROVIDER", "").lower().strip()
     
-    # Priority 1: FireworksAI
-    fireworks_key = os.getenv("FIREWORKS_API_KEY")
-    if fireworks_key and FIREWORKS_AVAILABLE and (provider_type == "fireworks" or not provider_type):
-        model = os.getenv("FIREWORKS_MODEL", "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507")
+    # LLM_PROVIDER is required
+    if not provider_type:
+        raise ValueError(
+            "LLM_PROVIDER environment variable is required.\n"
+            "Set LLM_PROVIDER to one of: 'fireworks', 'openrouter', 'gemini', 'openai'"
+        )
+    
+    # Use the explicit provider selection function
+    return get_provider_config_for(provider_type)
+
+
+def get_provider_config_for(provider_name: str):
+    """
+    Get configuration for a specific provider by name.
+    
+    This bypasses the priority system and directly returns config for the named provider.
+    Useful when you need to use a specific provider regardless of which keys are available.
+    
+    Args:
+        provider_name: One of 'fireworks', 'openrouter', 'gemini', 'openai'
+        
+    Returns:
+        dict with api_key, model, base_url, provider_name
+        
+    Raises:
+        ValueError: If provider is not available or API key is not set
+        
+    Example:
+        from utils.llm_provider import get_provider_config_for
+        
+        # Always use Gemini for vision tasks
+        config = get_provider_config_for('gemini')
+    """
+    provider_name = provider_name.lower().strip()
+    
+    if provider_name == "fireworks":
+        api_key = os.getenv("FIREWORKS_API_KEY")
+        if not api_key:
+            raise ValueError("FIREWORKS_API_KEY not set")
+        if not FIREWORKS_AVAILABLE:
+            raise ValueError("Fireworks dependencies not installed")
         return {
-            "api_key": fireworks_key,
-            "model": model,
+            "api_key": api_key,
+            "model": os.getenv("FIREWORKS_MODEL", "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"),
             "base_url": "https://api.fireworks.ai/inference/v1",
             "provider_name": "fireworks"
         }
     
-    # Priority 2: OpenRouter
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_key and OPENROUTER_AVAILABLE and (provider_type == "openrouter" or not provider_type):
-        model = os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-r1-0528-qwen3-8b:free")
+    elif provider_name == "openrouter":
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY not set")
+        if not OPENROUTER_AVAILABLE:
+            raise ValueError("OpenRouter dependencies not installed")
         return {
-            "api_key": openrouter_key,
-            "model": model,
+            "api_key": api_key,
+            "model": os.getenv("OPENROUTER_MODEL", "deepseek/deepseek-r1-0528-qwen3-8b:free"),
             "base_url": "https://openrouter.ai/api/v1",
             "provider_name": "openrouter"
         }
     
-    # Priority 3: Gemini
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if gemini_key and GEMINI_AVAILABLE and (provider_type == "gemini" or not provider_type):
-        model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    elif provider_name == "gemini":
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY not set")
+        if not GEMINI_AVAILABLE:
+            raise ValueError("Gemini dependencies not installed")
         return {
-            "api_key": gemini_key,
-            "model": model,
-            "base_url": None,  # Gemini uses native client, not OpenAI-compatible endpoint
+            "api_key": api_key,
+            "model": os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+            "base_url": None,
             "provider_name": "gemini"
         }
     
-    # Priority 4: OpenAI
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if openai_key and OPENAI_AVAILABLE and (provider_type == "openai" or not provider_type):
-        model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    elif provider_name == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY not set")
+        if not OPENAI_AVAILABLE:
+            raise ValueError("OpenAI dependencies not installed")
         return {
-            "api_key": openai_key,
-            "model": model,
-            "base_url": os.getenv("OPENAI_BASE_URL"),  # None for standard OpenAI
+            "api_key": api_key,
+            "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            "base_url": os.getenv("OPENAI_BASE_URL"),
             "provider_name": "openai"
         }
     
-    # No provider available
-    raise ValueError(
-        "No LLM provider configured. Please set one of:\n"
-        "- FIREWORKS_API_KEY\n"
-        "- OPENROUTER_API_KEY\n"
-        "- GEMINI_API_KEY\n"
-        "- OPENAI_API_KEY"
-    )
+    else:
+        raise ValueError(
+            f"Unknown provider: {provider_name}. "
+            f"Supported providers: fireworks, openrouter, gemini, openai"
+        )
+
+
+def get_image_provider_config():
+    """
+    Get provider configuration for image generation tasks.
+    
+    Uses IMAGE_LLM_PROVIDER env var to select provider (defaults to 'fireworks').
+    Image model is configured via IMAGE_MODEL env var.
+    
+    Returns:
+        dict with api_key, model, base_url, provider_name
+        
+    Example:
+        from utils.llm_provider import get_image_provider_config
+        
+        config = get_image_provider_config()
+        # Use config to create image generation provider
+    """
+    provider_name = os.getenv("IMAGE_LLM_PROVIDER", "").lower().strip()
+    
+    # If IMAGE_LLM_PROVIDER is set, use that specific provider
+    if provider_name:
+        config = get_provider_config_for(provider_name)
+        # Override model with IMAGE_MODEL if set
+        image_model = os.getenv("IMAGE_MODEL")
+        if image_model:
+            config["model"] = image_model
+        return config
+    
+    # Otherwise, fall back to default provider config with IMAGE_MODEL override
+    config = get_provider_config()
+    image_model = os.getenv("IMAGE_MODEL")
+    if image_model:
+        config["model"] = image_model
+    return config
+
+
+def get_vision_provider_config():
+    """
+    Get provider configuration for vision/multimodal tasks.
+    
+    Uses VISION_LLM_PROVIDER env var to select provider (defaults to 'gemini' for PDF support).
+    Vision model is configured via VISION_MODEL env var.
+    
+    Returns:
+        dict with api_key, model, base_url, provider_name
+        
+    Example:
+        from utils.llm_provider import get_vision_provider_config
+        
+        config = get_vision_provider_config()
+        # Use config for invoice parsing, document analysis, etc.
+    """
+    provider_name = os.getenv("VISION_LLM_PROVIDER", "").lower().strip()
+    
+    # If VISION_LLM_PROVIDER is set, use that specific provider
+    if provider_name:
+        config = get_provider_config_for(provider_name)
+        # Override model with VISION_MODEL if set
+        vision_model = os.getenv("VISION_MODEL")
+        if vision_model:
+            config["model"] = vision_model
+        return config
+    
+    # Otherwise, fall back to default provider config with VISION_MODEL override
+    config = get_provider_config()
+    vision_model = os.getenv("VISION_MODEL")
+    if vision_model:
+        config["model"] = vision_model
+    return config
 
 
 # ============================================================================
@@ -1120,6 +1233,85 @@ def get_llm_provider(model: Optional[str] = None) -> LLMProvider:
         return OpenAIProvider(api_key=config["api_key"], model=target_model)
     else:
         raise ValueError(f"Provider {provider_name} is not available. Install required dependencies.")
+
+
+def _create_provider_from_config(config: dict) -> LLMProvider:
+    """
+    Internal helper to create a provider instance from a config dict.
+    
+    Args:
+        config: dict with api_key, model, base_url, provider_name
+        
+    Returns:
+        LLMProvider instance
+    """
+    provider_name = config["provider_name"]
+    target_model = config["model"]
+    
+    if provider_name == "fireworks" and FIREWORKS_AVAILABLE:
+        return FireworksAIProvider(api_key=config["api_key"], model=target_model)
+    elif provider_name == "openrouter" and OPENROUTER_AVAILABLE:
+        return OpenRouterProvider(api_key=config["api_key"], model=target_model)
+    elif provider_name == "gemini" and GEMINI_AVAILABLE:
+        return GeminiProvider(api_key=config["api_key"], model=target_model)
+    elif provider_name == "openai" and OPENAI_AVAILABLE:
+        return OpenAIProvider(api_key=config["api_key"], model=target_model)
+    else:
+        raise ValueError(f"Provider {provider_name} is not available. Install required dependencies.")
+
+
+def get_image_provider(model: Optional[str] = None) -> LLMProvider:
+    """
+    Factory function for image generation tasks.
+    
+    Uses IMAGE_LLM_PROVIDER env var to select provider.
+    Uses IMAGE_MODEL env var for the image model.
+    
+    Args:
+        model: Optional specific model to use (overrides IMAGE_MODEL env var)
+    
+    Returns:
+        LLMProvider instance configured for image generation
+        
+    Example:
+        from utils.llm_provider import get_image_provider
+        
+        provider = get_image_provider()
+        generated_image = await provider.generate_image(image_bytes, prompt)
+    """
+    config = get_image_provider_config()
+    if model:
+        config["model"] = model
+    
+    print(f"🖼️ Using {config['provider_name']} for image generation with model: {config['model']}")
+    return _create_provider_from_config(config)
+
+
+def get_vision_provider(model: Optional[str] = None) -> LLMProvider:
+    """
+    Factory function for vision/multimodal tasks.
+    
+    Uses VISION_LLM_PROVIDER env var to select provider.
+    Uses VISION_MODEL env var for the vision model.
+    
+    Args:
+        model: Optional specific model to use (overrides VISION_MODEL env var)
+    
+    Returns:
+        LLMProvider instance configured for vision tasks
+        
+    Example:
+        from utils.llm_provider import get_vision_provider
+        
+        provider = get_vision_provider()
+        result = await provider.generate_text(multimodal_prompt)
+    """
+    config = get_vision_provider_config()
+    if model:
+        config["model"] = model
+    
+    print(f"👁️ Using {config['provider_name']} for vision tasks with model: {config['model']}")
+    return _create_provider_from_config(config)
 
 
 # ============================================================================

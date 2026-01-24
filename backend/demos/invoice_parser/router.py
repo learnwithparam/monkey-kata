@@ -6,13 +6,13 @@ import tempfile
 
 from .invoice_analyzer import InvoiceData, get_invoice_analyzer
 from .invoice_utils import get_invoice_utils
-from utils.llm_provider import get_llm_provider
+from utils.llm_provider import get_vision_provider
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/invoice-parser", tags=["invoice-parser"])
 
-vision_model = os.getenv("VISION_MODEL")
-llm_provider = get_llm_provider(model=vision_model)
+# Use vision-specific provider (respects VISION_LLM_PROVIDER and VISION_MODEL)
+llm_provider = get_vision_provider()
 invoice_analyzer = get_invoice_analyzer(llm_provider)
 invoice_utils = get_invoice_utils()
 

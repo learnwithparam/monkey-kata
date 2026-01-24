@@ -71,12 +71,13 @@ async def stream_thinking(session_id: str):
 async def health_check():
     """Health check endpoint"""
     try:
-        from utils.llm_provider import get_provider_config
-        config = get_provider_config()
+        from utils.llm_provider import get_image_provider_config
+        config = get_image_provider_config()
         return {
             "status": "healthy",
             "service": "image-to-drawing",
-            "provider": config["provider_name"]
+            "provider": config["provider_name"],
+            "model": config["model"]
         }
     except:
         return {

@@ -1,11 +1,11 @@
-from utils.llm_provider import get_llm_provider
+from utils.llm_provider import get_image_provider
 from utils.thinking_streamer import ThinkingStreamer
 import asyncio
 from typing import Optional
 
 async def generate_coloring_page(image_bytes: bytes, session_id: Optional[str] = None) -> bytes:
-    """Generate coloring page using configured LLM provider"""
-    provider = get_llm_provider()
+    """Generate coloring page using configured image LLM provider"""
+    provider = get_image_provider()
     
     if session_id:
         ThinkingStreamer.add_event(session_id, "analysis", "Analyzing image composition and identifying key subjects...")
