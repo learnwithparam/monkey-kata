@@ -1,5 +1,7 @@
 # AI Engineering by Param Harrison - Cross-Platform Development Makefile
 .PHONY: help install dev build start stop clean logs api frontend
+PYTHON = uv run python
+PIP = uv pip
 
 # Default target
 help: ## Show this help message
@@ -12,7 +14,7 @@ help: ## Show this help message
 # Development commands
 install: ## Install all dependencies (Python + Node.js)
 	@echo "📦 Installing all dependencies for $(OS)..."
-	@cd api && $(PIP) install -r requirements.txt
+	@cd backend && uv sync
 	@cd frontend && npm install
 	@echo "✅ All dependencies installed for $(OS)!"
 
@@ -26,7 +28,7 @@ dev-no-build: ## Start development servers without rebuilding
 
 dev-local: ## Start development servers locally (without Docker)
 	@echo "🚀 Starting development servers locally..."
-	@concurrently "cd api && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000" "cd frontend && npm run dev"
+	@concurrently "cd backend && uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000" "cd frontend && npm run dev"
 
 # Docker commands
 build: ## Build Docker images with BuildKit cache
@@ -50,7 +52,7 @@ restart: stop start ## Restart all containers
 # Individual services
 api: ## Start only API server
 	@echo "🔧 Starting API server..."
-	@cd api && python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+	@cd backend && uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 frontend: ## Start only frontend server
 	@echo "⚛️ Starting frontend server..."
@@ -92,12 +94,12 @@ db-down: ## Stop database
 # Testing commands (for future use)
 test: ## Run all tests
 	@echo "🧪 Running tests..."
-	@cd api && python -m pytest
+	@cd backend && uv run pytest
 	@cd frontend && npm test
 
 test-api: ## Run API tests
 	@echo "🧪 Running API tests..."
-	@cd api && python -m pytest
+	@cd backend && uv run pytest
 
 test-frontend: ## Run frontend tests
 	@echo "🧪 Running frontend tests..."
@@ -106,7 +108,7 @@ test-frontend: ## Run frontend tests
 # Linting commands
 lint: ## Run linting for all services
 	@echo "🔍 Running linting..."
-	@cd api && python -m flake8 .
+	@cd backend && python -m flake8 .
 	@cd frontend && npm run lint
 
 lint-fix: ## Fix linting issues

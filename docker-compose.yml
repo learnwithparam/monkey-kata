@@ -1,16 +1,16 @@
 services:
   api:
     build:
-      context: ./api
+      context: ./backend
       dockerfile: Dockerfile
     ports:
       - "4010:8000"
     volumes:
-      - ./api:/app
+      - ./backend:/app
       # Exclude __pycache__ from bind mount to use Docker's layer caching
       - /app/__pycache__
     env_file:
-      - ./api/.env
+      - ./backend/.env
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -74,14 +74,14 @@ services:
   # Restaurant Booking Voice Agent
   restaurant-agent:
     build:
-      context: ./api
+      context: ./backend
       dockerfile: Dockerfile
     working_dir: /app/demos/restaurant_booking
     volumes:
-      - ./api:/app
+      - ./backend:/app
       - /app/__pycache__
     env_file:
-      - ./api/.env
+      - ./backend/.env
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -95,14 +95,14 @@ services:
   # Medical Office Triage Voice Agent System
   medical-triage-agent:
     build:
-      context: ./api
+      context: ./backend
       dockerfile: Dockerfile
     working_dir: /app/demos/medical_office_triage
     volumes:
-      - ./api:/app
+      - ./backend:/app
       - /app/__pycache__
     env_file:
-      - ./api/.env
+      - ./backend/.env
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
