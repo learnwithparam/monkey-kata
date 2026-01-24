@@ -26,6 +26,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Session-based registry for managing multiple ThinkingStreamer instances
+_session_registry: Dict[str, "ThinkingStreamer"] = {}
+
 
 class ThinkingCategory(str, Enum):
     """Categories of thinking/reasoning events"""
@@ -320,6 +323,95 @@ class ThinkingStreamer:
             except asyncio.QueueEmpty:
                 break
         return events
+    
+    # -------------------------------------------------------------------------
+    # Static/Class methods for session-based access
+    # -------------------------------------------------------------------------
+    
+    @staticmethod
+    def get_streamer(session_id: str) -> "ThinkingStreamer":
+        """
+        Get or create a ThinkingStreamer for a session.
+        
+        Args:
+            session_id: Unique session identifier
+            
+        Returns:
+            ThinkingStreamer instance for this session
+        """
+        if session_id not in _session_registry:
+            _session_registry[session_id] = ThinkingStreamer(agent_name=f"session_{session_id}")
+        return _session_registry[session_id]
+    
+    @staticmethod
+    def add_event(session_id: str, category: str, content: str, **kwargs) -> None:
+        """
+        Add a thinking event to a session's streamer (non-async convenience method).
+        
+        Args:
+            session_id: Unique session identifier
+            category: Type of thinking event (reasoning, tool_use, etc.)
+            content: The thought/reasoning content
+            **kwargs: Additional arguments passed to emit_thinking
+        """
+        streamer = ThinkingStreamer.get_streamer(session_id)
+        
+        # Create event synchronously and add to queue
+        event = ThinkingEvent(
+            category=category,
+            content=content,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            agent=kwargs.get("agent") or streamer.agent_name,
+            tool=kwargs.get("tool"),
+            target=kwargs.get("target"),
+            metadata=kwargs.get("metadata"),
+            progress=kwargs.get("progress"),
+            duration_ms=None
+        )
+        
+        try:
+            streamer._queue.put_nowait(event)
+        except asyncio.QueueFull:
+            logger.warning(f"Thinking queue full for session {session_id}, dropping event")
+    
+    @staticmethod
+    async def stream_events(session_id: str) -> AsyncGenerator[ThinkingEvent, None]:
+        """
+        Stream thinking events for a session.
+        
+        Args:
+            session_id: Unique session identifier
+            
+        Yields:
+            ThinkingEvent instances
+        """
+        streamer = ThinkingStreamer.get_streamer(session_id)
+        
+        while True:
+            try:
+                event = await asyncio.wait_for(streamer._queue.get(), timeout=60.0)
+                if event is None:
+                    break
+                yield event
+            except asyncio.TimeoutError:
+                # Timeout without events, stop streaming
+                break
+            except Exception as e:
+                logger.error(f"Error streaming thinking events for session {session_id}: {e}")
+                break
+    
+    @staticmethod
+    def cleanup_session(session_id: str) -> None:
+        """
+        Clean up a session's streamer.
+        
+        Args:
+            session_id: Unique session identifier
+        """
+        if session_id in _session_registry:
+            streamer = _session_registry[session_id]
+            streamer.close()
+            del _session_registry[session_id]
 
 
 def create_thinking_callback(streamer: ThinkingStreamer) -> Callable[[Any], None]:
