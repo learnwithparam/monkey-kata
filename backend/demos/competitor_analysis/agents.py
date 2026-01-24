@@ -23,7 +23,8 @@ with each agent handling a different part of the competitor analysis workflow.
 """
 
 from typing import List, Optional
-from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain.agents import create_openai_tools_agent
+from langchain.agents.agent import AgentExecutor
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.callbacks import BaseCallbackHandler
 

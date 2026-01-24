@@ -35,17 +35,20 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
-COPY requirements.txt .
+# Copy dependency files first for better caching
+COPY pyproject.toml uv.lock* ./
 
-# Install Python dependencies with BuildKit cache mount
-# This caches pip packages between builds, significantly speeding up rebuilds
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r requirements.txt
+# Install uv and Python dependencies with BuildKit cache mount
+# --no-install-project: Skip installing the project itself (we just need dependencies)
+# --frozen: Use lockfile without updating it
+RUN --mount=type=cache,target=/root/.cache \
+    pip install uv && \
+    uv sync --frozen --no-dev --no-install-project
 
 # Install Playwright browsers (Chromium only for headless automation)
 # This downloads the browser binaries needed for Playwright
-RUN python -m playwright install chromium
+# --no-project: Run in the environment but don't try to install the project
+RUN uv run --no-project python -m playwright install chromium
 
 # Copy application code (this layer will be invalidated on code changes)
 COPY . .
@@ -58,4 +61,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Command (will be overridden by docker-compose)
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uv", "run", "python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

@@ -1,7 +1,7 @@
 [project]
 name = "backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI Engineering Demos - A collection of AI agentic patterns and demos"
 readme = "README.md"
 authors = [
     { name = "Param Harrison", email = "paramanantham@live.com" }
@@ -21,12 +21,12 @@ dependencies = [
     "fastapi>=0.104.1",
     "google-generativeai>=0.8.0,<=0.8.5",
     "httpx>=0.25.2",
-    "langchain>=0.3.0",
-    "langchain-community>=0.3.0",
-    "langchain-core>=0.3.37",
-    "langchain-google-genai>=2.0.10",
-    "langchain-openai>=0.2.0",
-    "langgraph>=0.2.40",
+    "langchain>=0.3.0,<0.4.0",
+    "langchain-community>=0.3.0,<0.4.0",
+    "langchain-core>=0.3.37,<0.4.0",
+    "langchain-google-genai>=2.0.10,<2.1.0",
+    "langchain-openai>=0.2.0,<1.0.0",
+    "langgraph>=0.2.40,<1.0.0",
     "litellm>=1.0.0",
     "livekit>=1.0.0",
     "livekit-agents[deepgram,openai,silero]~=1.2",
