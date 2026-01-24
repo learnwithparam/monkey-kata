@@ -9,9 +9,7 @@ from .models import QuestionRequest, ProcessingStatus
 from .service import (
     process_document_background,
     generate_document_rag_stream,
-    processing_status,
-    document_data,
-    document_embeddings
+    processing_status
 )
 
 router = APIRouter(prefix="/document-qa-chatbot", tags=["document-qa-chatbot"])
@@ -103,10 +101,10 @@ async def ask_question_stream(request: QuestionRequest):
 @router.post("/clear")
 async def clear_all_sessions():
     """Clear all processed documents (useful for testing)"""
-    document_data.clear()
-    document_embeddings.clear()
+    # Note: efficient clearing of Qdrant collections is not implemented here
+    # but could be added. For now we clear in-memory status.
     processing_status.clear()
-    return {"message": "All sessions cleared"}
+    return {"message": "All sessions cleared from memory (Data persists in Qdrant)"}
 
 
 @router.get("/health")
@@ -115,6 +113,5 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "document-qa-chatbot",
-        "documents_processed": len(document_data),
-        "total_chunks": sum(len(docs['documents']) for docs in document_data.values())
+        "processing_jobs": len(processing_status),
     }

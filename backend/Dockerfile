@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y \
     libxkbcommon0 \
     libxrandr2 \
     xdg-utils \
+    zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files first for better caching

@@ -13,9 +13,8 @@ llm_provider = get_llm_provider()
 document_processor = DocumentProcessor()
 rag_pipeline = RAGPipeline(llm_provider)
 
-# In-memory storage (use database in production)
-document_data: Dict[str, Dict[str, Any]] = {}
-document_embeddings: Dict[str, List[List[float]]] = {}
+# In-memory storage for STATUS only
+# Data is now in Qdrant
 processing_status: Dict[str, Dict[str, Any]] = {}
 
 async def process_document_background(
@@ -25,7 +24,7 @@ async def process_document_background(
     chunk_overlap: int
 ):
     """
-    Background task to process a document through the RAG ingestion pipeline
+    Background task to process a document: Parse -> Chunk -> Embed -> Store in Qdrant
     """
     try:
         # Step 1: Update status - starting
@@ -33,7 +32,7 @@ async def process_document_background(
             "document_id": document_id,
             "status": "processing",
             "progress": 10,
-            "message": "Parsing document...",
+            "message": "Parsing document with Docling...",
             "pages_count": 0
         }
         
@@ -45,20 +44,30 @@ async def process_document_background(
         
         # Step 3: Update status - chunking
         processing_status[document_id].update({
-            "progress": 40,
-            "message": "Chunking content..."
+            "progress": 30,
+            "message": "Semantic chunking..."
         })
         
         # Step 4: Split content into chunks
-        chunks = document_processor.chunk_document(
+        chunks_data = document_processor.chunk_document(
             document_content, 
             chunk_size, 
             chunk_overlap
         )
         
-        # Step 5: Create document chunk objects with metadata
+        # Step 5: Generate embeddings (Dense 384-dim)
+        processing_status[document_id].update({
+            "progress": 50,
+            "message": "Generating embeddings (all-MiniLM-L6-v2)..."
+        })
+        
+        # Extract content list for batch embedding
+        texts = [chunk['content'] for chunk in chunks_data]
+        embeddings_list = await document_processor.generate_embeddings(texts)
+        
+        # Step 6: Create DocumentChunk objects
         documents = []
-        for i, chunk_data in enumerate(chunks):
+        for i, chunk_data in enumerate(chunks_data):
             doc = DocumentChunk(
                 content=chunk_data['content'],
                 document_id=document_id,
@@ -68,31 +77,22 @@ async def process_document_background(
                     "title": document_content.get("title", ""),
                     "document_id": document_id,
                     "chunk_size": len(chunk_data['content']),
-                }
+                },
+                # Attach vectors for upsert
+                vector=embeddings_list[i]
             )
             documents.append(doc)
         
-        # Step 6: Update status - generating embeddings
+        # Step 7: Store in Qdrant
         processing_status[document_id].update({
-            "progress": 70,
-            "message": "Generating embeddings..."
+            "progress": 90,
+            "message": "Indexing in Qdrant Vector Database..."
         })
         
-        # Step 7: Generate embeddings for all chunks
-        embeddings = await document_processor.generate_embeddings(
-            [doc.content for doc in documents]
-        )
+        rag_pipeline.upsert_documents(document_id, documents)
         
-        # Step 8: Store in memory (in production, use vector database)
-        document_data[document_id] = {
-            'documents': documents,
-            'content': document_content,
-            'file_path': file_path
-        }
-        document_embeddings[document_id] = embeddings
-        
-        # Step 9: Mark as completed
-        actual_pages = document_content.get('pages', len(documents))
+        # Step 8: Mark as completed
+        actual_pages = document_content.get('pages', 1)
         processing_status[document_id].update({
             "status": "completed",
             "progress": 100,
@@ -108,6 +108,8 @@ async def process_document_background(
         
     except Exception as e:
         # Handle errors gracefully
+        import traceback
+        traceback.print_exc()
         processing_status[document_id] = {
             "document_id": document_id,
             "status": "error",
@@ -144,21 +146,15 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
         yield f"data: {json.dumps({'error': f'Document not yet processed. Please wait for processing to complete.', 'status': 'error'})}\n\n"
         return
     
-    if document_id not in document_data or document_id not in document_embeddings:
-        yield f"data: {json.dumps({'error': 'No document data available', 'status': 'error'})}\n\n"
-        return
-    
-    # Step 2: Get stored documents and embeddings
-    documents = document_data[document_id]['documents']
-    embeddings = document_embeddings[document_id]
-    
     # Step 3: Notify frontend we're starting
     yield f"data: {json.dumps({'status': 'connected', 'message': 'Analyzing your question...'})}\n\n"
     
     # Step 4: Generate embedding for the question
     yield f"data: {json.dumps({'status': 'processing', 'message': 'Finding relevant content in document...'})}\n\n"
     
-    await thinking_streamer.emit_thinking("reasoning", "Converting your question into a vector embedding...")
+    await thinking_streamer.emit_thinking("reasoning", "Converting question to vector (all-MiniLM)...")
+    
+    # We use generate_embeddings which returns a list, so we take [0]
     query_embedding_task = asyncio.create_task(document_processor.generate_embeddings([request.question]))
     
     # Concurrent wait for embedding and thinking events
@@ -168,15 +164,16 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
             yield f"data: {json.dumps({'thinking': step.__dict__})}\n\n"
         await asyncio.sleep(0.1)
         
-    query_embedding = await query_embedding_task
+    query_vectors_list = await query_embedding_task
+    query_vectors = query_vectors_list[0]
     
-    # Step 5: Find most relevant chunks using similarity search
-    await thinking_streamer.emit_thinking("reasoning", "Searching for the most relevant document sections...")
+    # Step 5: Find most relevant chunks using Qdrant Dense Search + Reranking
+    await thinking_streamer.emit_thinking("reasoning", "Performing Dense Search + Cross-Encoder Reranking...")
     relevant_chunks = rag_pipeline.retrieve_relevant_chunks(
-        query_embedding[0],
-        embeddings,
-        documents,
-        request.max_chunks,
+        query_text=request.question,
+        query_vector=query_vectors,
+        document_id=document_id,
+        max_chunks=request.max_chunks,
         thinking_streamer=thinking_streamer
     )
     
