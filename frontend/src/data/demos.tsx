@@ -84,14 +84,15 @@ export const categoriesData: CategoryData[] = [
       {
         icon: <BriefcaseIcon className="w-8 h-8 text-indigo-600 mr-4" />,
         title: "CV Analyzer",
-        description: "AI-powered CV analysis with personalized improvement suggestions to land your dream job",
+        description: "Production-ready CV analysis with multi-agent orchestration and prompt chaining for deep insights",
         demoHref: "/demos/cv-analyzer",
         challengeHref: "/challenges/cv-analyzer",
         apiSlug: "cv_analyzer",
         learnings: [
-          "PDF Text Extraction",
-          "Structured Output Parsing",
-          "Prompt Engineering for Analysis"
+          "Advanced Prompt Chaining",
+          "Dynamic Context Injection",
+          "Structured Output Validation",
+          "Real-time Multi-Agent Workflow"
         ]
       }
     ]

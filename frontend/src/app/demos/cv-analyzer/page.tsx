@@ -39,6 +39,13 @@ interface CVAnalysisResult {
   experience_relevance: number;
   skills_alignment: number;
   format_score: number;
+  score_rationale: Record<string, string>;
+  ats_analysis: {
+    is_ats_friendly: boolean;
+    ats_score: number;
+    issues: string[];
+    missing_standard_sections: string[];
+  };
 }
 
 interface StepData {
@@ -299,8 +306,8 @@ export default function CVAnalyzerDemo() {
     );
   };
 
-  const ScoreCard = ({ title, score, icon: Icon, color }: { title: string; score: number; icon: React.ComponentType<{ className?: string }>; color: string }) => (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+  const ScoreCard = ({ title, score, icon: Icon, color, rationale }: { title: string; score: number; icon: React.ComponentType<{ className?: string }>; color: string; rationale?: string }) => (
+    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow group">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center">
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${color}`}>
@@ -314,6 +321,12 @@ export default function CVAnalyzerDemo() {
         <span className={`text-2xl font-bold ${getScoreColor(score)}`}>{score}</span>
         <span className="text-sm text-gray-500 ml-1">/100</span>
       </div>
+      
+      {rationale && (
+        <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500 leading-relaxed">
+          <p>{rationale}</p>
+        </div>
+      )}
     </div>
   );
 
@@ -452,6 +465,11 @@ export default function CVAnalyzerDemo() {
                         </span>
                       )}
                     </div>
+                    {analysisResult.score_rationale?.overall_score && (
+                        <p className="mt-6 text-gray-600 text-sm max-w-lg mx-auto italic border-t pt-4 border-gray-100">
+                            "{analysisResult.score_rationale.overall_score}"
+                        </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -463,26 +481,100 @@ export default function CVAnalyzerDemo() {
                   score={analysisResult.keyword_match_score}
                   icon={CogIcon}
                   color="bg-blue-500"
+                  rationale={analysisResult.score_rationale?.keyword_match_score}
                 />
                 <ScoreCard
                   title="Experience Relevance"
                   score={analysisResult.experience_relevance}
                   icon={UserIcon}
                   color="bg-green-500"
+                  rationale={analysisResult.score_rationale?.experience_relevance}
                 />
                 <ScoreCard
                   title="Skills Alignment"
                   score={analysisResult.skills_alignment}
                   icon={AcademicCapIcon}
                   color="bg-purple-500"
+                  rationale={analysisResult.score_rationale?.skills_alignment}
                 />
                 <ScoreCard
                   title="Format & Presentation"
                   score={analysisResult.format_score}
                   icon={ChartBarIcon}
                   color="bg-orange-500"
+                  rationale={analysisResult.score_rationale?.format_score}
                 />
               </div>
+
+              {/* ATS Analysis */}
+              {analysisResult.ats_analysis && (
+                <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                    <div className="flex items-center mb-6">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mr-4 ${analysisResult.ats_analysis.is_ats_friendly ? 'bg-green-100' : 'bg-yellow-100'}`}>
+                        <DocumentArrowUpIcon className={`w-6 h-6 ${analysisResult.ats_analysis.is_ats_friendly ? 'text-green-600' : 'text-yellow-600'}`} />
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-bold text-gray-900">ATS Compatibility</h3>
+                        <p className="text-gray-600">
+                        {analysisResult.ats_analysis.is_ats_friendly 
+                            ? 'Your CV is likely to be parsed correctly by ATS systems.' 
+                            : 'Your CV might have issues with some ATS systems.'}
+                        </p>
+                    </div>
+                    <div className="ml-auto flex items-center">
+                        <span className="text-sm font-medium text-gray-500 mr-2">ATS Score:</span>
+                        <span className={`text-2xl font-bold ${getScoreColor(analysisResult.ats_analysis.ats_score)}`}>
+                            {analysisResult.ats_analysis.ats_score}
+                        </span>
+                    </div>
+                    </div>
+
+                    {(analysisResult.ats_analysis.issues?.length > 0 || analysisResult.ats_analysis.missing_standard_sections?.length > 0) && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-100">
+                            {analysisResult.ats_analysis.issues?.length > 0 && (
+                                <div>
+                                    <h4 className="text-sm font-semibold text-red-600 mb-3 uppercase tracking-wide flex items-center">
+                                        <ExclamationTriangleIcon className="w-4 h-4 mr-1.5" />
+                                        Detected Issues
+                                    </h4>
+                                    <ul className="space-y-2">
+                                        {analysisResult.ats_analysis.issues.map((issue, i) => (
+                                            <li key={i} className="text-sm text-gray-700 flex items-start">
+                                                <span className="mr-2 text-red-500">•</span>
+                                                {issue}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                            {analysisResult.ats_analysis.missing_standard_sections?.length > 0 && (
+                                <div>
+                                    <h4 className="text-sm font-semibold text-orange-600 mb-3 uppercase tracking-wide flex items-center">
+                                        <ExclamationTriangleIcon className="w-4 h-4 mr-1.5" />
+                                        Missing Sections
+                                    </h4>
+                                    <ul className="space-y-2">
+                                        {analysisResult.ats_analysis.missing_standard_sections.map((section, i) => (
+                                            <li key={i} className="text-sm text-gray-700 flex items-start">
+                                                <span className="mr-2 text-orange-500">•</span>
+                                                {section}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    {(!analysisResult.ats_analysis.issues?.length && !analysisResult.ats_analysis.missing_standard_sections?.length) && (
+                        <div className="text-center pt-4 border-t border-gray-100">
+                            <p className="text-green-600 font-medium flex items-center justify-center">
+                                <CheckBadgeIcon className="w-5 h-5 mr-2" />
+                                No major ATS issues detected. Great job!
+                            </p>
+                        </div>
+                    )}
+                </div>
+              )}
 
               {/* Strengths & Weaknesses */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

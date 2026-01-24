@@ -222,7 +222,7 @@ async def analyze_cv_stream(document_id: str, job_description: Optional[str] = N
             if analysis_error:
                 yield f"data: {json.dumps({'done': True, 'status': 'error', 'error': analysis_error})}\n\n"
             elif analysis_result:
-                yield f"data: {json.dumps({'done': True, 'status': 'completed', 'result': {'overall_score': analysis_result.overall_score, 'strengths': analysis_result.strengths, 'weaknesses': analysis_result.weaknesses, 'improvement_suggestions': analysis_result.improvement_suggestions, 'keyword_match_score': analysis_result.keyword_match_score, 'experience_relevance': analysis_result.experience_relevance, 'skills_alignment': analysis_result.skills_alignment, 'format_score': analysis_result.format_score}})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'status': 'completed', 'result': {'overall_score': analysis_result.overall_score, 'strengths': analysis_result.strengths, 'weaknesses': analysis_result.weaknesses, 'improvement_suggestions': analysis_result.improvement_suggestions, 'keyword_match_score': analysis_result.keyword_match_score, 'experience_relevance': analysis_result.experience_relevance, 'skills_alignment': analysis_result.skills_alignment, 'format_score': analysis_result.format_score, 'score_rationale': analysis_result.score_rationale, 'ats_analysis': analysis_result.ats_analysis}})}\n\n"
             
             await analysis_task
             
