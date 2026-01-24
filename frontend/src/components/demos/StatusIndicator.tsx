@@ -46,7 +46,7 @@ export default function StatusIndicator({ status, message, progress, documentsCo
         </div>
       )}
 
-      {documentsCount && documentsCount > 0 && (
+      {documentsCount !== undefined && documentsCount > 0 && (
         <p className="text-sm text-gray-600">
           {message}
           <span className="ml-2 text-green-600">
