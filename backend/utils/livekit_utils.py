@@ -63,8 +63,12 @@ def get_livekit_llm(temperature: Optional[float] = None):
             temperature=temperature,
         )
     elif provider_name == "openrouter":
+        # Strip openrouter/ prefix if present (used by LiteLLM but not direct OpenRouter API)
+        model = config["model"]
+        if model and model.startswith("openrouter/"):
+            model = model.replace("openrouter/", "", 1)
         return livekit_openai.LLM(
-            model=config["model"],
+            model=model,
             base_url=config["base_url"],
             api_key=config["api_key"],
             temperature=temperature,

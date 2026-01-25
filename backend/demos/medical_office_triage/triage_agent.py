@@ -347,20 +347,23 @@ class BaseAgent(Agent):
         """
         Emits a thinking event to the frontend via LiveKit Data Message
         """
-        if not self.session or not self.session.room:
-            return
-
-        thought = {
-            "category": category,
-            "content": content,
-            "timestamp": datetime.now().isoformat(),
-            "agent": self.__class__.__name__,
-            "metadata": metadata or {}
-        }
-        
         try:
+            # Get room from userdata.ctx which stores the JobContext
+            userdata: UserData = self.session.userdata
+            room = userdata.ctx.room if userdata and userdata.ctx else None
+            if not room:
+                return
+
+            thought = {
+                "category": category,
+                "content": content,
+                "timestamp": datetime.now().isoformat(),
+                "agent": self.__class__.__name__,
+                "metadata": metadata or {}
+            }
+            
             # Send as data message to all participants
-            await self.session.room.local_participant.publish_data(
+            await room.local_participant.publish_data(
                 json.dumps({"thinking": thought}).encode('utf-8')
             )
         except Exception as e:
