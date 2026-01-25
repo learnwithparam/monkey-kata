@@ -1,0 +1,93 @@
+{
+  "bookings": {
+    "BK123456": {
+      "booking_id": "BK123456",
+      "customer_id": "CUST001",
+      "customer_name": "John Smith",
+      "hotel": "Grand Hotel Paris",
+      "city": "Paris",
+      "check_in": "2024-02-15",
+      "check_out": "2024-02-18",
+      "status": "confirmed",
+      "room_type": "Deluxe Suite",
+      "total_price": 450,
+      "currency": "EUR"
+    },
+    "BK789012": {
+      "booking_id": "BK789012",
+      "customer_id": "CUST002",
+      "customer_name": "Sarah Johnson",
+      "hotel": "Beach Resort Barcelona",
+      "city": "Barcelona",
+      "check_in": "2024-03-01",
+      "check_out": "2024-03-05",
+      "status": "confirmed",
+      "room_type": "Ocean View",
+      "total_price": 720,
+      "currency": "EUR"
+    },
+    "BK999999": {
+        "booking_id": "BK999999",
+        "customer_id": "CUST001",
+        "customer_name": "John Smith",
+        "hotel": "Tokyo Tower Inn",
+        "city": "Tokyo",
+        "check_in": "2024-04-10",
+        "check_out": "2024-04-12",
+        "status": "cancelled",
+        "room_type": "Standard",
+        "total_price": 30000,
+        "currency": "JPY"
+    }
+  },
+  "hotels": {
+    "paris": [
+      {"name": "Grand Hotel Paris", "price": 150, "currency": "EUR", "rating": 4.5, "amenities": ["WiFi", "Pool", "Spa"]},
+      {"name": "Eiffel Tower View Hotel", "price": 200, "currency": "EUR", "rating": 4.8, "amenities": ["WiFi", "Bar", "Gym"]}
+    ],
+    "barcelona": [
+      {"name": "Beach Resort Barcelona", "price": 180, "currency": "EUR", "rating": 4.6, "amenities": ["WiFi", "Beach Access", "Pool"]},
+      {"name": "Gothic Quarter Hotel", "price": 140, "currency": "EUR", "rating": 4.4, "amenities": ["WiFi", "Breakfast"]}
+    ],
+    "london": [
+      {"name": "Thames Riverside Hotel", "price": 170, "currency": "GBP", "rating": 4.5, "amenities": ["WiFi", "River View"]},
+      {"name": "Westminster Palace Inn", "price": 190, "currency": "GBP", "rating": 4.6, "amenities": ["WiFi", "Bar", "History"]}
+    ],
+    "tokyo": [
+        {"name": "Tokyo Tower Inn", "price": 15000, "currency": "JPY", "rating": 4.2, "amenities": ["WiFi", "Vending Machine"]},
+        {"name": "Shinjuku Plaza", "price": 22000, "currency": "JPY", "rating": 4.7, "amenities": ["WiFi", "Spa", "Gym"]}
+    ],
+    "new york": [
+        {"name": "Manhattan Skyline", "price": 300, "currency": "USD", "rating": 4.5, "amenities": ["WiFi", "Roof Bar"]},
+        {"name": "Central Park Suites", "price": 450, "currency": "USD", "rating": 4.9, "amenities": ["WiFi", "Gym", "Concierge"]}
+    ]
+  },
+  "flights": {
+    "AA101": { "flight_number": "AA101", "origin": "JFK", "destination": "LHR", "status": "On Time", "gate": "A1" },
+    "BA202": { "flight_number": "BA202", "origin": "LHR", "destination": "CDG", "status": "Delayed (30m)", "gate": "B2" },
+    "AF303": { "flight_number": "AF303", "origin": "CDG", "destination": "BCN", "status": "On Time", "gate": "C3" },
+    "JL404": { "flight_number": "JL404", "origin": "HND", "destination": "JFK", "status": "Cancelled", "gate": "D4" }
+  },
+  "policies": [
+    {
+      "id": "cancellation_general",
+      "text": "General Cancellation Policy: You can cancel your booking for a full refund up to 48 hours before the check-in date. If you cancel within 48 hours of check-in, you will be charged for the first night. Non-refundable bookings cannot be cancelled or modified."
+    },
+    {
+      "id": "refund_processing",
+      "text": "Refund Processing: Once a cancellation is confirmed, refunds are processed within 5-7 business days. The amount will be credited back to the original payment method."
+    },
+    {
+        "id": "baggage_policy",
+        "text": "Baggage Policy: Economy class passengers are allowed one carry-on bag (up to 7kg) and one checked bag (up to 23kg). Business class passengers are allowed two checked bags (up to 32kg each). Excess baggage fees apply."
+    },
+    {
+        "id": "pet_policy",
+        "text": "Pet Policy: Small pets (cats and dogs up to 10kg) are allowed in designated pet-friendly rooms for an additional fee of €50 per stay. Pets must not be left unattended in the room."
+    },
+    {
+        "id": "loyalty_program",
+        "text": "Loyalty Program: Members earn 1 point for every €1 spent. 1000 points can be redeemed for a €50 voucher. Gold members (stayed 10+ nights) get free breakfast and room upgrades subject to availability."
+    }
+  ]
+}

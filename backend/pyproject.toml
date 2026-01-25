@@ -49,6 +49,7 @@ dependencies = [
     "transformers>=4.30.0",
     "uvicorn[standard]>=0.24.0",
     "pymupdf4llm>=0.2.9",
+    "mcp>=1.0.0",
 ]
 
 [build-system]

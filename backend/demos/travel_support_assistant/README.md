@@ -18,17 +18,17 @@ This project will guide you from a simple two-agent setup to a more robust multi
 
 ```mermaid
 graph TD
-    A["Frontend User"] -->|1. HTTP Request| B["FastAPI Server"];
-    B -->|2. initiate_chat()| C["UserProxyAgent"];
+    A["Frontend User"] -->|"1. HTTP Request"| B["FastAPI Server"]
+    B -->|"2. initiate_chat()"| C["UserProxyAgent"]
     
     subgraph "AutoGen GroupChat"
-        C <--> D["GroupChatManager (Supervisor)"];
-        D <--> E[BookingAgent]
-        D <--> F[SearchAgent]
+        C <--> D["GroupChatManager (Supervisor)"]
+        D <--> E["BookingAgent"]
+        D <--> F["SearchAgent"]
     end
     
-    C -->|3. Tool Execution| G[Mock Database]
-    B -->|4. HTTP Response| A;
+    C -->|"3. Tool Execution"| G["Mock Database"]
+    B -->|"4. HTTP Response"| A
 
     style A fill:#e1f5fe
     style B fill:#e8f5e8
@@ -139,7 +139,7 @@ Follow these incremental challenges to build your application. Each one adds a n
     ```mermaid
     graph TD
         A[UserProxyAgent] <--> B[AssistantAgent]
-        A -->|Calls| C["@tool def lookup_booking()"];
+        A -->|"Calls"| C["@tool def lookup_booking()"]
         
         style A fill:#fce4ec
         style B fill:#e0f7fa
@@ -198,8 +198,8 @@ Follow these incremental challenges to build your application. Each one adds a n
   * **Architecture:**
     ```mermaid
     graph TD
-        A["Frontend"] -->|HTTP| B["FastAPI Endpoint (/chat/stream)"];
-        B -->|Manages| C[Agent Session]
+        A["Frontend"] -->|"HTTP"| B["FastAPI Endpoint (/chat/stream)"]
+        B -->|"Manages"| C["Agent Session"]
         style A fill:#e1f5fe
         style B fill:#e8f5e8
         style C fill:#fce4ec
@@ -221,9 +221,9 @@ Follow these incremental challenges to build your application. Each one adds a n
   * **Architecture:**
     ```mermaid
     graph TD
-        A["UserProxyAgent"] <--> B["GroupChatManager (Supervisor)"];
-        B <--> C[SearchAgent]
-        B <--> D[BookingAgent]
+        A["UserProxyAgent"] <--> B["GroupChatManager (Supervisor)"]
+        B <--> C["SearchAgent"]
+        B <--> D["BookingAgent"]
         
         style A fill:#fce4ec
         style B fill:#f3e5f5

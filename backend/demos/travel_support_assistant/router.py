@@ -25,3 +25,31 @@ async def get_session(session_id: str):
         tool_call_count=s["tool_call_count"],
         created_at=s["created_at"]
     )
+
+@router.get("/tools")
+async def get_tools():
+    """Get available tools"""
+    from .tools import AVAILABLE_TOOLS
+    import inspect
+    
+    TOOL_EXAMPLES = {
+        "lookup_booking": "What's the status of booking BK123456?",
+        "search_hotels": "Find me a hotel in Paris with a pool.",
+        "check_flight_status": "Is flight AA101 on time?",
+        "search_policies": "What is the cancellation policy?",
+        "book_hotel": "Book 3 nights at Grand Hotel Paris starting Feb 15th for John.",
+        "book_taxi": "I need a taxi from the airport to Grand Hotel Paris.",
+        "cancel_booking": "Cancel booking BK123456.",
+        "convert_currency": "How much is 200 USD in EUR?"
+    }
+
+    tools_list = []
+    for tool in AVAILABLE_TOOLS:
+        description = inspect.getdoc(tool) or "No description available."
+        tools_list.append({
+            "name": tool.__name__,
+            "description": description.split("\n")[0], # First line only for brevity
+            "example": TOOL_EXAMPLES.get(tool.__name__)
+        })
+        
+    return {"tools": tools_list}
