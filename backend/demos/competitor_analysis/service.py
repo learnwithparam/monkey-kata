@@ -48,14 +48,44 @@ async def stream_analysis_steps(
     final_report = None
     thinking_streamer = ThinkingStreamer(agent_name="Competitor Analysis")
     
+    # Callback for non-thinking events (legacy progress updates)
     def update_progress(step_data):
-        msg = step_data if isinstance(step_data, str) else step_data.get("message", "")
-        entry = {"timestamp": datetime.now().isoformat(), "message": msg}
-        if session_id in analysis_sessions: analysis_sessions[session_id]["steps"].append(entry)
-        step_queue.put_nowait(entry)
+        if isinstance(step_data, str):
+            msg = step_data
+        else:
+            msg = step_data.get("message", "")
+            target = step_data.get("target")
+            tool = step_data.get("tool")
+            
+            # Enhance message with target info if available
+            if target:
+                if tool == "search_web":
+                    msg = f"Searching: {target}"
+                elif tool == "scrape_website":
+                    msg = f"Reading: {target}"
+                else:
+                    msg = f"{msg}: {target}"
+                    
+        # Create a log entry format that matches what the frontend expects for logs
+        entry = {
+            "timestamp": datetime.now().isoformat(), 
+            "content": msg,
+            "type": "log"
+        }
+        if session_id in analysis_sessions: 
+            # Also append to steps for persistence
+            analysis_sessions[session_id]["steps"].append(entry)
+        
+        # Put in queue
+        try:
+             step_queue.put_nowait(entry)
+        except asyncio.QueueFull:
+             pass
 
     set_progress_callback(update_progress)
-    thinking_streamer.add_callback(lambda e: step_queue.put_nowait(e.__dict__))
+    
+    # Subscribe to thinking events
+    thinking_streamer.add_callback(lambda e: step_queue.put_nowait({"step": e.to_dict()}))
     
     async def run_analysis():
         nonlocal final_report
@@ -64,20 +94,44 @@ async def stream_analysis_steps(
             analysis_sessions[session_id]["status"] = "completed"
             analysis_sessions[session_id]["report"] = final_report
         except Exception as e:
+            logger.error(f"Analysis error: {e}")
             analysis_sessions[session_id]["status"] = "error"
+            step_queue.put_nowait({"error": str(e)})
         finally:
             analysis_complete.set()
             set_progress_callback(None)
             thinking_streamer.close()
-
-    asyncio.create_task(run_analysis())
-    yield f"data: {json.dumps({'status': 'connected'})}\n\n"
     
+    # Start analysis in background
+    asyncio.create_task(run_analysis())
+    
+    # Initial connection message
+    yield f"data: {json.dumps({'status': 'connected', 'session_id': session_id})}\n\n"
+    
+    # Stream events
     while not analysis_complete.is_set() or not step_queue.empty():
         try:
+            # Wait for next event with short timeout to check completion
             step = await asyncio.wait_for(step_queue.get(), timeout=0.1)
-            yield f"data: {json.dumps({'step': step})}\n\n"
+            
+            # If it's a "step" (thinking event), wrap it properly
+            if "step" in step:
+                yield f"data: {json.dumps(step)}\n\n"
+            # If it's a log entry
+            elif "type" in step and step["type"] == "log":
+                yield f"data: {json.dumps(step)}\n\n"
+            # If it's an error
+            elif "error" in step:
+                yield f"data: {json.dumps(step)}\n\n"
+            # Generic fallback
+            else:
+                 yield f"data: {json.dumps({'step': step})}\n\n"
+
         except asyncio.TimeoutError:
             continue
-    
-    if final_report: yield f"data: {json.dumps({'done': True, 'report': final_report})}\n\n"
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            break
+            
+    if final_report: 
+        yield f"data: {json.dumps({'done': True, 'report': final_report})}\n\n"

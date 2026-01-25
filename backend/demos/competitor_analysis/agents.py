@@ -30,7 +30,7 @@ from langchain_core.callbacks import BaseCallbackHandler
 
 from utils.llm_provider import get_llm
 from utils.thinking_streamer import ThinkingStreamer
-from utils.thinking_callback import ThinkingCallbackHandler
+from utils.thinking_callback import AsyncThinkingCallbackHandler  # CHANGED: Use Async handler
 from .tools import get_all_tools
 
 
@@ -190,11 +190,12 @@ async def run_competitor_analysis(
     from .tools import _report_progress
     
     # Create callbacks for agent reasoning if streamer is provided
+    # CHANGED: Use AsyncThinkingCallbackHandler
     callbacks = []
     if thinking_streamer:
-        research_callback = ThinkingCallbackHandler(thinking_streamer, agent_name="Research Agent")
-        analysis_callback = ThinkingCallbackHandler(thinking_streamer, agent_name="Analysis Agent")
-        report_callback = ThinkingCallbackHandler(thinking_streamer, agent_name="Report Agent")
+        research_callback = AsyncThinkingCallbackHandler(thinking_streamer, agent_name="Research Agent")
+        analysis_callback = AsyncThinkingCallbackHandler(thinking_streamer, agent_name="Analysis Agent")
+        report_callback = AsyncThinkingCallbackHandler(thinking_streamer, agent_name="Report Agent")
     else:
         research_callback = None
         analysis_callback = None
@@ -228,19 +229,28 @@ For each competitor, search for:
 
 Use web search and website scraping tools to gather this information. Be thorough but efficient - focus on the most relevant information."""
     
-    research_result = research_agent.invoke({"input": research_prompt})
+    # Log the prompt to show what we are asking
+    _report_progress(
+        f"Research Agent: Executing comprehensive search strategy",
+        agent="Research Agent",
+        tool="reasoning",
+        target="Formulating research queries"
+    )
+
+    # CHANGED: Use await ainvoke
+    research_result = await research_agent.ainvoke({"input": research_prompt})
     research_summary = research_result.get("output", "")
     
     _report_progress(
-        f"Research Agent: Completed data gathering phase",
-        agent="Research Agent",
+        f"Research Agent: Data gathering complete. Found {len(research_summary)} chars of data.",
+        agent="Research Agent", 
         tool="agent_complete",
         target=f"Collected data on {len(competitors)} competitors"
     )
     
     # Step 2: Analysis Phase
     _report_progress(
-        f"Analysis Agent: Starting competitive analysis",
+        f"Analysis Agent: Starting competitive analysis using gathered data",
         agent="Analysis Agent",
         tool="agent_invoke",
         target="Processing research data"
@@ -263,11 +273,19 @@ Please provide:
 3. Market opportunities and threats
 4. Strategic recommendations"""
     
-    analysis_result = analysis_agent.invoke({"input": analysis_prompt})
+    _report_progress(
+        f"Analysis Agent: Identifying key market differentiators and opportunities",
+        agent="Analysis Agent",
+        tool="reasoning",
+        target="Synthesizing insights"
+    )
+
+    # CHANGED: Use await ainvoke
+    analysis_result = await analysis_agent.ainvoke({"input": analysis_prompt})
     analysis_output = analysis_result.get("output", "")
     
     _report_progress(
-        f"Analysis Agent: Completed competitive positioning analysis",
+        f"Analysis Agent: Strategic analysis complete",
         agent="Analysis Agent",
         tool="agent_complete",
         target="Identified market opportunities and threats"
@@ -275,7 +293,7 @@ Please provide:
     
     # Step 3: Report Generation
     _report_progress(
-        f"Report Agent: Generating structured analysis report",
+        f"Report Agent: Structuring final report into JSON format",
         agent="Report Agent",
         tool="agent_invoke",
         target="Creating final report"
@@ -341,9 +359,10 @@ Please create a structured JSON report with the following format:
 
 IMPORTANT: Return ONLY valid JSON, no markdown formatting, no code blocks, just the raw JSON object."""
     
-    report_result = report_agent.invoke({"input": report_prompt})
+    # CHANGED: Use await ainvoke
+    report_result = await report_agent.ainvoke({"input": report_prompt})
     _report_progress(
-        f"Report Agent: Completed report generation",
+        f"Report Agent: Final report generation complete",
         agent="Report Agent",
         tool="agent_complete",
         target="Final report ready"
