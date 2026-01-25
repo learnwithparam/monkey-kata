@@ -376,8 +376,9 @@ RECOMMENDED_ACTION: [your recommendation]""",
         ]
         has_location = any(re.search(pattern, all_text, re.IGNORECASE) for pattern in location_patterns)
         
-        has_detailed_desc = len(case_intake.case_description) >= 150
-        has_additional_info = bool(case_intake.additional_info and len(case_intake.additional_info.strip()) > 20)
+        # Relaxed length check
+        has_detailed_desc = len(case_intake.case_description) >= 30
+        has_additional_info = bool(case_intake.additional_info and len(case_intake.additional_info.strip()) > 5)
         
         # Analyze the recommendation to determine next steps
         recommendation_lower = recommended_action.lower()
@@ -397,28 +398,27 @@ RECOMMENDED_ACTION: [your recommendation]""",
                 missing_parts.append("incident date or timeline")
             if not has_location and ("location" in output_lower or "where" in output_lower or "jurisdiction" in output_lower or "address" in output_lower):
                 missing_parts.append("location or jurisdiction")
+            # Only flag description if it's really short (under 30 chars) AND agent complains
             if not has_detailed_desc and ("detailed" in output_lower or "more information" in output_lower or "description" in output_lower):
                 missing_parts.append("more detailed case description")
             if not has_additional_info and ("additional" in output_lower or "more details" in output_lower):
                 missing_parts.append("additional supporting information or evidence")
             
-            # If we have everything but agent still says missing, check if it's about something else
+            # If we have everything key but agent still says missing, check if it's a false positive
+            # If we have phone and a decent description, and we've done at least one round (indicated by has_additional_info or previously_provided_info),
+            # we might want to force complete or ask for specific details.
             if not missing_parts and needs_more_info:
-                # Agent might be asking for something specific mentioned in the output
-                missing_parts = ["additional case details as specified by the review"]
+                # If we have the basics, maybe we can just complete it
+                if has_phone and has_detailed_desc:
+                    needs_more_info = False
+                    is_complete = True
+                else:
+                     missing_parts = ["additional case details as specified by the review"]
         elif "proceed" in recommendation_lower or "complete" in recommendation_lower or ("ready" in recommendation_lower and "not ready" not in recommendation_lower):
-            # Only mark complete if we have essential info
-            if has_phone and has_detailed_desc:
-                is_complete = True
-            else:
-                # Still need basic info
-                needs_more_info = True
-                if not has_phone:
-                    missing_info.append("client phone number")
-                if not has_detailed_desc:
-                    missing_info.append("more detailed case description")
+            is_complete = True
+            needs_more_info = False
         
-        # If we have all basic info and agent says proceed, mark complete
+        # Safe fallback: if we have phone and description, and agent didn't explicitly block, mark complete
         if not needs_more_info and has_phone and has_detailed_desc:
             is_complete = True
         
