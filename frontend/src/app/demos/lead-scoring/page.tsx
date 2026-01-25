@@ -12,12 +12,15 @@ import {
   UserIcon,
   CogIcon,
   SparklesIcon,
+  ListBulletIcon,
+  CommandLineIcon,
 } from '@heroicons/react/24/outline';
 import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import FileUpload from '@/components/demos/FileUpload';
 import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+import LiveLogViewer from '@/components/demos/LiveLogViewer';
 
 interface StepData extends ThinkingEvent {
   id: string;
@@ -143,6 +146,12 @@ interface TopCandidatesResponse {
   all_candidates: ScoredLead[];
 }
 
+interface LogEntry {
+  timestamp: string;
+  content: string;
+  type: string;
+}
+
 interface EmailResult {
   candidate_id: string;
   candidate_name: string;
@@ -163,6 +172,8 @@ export default function LeadScoringDemo() {
   const [emails, setEmails] = useState<EmailResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
+  const [activeTab, setActiveTab] = useState<'workflow' | 'logs'>('workflow');
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadLeads = async () => {
@@ -176,6 +187,9 @@ export default function LeadScoringDemo() {
     setTopCandidates([]);
     setAllCandidates([]);
     setEmails([]);
+    setWorkflowSteps([]);
+    setLogs([]);
+    setActiveTab('logs'); // Auto-switch to logs to show activity
 
     try {
       const formData = new FormData();
@@ -217,9 +231,16 @@ export default function LeadScoringDemo() {
         
         if (data.thinking) {
           const step = data.thinking as ThinkingEvent;
+          
+          // Add to workflow steps
           setWorkflowSteps(prev => {
             const newSteps = [...prev];
-            const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+            // Check if this is an update to an existing step (same category and content prefix)
+            const existingStepIndex = newSteps.findIndex(s => 
+              s.category === step.category && 
+              s.agent === step.agent &&
+              (s.content === step.content || (step.content.length > 20 && s.content.startsWith(step.content.substring(0, 20))))
+            );
             
             if (existingStepIndex >= 0) {
               newSteps[existingStepIndex] = { ...step, id: newSteps[existingStepIndex].id };
@@ -228,6 +249,13 @@ export default function LeadScoringDemo() {
             }
             return newSteps;
           });
+
+          // Add to logs
+          setLogs(prev => [...prev, {
+            timestamp: step.timestamp || new Date().toISOString(),
+            content: `[${step.category.toUpperCase()}] ${step.agent ? `(${step.agent}) ` : ''}${step.content}`,
+            type: 'log'
+          }]);
         }
         
         if (data.status_update) {
@@ -592,15 +620,47 @@ export default function LeadScoringDemo() {
                     documentsCount={processingStatus.total_leads}
                   />
 
-                  {isProcessing && (
-                    <div className="mt-4">
+                  {/* View Switcher */}
+                  <div className="flex items-center justify-between mt-6 mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Analysis Progress</h3>
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                      <button 
+                        onClick={() => setActiveTab('workflow')}
+                        className={`p-2 rounded-md transition-all ${activeTab === 'workflow' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        title="Workflow View"
+                      >
+                        <ListBulletIcon className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab('logs')}
+                        className={`p-2 rounded-md transition-all ${activeTab === 'logs' ? 'bg-white shadow-sm text-green-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        title="Live Logs View"
+                      >
+                        <CommandLineIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Wrapper for Tabs */}
+                  <div>
+                    {/* Workflow Tab */}
+                    <div className={activeTab === 'workflow' ? 'block' : 'hidden'}>
                       <ThinkingBlock 
                         events={workflowSteps} 
                         title="Agent Analysis thinking" 
                         autoScroll={true}
+                        maxHeight="400px"
                       />
                     </div>
-                  )}
+
+                    {/* Logs Tab */}
+                    <div className={activeTab === 'logs' ? 'block' : 'hidden'}>
+                      <LiveLogViewer 
+                        logs={logs}
+                        isVisible={true}
+                      />
+                    </div>
+                  </div>
                   
                   {processingStatus.current_candidate && processingStatus.status === 'scoring' && (
                     <div className="bg-white rounded-lg p-3 border border-gray-200">

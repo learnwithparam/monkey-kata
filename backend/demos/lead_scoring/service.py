@@ -62,9 +62,27 @@ async def process_lead_scoring(
                 if candidate_name:
                     s["current_candidate"] = candidate_name
                     s["message"] = f"Evaluating {candidate_name} ({current}/{total})"
+                    
+                    # Emit to logs
+                    if thinking_streamer:
+                        ThinkingStreamer.add_event(
+                            session_id, 
+                            "processing", 
+                            f"Evaluating candidate: {candidate_name} ({current}/{total})", 
+                            progress=int((current / total) * 100) if total > 0 else 0
+                        )
                 else:
                     s["current_candidate"] = None
                     s["message"] = f"Completed {current} of {total} candidates"
+                    
+                    # Emit to logs
+                    if thinking_streamer:
+                        ThinkingStreamer.add_event(
+                            session_id, 
+                            "processing", 
+                            f"Completed batch: {current}/{total} candidates",
+                            progress=int((current / total) * 100) if total > 0 else 0
+                        )
         
         candidate_scores = await score_candidates_parallel(
             candidates, job_description, feedback, 

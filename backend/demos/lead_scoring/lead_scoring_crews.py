@@ -22,12 +22,16 @@ Key Concept: Crews are specialized teams of agents. Each crew handles one specif
 part of the workflow, making the system modular and maintainable.
 """
 
+from datetime import datetime, timezone
+from typing import List, Optional, Dict, Any, Union
 import asyncio
 import logging
-from typing import List, Optional
+from uuid import UUID
+
+from langchain_core.callbacks import BaseCallbackHandler
 from crewai import Agent, Crew, Process, Task
 
-from utils.thinking_streamer import ThinkingStreamer, create_thinking_callback
+from utils.thinking_streamer import ThinkingStreamer, ThinkingEvent
 
 # Import our shared LLM provider utilities
 from utils.llm_provider import get_crewai_llm
@@ -36,6 +40,104 @@ from utils.llm_provider import get_crewai_llm
 from .models import Candidate, CandidateScore, ScoredCandidate
 
 logger = logging.getLogger(__name__)
+
+class CrewAIThinkingCallback(BaseCallbackHandler):
+    """
+    Thread-safe callback handler for streaming CrewAI/LangChain events.
+    Needed because CrewAI runs in a separate thread but we need to emit
+    events to the asyncio queue in the main loop.
+    """
+    
+    def __init__(self, streamer: ThinkingStreamer, agent_name: str, loop: asyncio.AbstractEventLoop):
+        self.streamer = streamer
+        self.agent_name = agent_name
+        self.loop = loop
+        self.current_tool = None
+        
+    def _safe_emit(self, event: ThinkingEvent):
+        """Emit event safely to the main loop's queue"""
+        if self.loop and not self.loop.is_closed():
+            self.loop.call_soon_threadsafe(self.streamer._queue.put_nowait, event)
+
+    def on_llm_start(self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any) -> None:
+        """Run when LLM starts running."""
+        event = ThinkingEvent(
+            category="reasoning",
+            content=f"Thinking process started...",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            agent=self.agent_name
+        )
+        self._safe_emit(event)
+
+    def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs: Any) -> None:
+        """Run when tool starts running."""
+        tool_name = serialized.get("name", "Unknown Tool")
+        self.current_tool = tool_name
+        
+        event = ThinkingEvent(
+            category="tool_use",
+            content=f"Using tool: {tool_name}",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            agent=self.agent_name,
+            tool=tool_name,
+            metadata={"input": input_str}
+        )
+        self._safe_emit(event)
+
+    def on_tool_end(self, output: str, **kwargs: Any) -> None:
+        """Run when tool ends running."""
+        tool_name = self.current_tool or "Tool"
+        event = ThinkingEvent(
+            category="observation",
+            content=f"Tool output: {str(output)}",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            agent=self.agent_name,
+            tool=tool_name,
+            metadata={"output": str(output)}
+        )
+        self._safe_emit(event)
+        self.current_tool = None
+
+    def on_agent_action(self, action: Any, **kwargs: Any) -> None:
+        """Run on agent action."""
+        # The action.log contains the agent's reasoning
+        reasoning = action.log if hasattr(action, 'log') and action.log else ""
+        
+        # Clean up the reasoning text but keep full content
+        if reasoning:
+            reasoning = reasoning.strip()
+        
+        event = ThinkingEvent(
+            category="reasoning", # Map to reasoning or planning
+            content=reasoning if reasoning else f"Agent is acting using {getattr(action, 'tool', 'Unknown Tool')}",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            agent=self.agent_name,
+            tool=getattr(action, 'tool', 'Unknown Tool')
+        )
+        self._safe_emit(event)
+
+    def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
+        """Run when chain errors."""
+        event = ThinkingEvent(
+            category="error",
+            content=f"Error in chain: {str(error)}",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            agent=self.agent_name
+        )
+        self._safe_emit(event)
+
+    def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
+        """Run when tool errors."""
+        tool_name = self.current_tool or "Tool"
+        event = ThinkingEvent(
+            category="error",
+            content=f"Error in {tool_name}: {str(error)}",
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            agent=self.agent_name,
+            tool=tool_name
+        )
+        self._safe_emit(event)
+
 
 
 # ============================================================================
@@ -134,7 +236,7 @@ CALCULATION PROCESS:
 2. Sum the four dimensions to get total score (0-100)
 3. If total is above 100, cap at 100
 4. Use SPECIFIC numbers - avoid clustering at 75, 80, 85, etc.
-5. Ensure granularity: If calculating 18+22+15+12=67, consider if it should be 65, 68, or 71 based on nuances
+5. Ensure granularity: Sum the points precisely from the 4 dimensions.
 
 CANDIDATE INFORMATION
 ---------------------
@@ -151,12 +253,12 @@ JOB DESCRIPTION
 
 YOUR TASK:
 1. Calculate each dimension score separately (be specific, not round numbers)
-2. Sum them to get total score (use granular numbers like 67, 73, 81, not 70, 75, 80)
+2. Sum them to get total score.
 3. Provide detailed reasoning showing your calculation for each dimension
 4. Include the candidate's unique ID: {candidate.id}
 
 REMEMBER: 
-- Use granular scoring (67, 73, 81) NOT round numbers (70, 75, 80)
+- Use granular scoring based on exact dimension sums NOT round numbers
 - Even similar candidates must differ by at least 3-5 points
 - Show your work: explain how you calculated each dimension score"""
         
@@ -168,7 +270,7 @@ REMEMBER:
         )
         
         # Create crew
-        callbacks = [create_thinking_callback(thinking_streamer, agent_name="HR Evaluator")] if thinking_streamer else []
+        callbacks = [CrewAIThinkingCallback(thinking_streamer, "HR Evaluator", asyncio.get_running_loop())] if thinking_streamer else []
         
         crew = Crew(
             agents=[hr_agent],
@@ -350,7 +452,7 @@ either inviting them for a Zoom call or letting them know we are pursuing other 
         )
         
         # Create crew
-        callbacks = [create_thinking_callback(thinking_streamer, agent_name="Email Coordinator")] if thinking_streamer else []
+        callbacks = [CrewAIThinkingCallback(thinking_streamer, "Email Coordinator", asyncio.get_running_loop())] if thinking_streamer else []
         
         crew = Crew(
             agents=[email_agent],
