@@ -19,7 +19,7 @@ async def submit_case(request: CaseIntakeRequest, background_tasks: BackgroundTa
     case_intake = CaseIntake(**request.dict())
     intake_sessions[case_id] = {
         "case_id": case_id, "status": "processing", "message": "Initializing...",
-        "intake_data": case_intake.dict(), "steps": []
+        "intake_data": case_intake.dict(), "steps": [], "previously_provided_info": ""
     }
     background_tasks.add_task(process_case, case_id, case_intake)
     return CaseIntakeResponse(case_id=case_id, status="processing", message="Started")
@@ -36,6 +36,23 @@ async def submit_case_stream(request: CaseIntakeRequest):
         stream_case_processing(case_id, case_intake),
         media_type="text/event-stream"
     )
+
+@router.post("/provide-additional-info", response_model=CaseIntakeResponse)
+async def provide_additional_info(request: AdditionalInfoRequest):
+    case_id = request.case_id
+    if case_id not in intake_sessions:
+        raise HTTPException(status_code=404, detail="Case not found")
+        
+    session = intake_sessions[case_id]
+    case_intake = CaseIntake(**session["intake_data"])
+    
+    # Process with new info (this will block until agents finish)
+    # Ideally should be async/streaming too, but frontend expects JSON response
+    # For better UX, this could be refactored to return "processing" and let client poll or stream
+    # But for now we'll wait (it might take 10-20s)
+    updated_session = await process_case(case_id, case_intake, request.additional_info)
+    
+    return CaseIntakeResponse(**updated_session)
 
 @router.get("/status/{case_id}", response_model=CaseIntakeResponse)
 async def get_status(case_id: str):

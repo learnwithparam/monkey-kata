@@ -49,12 +49,15 @@ def report_progress(message: str, agent: str = None, tool: str = None, target: s
                 else:
                     category = "processing"
             
+            from datetime import datetime
+            
             step_data = {
                 "message": message,
                 "agent": agent,
                 "tool": tool,
                 "target": target,
-                "category": category
+                "category": category,
+                "timestamp": datetime.now().isoformat()
             }
             _progress_callback(step_data)
         except Exception as e:

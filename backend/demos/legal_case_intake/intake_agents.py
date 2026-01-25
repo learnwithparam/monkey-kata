@@ -83,7 +83,7 @@ def create_review_agent() -> Agent:
     )
 
 
-async def process_case_intake(case_intake: CaseIntake, previously_provided_info: Optional[str] = None) -> Dict[str, Any]:
+def process_case_intake(case_intake: CaseIntake, previously_provided_info: Optional[str] = None) -> Dict[str, Any]:
     """
     Process a case through the intake workflow.
     
