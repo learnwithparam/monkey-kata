@@ -11,6 +11,7 @@ import ProcessingButton from '@/components/demos/ProcessingButton';
 import ChatInput from '@/components/demos/ChatInput';
 import AlertMessage from '@/components/demos/AlertMessage';
 import ChatMessages, { ChatMessage } from '@/components/demos/ChatMessages';
+import { ThinkingEvent } from '@/components/demos/ThinkingBlock';
 
 interface ProcessingStatus {
   url: string;
@@ -30,6 +31,7 @@ export default function WebsiteRAGDemo() {
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus | null>(null);
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
+
   
   const questionInputRef = useRef<HTMLInputElement>(null);
 
@@ -169,6 +171,7 @@ export default function WebsiteRAGDemo() {
     setQuestion('');
     setIsAsking(true);
     setCurrentAnswer('');
+    setCurrentAnswer('');
 
     addMessage({
       type: 'user',
@@ -228,6 +231,26 @@ export default function WebsiteRAGDemo() {
                 });
                 setIsAsking(false);
                 return;
+              }
+
+              if (data.thinking) {
+                const step = data.thinking as ThinkingEvent;
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
+                  if (typingMessage) {
+                    const currentThinking = typingMessage.thinking || [];
+                    const existingStepIndex = currentThinking.findIndex(s => s.content === step.content && s.category === step.category);
+                    
+                    if (existingStepIndex >= 0) {
+                      currentThinking[existingStepIndex] = { ...step };
+                    } else {
+                      currentThinking.push({ ...step });
+                    }
+                    typingMessage.thinking = [...currentThinking];
+                  }
+                  return newMessages;
+                });
               }
 
               if (data.sources) {
@@ -410,12 +433,7 @@ export default function WebsiteRAGDemo() {
                       />
                     )}
                     
-                    {isAsking && (
-                      <AlertMessage
-                        type="info"
-                        message="AI is thinking and will respond shortly..."
-                      />
-                    )}
+
                     
                     <ChatInput
                       value={question}

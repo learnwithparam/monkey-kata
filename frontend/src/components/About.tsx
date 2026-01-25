@@ -15,20 +15,22 @@ export default function About() {
             </span>
           </div>
           <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 sm:mb-8 leading-tight px-2">
-            About the AI Bootcamp
+            AI Engineering
           </h2>
           <p className="text-lg sm:text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto leading-relaxed px-2">
-            The <strong className="text-gray-900">AI Bootcamp for Software Engineers</strong> is a 6-week, cohort-based program designed for engineers who want to upskill in AI engineering. Unlike other AI courses, you won&apos;t learn passively – you&apos;ll build real AI applications, create lifelong connections, and leave with a new perspective for what is possible with AI.
+            <strong className="text-gray-900">AI Engineering by Param Harrison</strong> is a comprehensive program designed for engineers who want to master AI engineering. Unlike other AI courses, you won&apos;t learn passively – you&apos;ll build real AI applications, create lifelong connections, and leave with a new perspective for what is possible with AI.
           </p>
         </div>
 
         <div className="text-center">
           <a
-            href="https://learnwithparam.com?utm_source=demos&utm_medium=ai-bootcamp&utm_campaign=demo-site" 
+            href="https://www.skool.com/learnwithparam" 
+            target="_blank" 
+            rel="noopener noreferrer"
             className="inline-flex items-center justify-center bg-gray-900 hover:bg-gray-800 text-white font-semibold py-4 px-8 sm:py-5 sm:px-12 rounded-xl text-lg sm:text-xl transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:scale-105"
-            aria-label="Enroll in AI Bootcamp for Software Engineers"
+            aria-label="Join the community"
           >
-            Join the AI Bootcamp
+            Join the community
           </a>
         </div>
       </div>

@@ -9,6 +9,11 @@ import {
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import FileUpload from '@/components/demos/FileUpload';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+
+interface StepData extends ThinkingEvent {
+  id: string;
+}
 
 export default function ImageToDrawingPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -16,6 +21,8 @@ export default function ImageToDrawingPage() {
   const [error, setError] = useState<string | null>(null);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null);
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
+  const [sessionId] = useState(() => `img_${Date.now()}`);
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -59,12 +66,45 @@ export default function ImageToDrawingPage() {
     setIsGenerating(true);
     setError(null);
     setGeneratedImageUrl(null);
+    setWorkflowSteps([]);
+
+    // Start streaming updates
+    const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/image-to-drawing/stream/${sessionId}`);
+    
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.thinking) {
+          const step = data.thinking as ThinkingEvent;
+          setWorkflowSteps(prev => {
+            const newSteps = [...prev];
+            const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+            
+            if (existingStepIndex >= 0) {
+              newSteps[existingStepIndex] = { ...step, id: newSteps[existingStepIndex].id };
+            } else {
+              newSteps.push({ ...step, id: Math.random().toString(36).substr(2, 9) });
+            }
+            return newSteps;
+          });
+        }
+        if (data.done) {
+          eventSource.close();
+        }
+      } catch (e) {
+        console.error('Error parsing SSE:', e);
+      }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+    };
 
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/image-to-drawing/convert`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/image-to-drawing/convert?session_id=${sessionId}`, {
         method: 'POST',
         body: formData,
       });
@@ -173,6 +213,17 @@ export default function ImageToDrawingPage() {
                         <p>This is a learning opportunity! Check the README for guidance on implementing image generation for other providers.</p>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {isGenerating && (
+                  <div className="mt-4">
+                    <ThinkingBlock 
+                      events={workflowSteps} 
+                      title="AI Image Processing" 
+                      maxHeight="300px"
+                      autoScroll={true}
+                    />
                   </div>
                 )}
               </div>

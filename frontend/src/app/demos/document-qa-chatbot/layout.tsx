@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Document QA Chatbot | AI Bootcamp Demos",
+  title: "Document QA Chatbot | AI Engineering Demos",
   description: "Upload any document (PDF, Word, text) and get instant AI-powered analysis, key insights, and intelligent Q&A about your documents.",
 };
 

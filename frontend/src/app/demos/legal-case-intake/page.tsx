@@ -5,15 +5,18 @@ import Link from 'next/link';
 import { 
   ScaleIcon,
   CheckCircleIcon,
-  SparklesIcon,
   InformationCircleIcon,
   ExclamationCircleIcon,
   DocumentTextIcon,
+  CommandLineIcon,
+  ListBulletIcon,
 } from '@heroicons/react/24/outline';
 import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import CustomSelect from '@/components/CustomSelect';
+import ThinkingBlock from '@/components/demos/ThinkingBlock';
+import LiveLogViewer from '@/components/demos/LiveLogViewer';
 
 interface CaseIntakeRequest {
   client_name: string;
@@ -25,17 +28,26 @@ interface CaseIntakeRequest {
   additional_info?: string;
 }
 
+interface StepData {
+  timestamp: string;
+  message: string;
+  agent?: string;
+  tool?: string;
+  target?: string;
+  category?: string;
+}
+
+interface LogEntry {
+  timestamp: string;
+  content: string;
+  type: string;
+}
+
 interface CaseIntakeResponse {
   case_id: string;
   status: string;
   message: string;
-  steps?: Array<{
-    timestamp: string;
-    message: string;
-    agent?: string;
-    tool?: string;
-    target?: string;
-  }>;
+  steps?: StepData[];
   needs_more_info?: boolean;
   missing_info?: string[];
   is_complete?: boolean;
@@ -59,13 +71,129 @@ export default function LegalCaseIntakeDemo() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [additionalInfo, setAdditionalInfo] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [workflowSteps, setWorkflowSteps] = useState<Array<{
-    timestamp: string;
-    message: string;
-    agent?: string;
-    tool?: string;
-    target?: string;
-  }>>([]);
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [activeTab, setActiveTab] = useState<'workflow' | 'logs'>('workflow');
+
+  // Helper to read stream
+  const readStream = async (response: Response) => {
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Request failed');
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error('No response body');
+
+    const decoder = new TextDecoder('utf-8');
+    const newSteps: StepData[] = []; // Accumulate steps for this run
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value);
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr) continue;
+            
+            let data;
+            try {
+              data = JSON.parse(jsonStr);
+            } catch (parseErr) {
+              console.warn('Failed to parse JSON line:', jsonStr.substring(0, 100));
+              continue;
+            }
+
+            if (data.status === 'connected') {
+              if (data.case_id) setCaseId(data.case_id);
+              setCaseStatus(prev => ({
+                case_id: data.case_id || prev?.case_id || '',
+                status: 'processing',
+                message: data.message || 'Processing...',
+                steps: prev?.steps,
+                needs_more_info: false, // Reset flags on new run
+                is_complete: false
+              }));
+              continue;
+            }
+
+            // Handle Logs
+            if (data.type === 'log') {
+              setLogs(prev => [...prev, {
+                timestamp: data.timestamp,
+                content: data.content,
+                type: 'log'
+              }]);
+              // Auto-switch to logs if it's the first log and user hasn't explicitly chosen
+              continue;
+            }
+
+            // Handle Workflow Steps
+            if (data.step) {
+              // If step is actually a log (backend sometimes wraps logs in step_queue without type)
+              // Check if it has the log structure or if we should treat it as a step
+              if (data.step.type === 'log') {
+                   setLogs(prev => [...prev, {
+                    timestamp: data.step.timestamp,
+                    content: data.step.content,
+                    type: 'log'
+                  }]);
+                  continue;
+              }
+
+              // It's a real workflow step
+              setWorkflowSteps(prev => {
+                const combined = [...prev, data.step];
+                // Update status message with latest step
+                setCaseStatus(current => current ? {
+                  ...current,
+                  message: data.step.message,
+                  steps: combined
+                } : null);
+                return combined;
+              });
+            }
+
+            if (data.done) {
+              setIsProcessing(false);
+              if (data.result) {
+                setCaseStatus({
+                  case_id: caseId || '',
+                  status: data.status,
+                  message: data.result.is_complete ? 'Case intake complete! All information collected.' : 
+                           data.result.needs_more_info ? 'Additional information needed.' : 
+                           'Case processed. Ready for review.',
+                  steps: workflowSteps, // Use current state (approx)
+                  needs_more_info: data.result.needs_more_info,
+                  missing_info: data.result.missing_info,
+                  is_complete: data.result.is_complete,
+                  intake_summary: data.result.intake_summary,
+                  risk_assessment: data.result.risk_assessment,
+                  recommended_action: data.result.recommended_action
+                });
+              } else if (data.error) {
+                setError(data.error);
+              }
+              return;
+            }
+
+            if (data.error) {
+              setError(data.error);
+              setIsProcessing(false);
+              return;
+            }
+          } catch (parseError) {
+            console.error('Error parsing chunk:', parseError);
+          }
+        }
+      }
+    }
+  };
 
   const submitCase = async () => {
     if (!caseData.client_name || !caseData.client_email || !caseData.case_type || !caseData.case_description) {
@@ -76,113 +204,17 @@ export default function LegalCaseIntakeDemo() {
     setIsProcessing(true);
     setError(null);
     setWorkflowSteps([]);
+    setLogs([]);
     setAdditionalInfo('');
+    setActiveTab('logs'); // Switch to logs on start to show activity
 
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/legal-case-intake/submit-case-stream`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(caseData),
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to submit case');
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
-      }
-
-      const decoder = new TextDecoder('utf-8');
-      const steps: Array<{ timestamp: string; message: string; agent?: string; tool?: string; target?: string }> = [];
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              // Safely parse JSON, handle malformed JSON from streaming
-              const jsonStr = line.slice(6).trim();
-              if (!jsonStr) continue; // Skip empty lines
-              
-              let data;
-              try {
-                data = JSON.parse(jsonStr);
-              } catch (parseErr) {
-                // If JSON parsing fails, skip this line (likely incomplete or malformed)
-                console.warn('Failed to parse JSON line:', jsonStr.substring(0, 100));
-                continue;
-              }
-
-              if (data.status === 'connected') {
-                if (data.case_id) {
-                  setCaseId(data.case_id);
-                }
-                setCaseStatus({
-                  case_id: data.case_id || '',
-                  status: 'processing',
-                  message: data.message || 'Starting case intake processing...'
-                });
-                continue;
-              }
-
-              if (data.step) {
-                const newSteps = [...steps, data.step];
-                steps.length = 0;
-                steps.push(...newSteps);
-                
-                setWorkflowSteps(newSteps);
-                setCaseStatus(prev => prev ? {
-                  ...prev,
-                  message: data.step.message,
-                  status: 'processing',
-                  steps: newSteps
-                } : null);
-              }
-
-              if (data.done) {
-                setIsProcessing(false);
-                if (data.result) {
-                  setCaseStatus({
-                    case_id: caseId || '',
-                    status: data.status,
-                    message: data.result.is_complete ? 'Case intake complete! All information collected.' : 
-                             data.result.needs_more_info ? 'Additional information needed.' : 
-                             'Case processed. Ready for review.',
-                    steps: steps,
-                    needs_more_info: data.result.needs_more_info,
-                    missing_info: data.result.missing_info,
-                    is_complete: data.result.is_complete,
-                    intake_summary: data.result.intake_summary,
-                    risk_assessment: data.result.risk_assessment,
-                    recommended_action: data.result.recommended_action
-                  });
-                } else if (data.error) {
-                  setError(data.error);
-                }
-                return;
-              }
-
-              if (data.error) {
-                setError(data.error);
-                setIsProcessing(false);
-                return;
-              }
-            } catch (parseError) {
-              console.error('Error parsing chunk:', parseError);
-            }
-          }
-        }
-      }
+      await readStream(response);
     } catch (error) {
       console.error('Error submitting case:', error);
       setError(error instanceof Error ? error.message : 'Failed to submit case. Please try again.');
@@ -198,29 +230,23 @@ export default function LegalCaseIntakeDemo() {
 
     setIsProcessing(true);
     setError(null);
+    setActiveTab('logs'); // Switch to logs to show resumption
 
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/legal-case-intake/provide-additional-info`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           case_id: caseId,
           additional_info: additionalInfo
         }),
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Failed to submit additional information');
-      }
-
-      const result: CaseIntakeResponse = await response.json();
-      setCaseStatus(result);
-      setWorkflowSteps(result.steps || []);
+      
+      // Clear previous result specific flags but keep history
+      setCaseStatus(prev => prev ? { ...prev, needs_more_info: false, is_complete: false, message: 'Resuming analysis...' } : null);
+      
+      await readStream(response);
       setAdditionalInfo('');
-      setIsProcessing(false);
     } catch (error) {
       console.error('Error submitting additional info:', error);
       setError(error instanceof Error ? error.message : 'Failed to submit additional information.');
@@ -244,6 +270,8 @@ export default function LegalCaseIntakeDemo() {
     setAdditionalInfo('');
     setError(null);
     setWorkflowSteps([]);
+    setLogs([]);
+    setActiveTab('workflow');
   };
 
   return (
@@ -383,7 +411,7 @@ export default function LegalCaseIntakeDemo() {
 
                 <ProcessingButton
                   onClick={submitCase}
-                  isProcessing={isProcessing}
+                  isLoading={isProcessing}
                   disabled={!caseData.client_name || !caseData.client_email || !caseData.case_type || !caseData.case_description}
                   className="w-full"
                 >
@@ -394,100 +422,95 @@ export default function LegalCaseIntakeDemo() {
 
             {/* Status & Results */}
             <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200">
-              <div className="flex items-center mb-6 sm:mb-8">
-                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mr-4">
-                  <ScaleIcon className="w-6 h-6 text-gray-600" />
+              <div className="flex items-center justify-between mb-6 sm:mb-8">
+                <div className="flex items-center">
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mr-4">
+                        <ScaleIcon className="w-6 h-6 text-gray-600" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Case Status</h2>
+                        <p className="text-sm sm:text-base text-gray-600">Track your case intake progress</p>
+                    </div>
                 </div>
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Case Status</h2>
-                  <p className="text-sm sm:text-base text-gray-600">Track your case intake progress</p>
-                </div>
+                
+                {/* View Switcher */}
+                {caseStatus && (
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                        <button 
+                            onClick={() => setActiveTab('workflow')}
+                            className={`p-2 rounded-md transition-all ${activeTab === 'workflow' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            title="Workflow View"
+                        >
+                            <ListBulletIcon className="w-5 h-5" />
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('logs')}
+                            className={`p-2 rounded-md transition-all ${activeTab === 'logs' ? 'bg-white shadow-sm text-green-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            title="Live Logs View"
+                        >
+                            <CommandLineIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
               </div>
 
-              {!caseStatus && (
+              {!caseStatus && !isProcessing && logs.length === 0 && (
                 <div className="text-center py-12 text-gray-500">
                   <DocumentTextIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                   <p>Enter case information to start intake</p>
                 </div>
               )}
 
-              {caseStatus && (
+              {(caseStatus || isProcessing || logs.length > 0) && (
                 <div className="mb-6">
-                  <StatusIndicator
-                    status={caseStatus.status}
-                    message={caseStatus.message}
-                  />
+                  {caseStatus && (
+                    <StatusIndicator
+                        status={caseStatus.status}
+                        message={caseStatus.message}
+                    />
+                  )}
                   
-                  {/* Multi-Agent Workflow Steps */}
-                  {workflowSteps.length > 0 && (
-                    <div className="mt-6 space-y-3">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                        <SparklesIcon className="h-4 w-4 text-blue-600 mr-2" />
-                        Multi-Agent Workflow
-                      </h3>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
-                    {workflowSteps.map((step, index) => {
-                      const getStatusColor = () => {
-                        if (step.tool === 'agent_complete' || step.tool === 'workflow_complete') return 'bg-green-500';
-                        if (step.tool === 'agent_invoke') return 'bg-blue-500 animate-pulse';
-                        if (step.tool === 'agent_processing' || step.tool === 'crew_execution' || step.tool === 'data_parsing') return 'bg-purple-500 animate-pulse';
-                        return 'bg-gray-400';
-                      };
-
-                      const getAgentColor = (agent: string | undefined) => {
-                        if (!agent) return 'bg-gray-200 text-gray-700';
-                        if (agent.includes('Intake')) return 'bg-blue-100 text-blue-700';
-                        if (agent.includes('Review')) return 'bg-purple-100 text-purple-700';
-                        if (agent.includes('Workflow') || agent.includes('Orchestrator')) return 'bg-green-100 text-green-700';
-                        return 'bg-gray-100 text-gray-700';
-                      };
-
-                      return (
-                        <div
-                          key={index}
-                          className="flex items-start gap-3 p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-all"
-                        >
-                          <div className="flex-shrink-0 mt-0.5">
-                            <div className={`w-3 h-3 ${getStatusColor()} rounded-full`}></div>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            {step.agent && (
-                              <div className="flex items-center gap-2 mb-2">
-                                <span className={`text-xs font-semibold px-2 py-1 rounded ${getAgentColor(step.agent)}`}>
-                                  {step.agent}
-                                </span>
-                                {step.tool && step.tool !== 'agent_invoke' && step.tool !== 'agent_complete' && step.tool !== 'workflow_complete' && (
-                                  <span className="text-xs text-gray-600 font-mono bg-gray-100 px-2 py-1 rounded">
-                                    {step.tool}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            <p className="text-sm font-medium text-gray-900 break-words">
-                              {step.message}
-                            </p>
-                            {step.target && (
-                              <p className="text-xs text-gray-600 mt-1 font-mono bg-gray-50 px-2 py-1 rounded inline-block">
-                                {step.target}
-                              </p>
-                            )}
-                            <p className="text-xs text-gray-500 mt-2">
-                              {new Date(step.timestamp).toLocaleTimeString()}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="mt-6">
+                      {/* Tabs Content */}
+                      <div className={activeTab === 'workflow' ? 'block' : 'hidden'}>
+                          <ThinkingBlock
+                            events={workflowSteps.map(step => ({
+                              category: step.category || (
+                                step.tool === 'agent_complete' || step.tool === 'workflow_complete' ? 'complete' :
+                                step.tool === 'agent_invoke' ? 'agent' :
+                                step.tool === 'agent_processing' ? 'processing' :
+                                step.tool === 'crew_execution' ? 'processing' :
+                                step.tool === 'data_parsing' ? 'analysis' :
+                                'processing'
+                              ),
+                              content: step.message,
+                              timestamp: step.timestamp,
+                              agent: step.agent,
+                              tool: step.tool,
+                              target: step.target,
+                            }))}
+                            title="Multi-Agent Workflow"
+                            maxHeight="400px"
+                            autoScroll={true}
+                            collapsible={false}
+                            defaultExpanded={true}
+                          />
+                      </div>
+                      
+                      <div className={activeTab === 'logs' ? 'block' : 'hidden'}>
+                          <LiveLogViewer 
+                            logs={logs}
+                            isVisible={true}
+                          />
+                      </div>
                   </div>
-                </div>
-              )}
                 </div>
               )}
             </div>
           </div>
 
           {/* Verdict Card - Show when processing is done or needs more info */}
-          {caseStatus && !isProcessing && (caseStatus.status !== 'processing' || caseStatus.needs_more_info) && (
+          {caseStatus && !isProcessing && (caseStatus.status !== 'processing' || caseStatus.needs_more_info || caseStatus.is_complete) && (
             <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200">
               <div className="flex items-start gap-4 mb-6">
                 {caseStatus.is_complete ? (
@@ -512,6 +535,20 @@ export default function LegalCaseIntakeDemo() {
                   {caseStatus.intake_summary && (
                     <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                       <p className="text-sm text-gray-700 whitespace-pre-line">{caseStatus.intake_summary}</p>
+                    </div>
+                  )}
+                  {/* Show Risk Assessment if available */}
+                  {caseStatus.risk_assessment && (
+                    <div className="mt-4">
+                        <h4 className="font-semibold text-gray-900 mb-1">Risk Assessment:</h4>
+                        <p className="text-sm text-gray-700 whitespace-pre-line">{caseStatus.risk_assessment}</p>
+                    </div>
+                  )}
+                  {/* Show Recommended Action if available */}
+                  {caseStatus.recommended_action && (
+                    <div className="mt-4">
+                        <h4 className="font-semibold text-gray-900 mb-1">Recommendation:</h4>
+                        <p className="text-sm text-gray-700 whitespace-pre-line">{caseStatus.recommended_action}</p>
                     </div>
                   )}
                 </div>
@@ -545,7 +582,7 @@ export default function LegalCaseIntakeDemo() {
                     />
                     <ProcessingButton
                       onClick={submitAdditionalInfo}
-                      isProcessing={isProcessing}
+                      isLoading={isProcessing}
                       disabled={!additionalInfo.trim()}
                       className="w-full"
                     >

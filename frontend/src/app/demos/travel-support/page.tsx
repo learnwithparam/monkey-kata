@@ -9,6 +9,11 @@ import {
 import ChatInput from '@/components/demos/ChatInput';
 import AlertMessage from '@/components/demos/AlertMessage';
 import ChatMessages, { ChatMessage } from '@/components/demos/ChatMessages';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+
+interface StepData extends ThinkingEvent {
+  id: string;
+}
 
 interface ToolCall {
   tool_name: string;
@@ -31,6 +36,7 @@ export default function TravelSupportPage() {
   const [expandedToolCalls, setExpandedToolCalls] = useState<Set<string>>(new Set());
   const [sessionId] = useState(() => `session_${Date.now()}`);
   const [availableTools, setAvailableTools] = useState<Tool[]>([]);
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
 
   useEffect(() => {
     // Fetch available tools on mount
@@ -71,6 +77,7 @@ export default function TravelSupportPage() {
     setMessage('');
     setIsAsking(true);
     setCurrentAnswer('');
+    setWorkflowSteps([]);
 
     // Add user message
     addMessage({
@@ -133,6 +140,41 @@ export default function TravelSupportPage() {
                 return;
               }
 
+                if (data.thinking) {
+                  const step = data.thinking as ThinkingEvent;
+                  
+                  // Update the typing message with thinking steps
+                  setMessages(prev => {
+                    const newMessages = [...prev];
+                    const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
+                    if (typingMessage) {
+                      const currentThinking = typingMessage.thinking || [];
+                      // Check for duplicates
+                      const isDuplicate = currentThinking.some(
+                        s => s.content === step.content && s.category === step.category
+                      );
+                      
+                      if (!isDuplicate) {
+                        typingMessage.thinking = [...currentThinking, step];
+                      }
+                    }
+                    return newMessages;
+                  });
+                  
+                  // Also update workflow steps for the side panel (optional, but good for dual view)
+                  setWorkflowSteps(prev => {
+                    const newSteps = [...prev];
+                    const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+                    
+                    if (existingStepIndex >= 0) {
+                      newSteps[existingStepIndex] = { ...step, id: newSteps[existingStepIndex].id };
+                    } else {
+                      newSteps.push({ ...step, id: Math.random().toString(36).substr(2, 9) });
+                    }
+                    return newSteps;
+                  });
+                }
+
               if (data.tool_calls) {
                 finalToolCalls = data.tool_calls;
                 // Update message with tool calls
@@ -156,6 +198,16 @@ export default function TravelSupportPage() {
                   const newMessages = [...prev];
                   const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
                   if (typingMessage) {
+                    
+                    // Mark thinking as complete when content starts arriving
+                    const currentThinking = typingMessage.thinking || [];
+                    const hasComplete = currentThinking.some(e => e.category === 'complete');
+                    
+                    if (!hasComplete && currentThinking.length > 0) {
+                       // Add a visual completion step if not present
+                       // This helps the UI transition from thinking to answering
+                    }
+
                     // Use accumulated chunks for streaming display
                     typingMessage.content = finalAnswer;
                     typingMessage.isTyping = false;
@@ -265,11 +317,22 @@ export default function TravelSupportPage() {
                     return (
                       <div 
                         key={index} 
-                        className="group border border-gray-200 rounded-lg p-3 hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-200"
+                        className={`group border rounded-lg p-3 transition-all duration-200 ${
+                            tool.name === 'convert_currency' 
+                            ? 'border-purple-200 bg-purple-50/50 hover:border-purple-300' 
+                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
+                        }`}
                       >
-                        <h3 className="font-semibold text-gray-900 text-sm mb-1.5">
-                          {tool.name.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
-                        </h3>
+                        <div className="flex justify-between items-start mb-1.5">
+                            <h3 className="font-semibold text-gray-900 text-sm">
+                            {tool.name.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                            </h3>
+                            {tool.name === 'convert_currency' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                                  MCP
+                                </span>
+                            )}
+                        </div>
                         <p className="text-xs text-gray-600 leading-relaxed mb-2">
                           {conciseDesc}
                         </p>
@@ -342,12 +405,6 @@ export default function TravelSupportPage() {
 
               <div className="border-t border-gray-200 pt-4 mt-auto">
                   <div className="space-y-3">
-                    {isAsking && (
-                      <AlertMessage
-                        type="info"
-                      message="Processing your request..."
-                      />
-                    )}
                     
                     <ChatInput
                       value={message}

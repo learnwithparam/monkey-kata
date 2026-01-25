@@ -1,16 +1,16 @@
 services:
   api:
     build:
-      context: ./api
+      context: ./backend
       dockerfile: Dockerfile
     ports:
       - "4010:8000"
     volumes:
-      - ./api:/app
-      # Exclude __pycache__ from bind mount to use Docker's layer caching
+      - ./backend:/app
+      # Exclude __pycache__ and .venv from bind mount to use Docker's layer caching and build-time dependencies
       - /app/__pycache__
     env_file:
-      - ./api/.env
+      - ./backend/.env
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
@@ -18,9 +18,9 @@ services:
       - API_PORT=8000
       - DEBUG=True
       - FRONTEND_URL=http://localhost:4020
-    command: python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: /venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     restart: unless-stopped
 
   frontend:
@@ -39,14 +39,14 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:4010
     command: npm run dev
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     depends_on:
       - api
     restart: unless-stopped
 
   # Vector Database - Qdrant
   qdrant:
-    image: qdrant/qdrant:v1.7.0
+    image: qdrant/qdrant:v1.14.0
     ports:
       - "6333:6333"
       - "6334:6334"
@@ -56,7 +56,7 @@ services:
       - QDRANT__SERVICE__HTTP_PORT=6333
       - QDRANT__SERVICE__GRPC_PORT=6334
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     restart: unless-stopped
 
   # Caching - Redis
@@ -68,26 +68,26 @@ services:
       - redis_data:/data
     command: redis-server --appendonly yes
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     restart: unless-stopped
 
   # Restaurant Booking Voice Agent
   restaurant-agent:
     build:
-      context: ./api
+      context: ./backend
       dockerfile: Dockerfile
     working_dir: /app/demos/restaurant_booking
     volumes:
-      - ./api:/app
+      - ./backend:/app
       - /app/__pycache__
     env_file:
-      - ./api/.env
+      - ./backend/.env
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-    command: python restaurant_agent.py dev
+    command: /venv/bin/python restaurant_agent.py dev
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     depends_on:
       - api
     restart: unless-stopped
@@ -95,20 +95,20 @@ services:
   # Medical Office Triage Voice Agent System
   medical-triage-agent:
     build:
-      context: ./api
+      context: ./backend
       dockerfile: Dockerfile
     working_dir: /app/demos/medical_office_triage
     volumes:
-      - ./api:/app
+      - ./backend:/app
       - /app/__pycache__
     env_file:
-      - ./api/.env
+      - ./backend/.env
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-    command: python triage_agent.py dev
+    command: /venv/bin/python triage_agent.py dev
     networks:
-      - ai-bootcamp-network
+      - ai-engineering-network
     depends_on:
       - api
     restart: unless-stopped
@@ -120,5 +120,5 @@ volumes:
   redis_data:
 
 networks:
-  ai-bootcamp-network:
+  ai-engineering-network:
     driver: bridge

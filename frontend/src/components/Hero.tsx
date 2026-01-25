@@ -16,15 +16,15 @@ export default function Hero() {
 
       {/* Main heading */}
       <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold mb-4 sm:mb-6 leading-tight px-2">
-        <span className="block mb-2">AI Bootcamp for</span>
+        <span className="block mb-2 text-brand-purple">AI Engineering</span>
         <span className="block bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-          Software Engineers
+          by Param Harrison
         </span>
       </h1>
       
       {/* Subtitle */}
       <p className="text-base sm:text-lg md:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed px-2 mb-8">
-        Hands-on demonstrations from each week of the <strong className="text-gray-900">AI Bootcamp for Software Engineers</strong>
+        Hands-on demonstrations from <strong className="text-gray-900">AI Engineering by Param Harrison</strong>
       </p>
 
       {/* Decorative line */}

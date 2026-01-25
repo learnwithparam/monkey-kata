@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { 
   MagnifyingGlassIcon,
@@ -8,11 +8,15 @@ import {
   DocumentTextIcon,
   SparklesIcon,
   ArrowPathIcon,
+  CommandLineIcon,
+  ListBulletIcon
 } from '@heroicons/react/24/outline';
 import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import StructuredAnalysisReport from '@/components/demos/StructuredAnalysisReport';
+import ThinkingBlock from '@/components/demos/ThinkingBlock';
+import LiveLogViewer from '@/components/demos/LiveLogViewer';
 
 interface AnalysisRequest {
   company_name: string;
@@ -20,6 +24,23 @@ interface AnalysisRequest {
   focus_areas?: string[];
 }
 
+interface StepData {
+  timestamp: string;
+  message: string;
+  agent?: string;
+  tool?: string;
+  target?: string;
+  category?: string;
+  metadata?: Record<string, unknown>;
+  progress?: number;
+  duration_ms?: number;
+}
+
+interface LogEntry {
+  timestamp: string;
+  content: string;
+  type: string;
+}
 
 interface AnalysisResult {
   session_id: string;
@@ -28,13 +49,7 @@ interface AnalysisResult {
   competitors: string[];
   report?: string;
   error?: string;
-  steps?: Array<{
-    timestamp: string;
-    message: string;
-    agent?: string;
-    tool?: string;
-    target?: string;
-  }>;
+  steps?: StepData[];
 }
 
 interface AnalysisResponse {
@@ -43,13 +58,7 @@ interface AnalysisResponse {
   message: string;
   company_name: string;
   competitors: string[];
-  steps?: Array<{
-    timestamp: string;
-    message: string;
-    agent?: string;
-    tool?: string;
-    target?: string;
-  }>;
+  steps?: StepData[];
 }
 
 export default function CompetitorAnalysisDemo() {
@@ -61,6 +70,11 @@ export default function CompetitorAnalysisDemo() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // New State for Tabs
+  const [activeTab, setActiveTab] = useState<'workflow' | 'logs'>('workflow');
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
 
   const startAnalysis = async () => {
     if (!companyName.trim()) {
@@ -81,6 +95,10 @@ export default function CompetitorAnalysisDemo() {
     setIsProcessing(true);
     setError(null);
     setAnalysisResult(null);
+    setWorkflowSteps([]);
+    setLogs([]);
+    setActiveTab('logs'); // Auto-switch to logs to show activity
+
     setAnalysisStatus({
       session_id: '',
       status: 'processing',
@@ -118,9 +136,7 @@ export default function CompetitorAnalysisDemo() {
       }
 
       const decoder = new TextDecoder('utf-8');
-      let sessionId = '';
-      const steps: Array<{ timestamp: string; message: string }> = [];
-
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -131,21 +147,19 @@ export default function CompetitorAnalysisDemo() {
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             try {
-              // Safely parse JSON, handle malformed JSON from streaming
               const jsonStr = line.slice(6).trim();
-              if (!jsonStr) continue; // Skip empty lines
+              if (!jsonStr) continue;
               
               let data;
               try {
                 data = JSON.parse(jsonStr);
               } catch (parseErr) {
-                // If JSON parsing fails, skip this line (likely incomplete or malformed)
                 console.warn('Failed to parse JSON line:', jsonStr.substring(0, 100));
                 continue;
               }
 
               if (data.status === 'connected') {
-                // Connection established
+                setSessionId(data.session_id);
                 setAnalysisStatus(prev => prev ? {
                   ...prev,
                   message: data.message || 'Starting analysis...',
@@ -154,26 +168,52 @@ export default function CompetitorAnalysisDemo() {
                 continue;
               }
 
+              // Handle Logs
+              if (data.type === 'log') {
+                setLogs(prev => [...prev, {
+                  timestamp: data.timestamp,
+                  content: data.content,
+                  type: 'log'
+                }]);
+                continue;
+              }
+
+              // Handle Workflow Steps (Thinking Events)
               if (data.step) {
-                // Real-time step update - add to steps array
-                const newSteps = [...steps, data.step];
-                steps.length = 0; // Clear array
-                steps.push(...newSteps); // Add all steps back
-                
-                setAnalysisResult(prev => ({
-                  ...prev || {
-                    session_id: sessionId || '',
-                    status: 'processing',
-                    company_name: companyName.trim(),
-                    competitors: competitorsList,
-                  },
-                  steps: newSteps
-                }));
-                setAnalysisStatus(prev => prev ? {
-                  ...prev,
-                  message: data.step.message,
-                  status: 'researching'
-                } : null);
+                // If the "step" is actually a log wrapped in step structure (legacy)
+                if (data.step.type === 'log') {
+                   setLogs(prev => [...prev, {
+                    timestamp: data.step.timestamp,
+                    content: data.step.content,
+                    type: 'log'
+                  }]);
+                  continue;
+                }
+
+                // Real thinking/workflow step
+                setWorkflowSteps(prev => {
+                  const newSteps = [...prev, data.step];
+                  
+                  // Update status message with latest step
+                  setAnalysisStatus(current => current ? {
+                    ...current,
+                    message: data.step.message,
+                    status: 'researching'
+                  } : null);
+                  
+                  // Update result steps
+                  setAnalysisResult(res => ({
+                     ...res || {
+                        session_id: sessionId || '',
+                        status: 'processing',
+                        company_name: companyName.trim(),
+                        competitors: competitorsList,
+                     },
+                     steps: newSteps
+                  }));
+                  
+                  return newSteps;
+                });
               }
 
               if (data.done) {
@@ -188,7 +228,7 @@ export default function CompetitorAnalysisDemo() {
                     },
                     report: data.report,
                     status: 'completed',
-                    steps: steps
+                    steps: workflowSteps
                   }));
                   setAnalysisStatus(prev => prev ? {
                     ...prev,
@@ -234,6 +274,9 @@ export default function CompetitorAnalysisDemo() {
     setAnalysisResult(null);
     setIsProcessing(false);
     setError(null);
+    setWorkflowSteps([]);
+    setLogs([]);
+    setActiveTab('workflow');
   };
 
   return (
@@ -333,9 +376,9 @@ export default function CompetitorAnalysisDemo() {
 
               {/* Action Buttons */}
               <div className="flex gap-4">
-                <ProcessingButton
+              <ProcessingButton
                   onClick={startAnalysis}
-                  isProcessing={isProcessing}
+                  isLoading={isProcessing}
                   disabled={!companyName.trim() || !competitors.trim()}
                   className="flex-1"
                 >
@@ -356,95 +399,92 @@ export default function CompetitorAnalysisDemo() {
 
             {/* Status & Results */}
             <div className="bg-white rounded-xl p-6 sm:p-8 shadow-sm border border-gray-200">
-              <div className="flex items-center mb-6 sm:mb-8">
-                <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mr-4">
-                  <ChartBarIcon className="w-6 h-6 text-gray-600" />
+              <div className="flex items-center justify-between mb-6 sm:mb-8">
+                <div className="flex items-center">
+                    <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center mr-4">
+                    <ChartBarIcon className="w-6 h-6 text-gray-600" />
+                    </div>
+                    <div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Analysis Status</h2>
+                    <p className="text-sm sm:text-base text-gray-600">Track your analysis progress</p>
+                    </div>
                 </div>
-                <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Analysis Status</h2>
-                  <p className="text-sm sm:text-base text-gray-600">Track your analysis progress</p>
-                </div>
+                
+                {/* View Switcher - Only show if we have data */}
+                {(analysisStatus || logs.length > 0) && (
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                        <button 
+                            onClick={() => setActiveTab('workflow')}
+                            className={`p-2 rounded-md transition-all ${activeTab === 'workflow' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            title="Workflow View"
+                        >
+                            <ListBulletIcon className="w-5 h-5" />
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('logs')}
+                            className={`p-2 rounded-md transition-all ${activeTab === 'logs' ? 'bg-white shadow-sm text-green-600' : 'text-gray-500 hover:text-gray-700'}`}
+                            title="Live Logs View"
+                        >
+                            <CommandLineIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
               </div>
 
-            {!analysisStatus && !analysisResult && (
+            {!analysisStatus && !analysisResult && logs.length === 0 && (
               <div className="text-center py-12 text-gray-500">
                 <DocumentTextIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                 <p>Enter company and competitor information to start analysis</p>
               </div>
             )}
 
-            {analysisStatus && (
+            {(analysisStatus || logs.length > 0) && (
               <div className="mb-6">
-                <StatusIndicator
-                  status={analysisStatus.status}
-                  message={analysisStatus.message}
-                />
-                
-                {/* Agent Workflow Steps */}
-                {(analysisResult?.steps && analysisResult.steps.length > 0) && (
-                  <div className="mt-6 space-y-3">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <SparklesIcon className="h-4 w-4 text-blue-600 mr-2" />
-                      Multi-Agent Workflow
-                    </h3>
-                    <div className="space-y-3 max-h-96 overflow-y-auto">
-                      {analysisResult.steps.map((step, index) => {
-                        const getStatusColor = () => {
-                          if (step.tool === 'agent_complete') return 'bg-green-500';
-                          if (step.tool === 'agent_invoke') return 'bg-blue-500 animate-pulse';
-                          if (step.tool === 'search_web' || step.tool === 'scrape_website') return 'bg-purple-500 animate-pulse';
-                          return 'bg-gray-400';
-                        };
-
-                        const getAgentColor = (agent: string | undefined) => {
-                          if (!agent) return 'bg-gray-200 text-gray-700';
-                          if (agent.includes('Research')) return 'bg-blue-100 text-blue-700';
-                          if (agent.includes('Analysis')) return 'bg-purple-100 text-purple-700';
-                          if (agent.includes('Report')) return 'bg-green-100 text-green-700';
-                          return 'bg-gray-100 text-gray-700';
-                        };
-
-                        return (
-                          <div
-                            key={index}
-                            className="flex items-start gap-3 p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-all"
-                          >
-                            <div className="flex-shrink-0 mt-0.5">
-                              <div className={`w-3 h-3 ${getStatusColor()} rounded-full`}></div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              {step.agent && (
-                                <div className="flex items-center gap-2 mb-2">
-                                  <span className={`text-xs font-semibold px-2 py-1 rounded ${getAgentColor(step.agent)}`}>
-                                    {step.agent}
-                                  </span>
-                                  {step.tool && step.tool !== 'agent_invoke' && step.tool !== 'agent_complete' && (
-                                    <span className="text-xs text-gray-600 font-mono bg-gray-100 px-2 py-1 rounded">
-                                      {step.tool}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                              <p className="text-sm font-medium text-gray-900 break-words">
-                                {step.message}
-                              </p>
-                              {step.target && (
-                                <p className="text-xs text-gray-600 mt-1 font-mono bg-gray-50 px-2 py-1 rounded inline-block">
-                                  {step.target}
-                                </p>
-                              )}
-                              <p className="text-xs text-gray-500 mt-2">
-                                {new Date(step.timestamp).toLocaleTimeString()}
-                              </p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                {analysisStatus && (
+                    <StatusIndicator
+                    status={analysisStatus.status}
+                    message={analysisStatus.message}
+                    />
                 )}
                 
-                {analysisStatus.status === 'processing' || analysisStatus.status === 'researching' ? (
+                <div className="mt-6">
+                    {/* Workflow Tab */}
+                    <div className={activeTab === 'workflow' ? 'block' : 'hidden'}>
+                        <ThinkingBlock
+                            events={workflowSteps.map(step => ({
+                                category: step.category || (
+                                    step.tool === 'agent_complete' ? 'complete' :
+                                    step.tool === 'agent_invoke' ? 'agent' :
+                                    step.tool === 'search_web' || step.tool === 'scrape_website' ? 'tool_use' :
+                                    'processing'
+                                ),
+                                content: step.message,
+                                timestamp: step.timestamp,
+                                agent: step.agent,
+                                tool: step.tool,
+                                target: step.target,
+                                metadata: step.metadata,
+                                progress: step.progress,
+                                duration_ms: step.duration_ms,
+                            }))}
+                            title="Multi-Agent Workflow"
+                            maxHeight="400px"
+                            autoScroll={true}
+                            collapsible={false} // Always visible if in this tab
+                            defaultExpanded={true}
+                        />
+                    </div>
+
+                    {/* Logs Tab */}
+                    <div className={activeTab === 'logs' ? 'block' : 'hidden'}>
+                        <LiveLogViewer 
+                            logs={logs}
+                            isVisible={true}
+                        />
+                    </div>
+                </div>
+                
+                {analysisStatus && (analysisStatus.status === 'processing' || analysisStatus.status === 'researching') ? (
                   <div className="mt-4">
                     <div className="flex items-center text-sm text-gray-600">
                       <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
@@ -454,6 +494,44 @@ export default function CompetitorAnalysisDemo() {
                     </div>
                   </div>
                 ) : null}
+
+                {/* Success Card - Only show when complete */}
+                {analysisStatus && analysisStatus.status === 'completed' && (
+                    <div className="mt-6 p-6 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                                <span className="text-green-600 text-lg">✓</span>
+                            </div>
+                            <h4 className="text-lg font-semibold text-green-900">Analysis Completed Successfully</h4>
+                        </div>
+                        <div className="space-y-2 mb-4">
+                            <div className="flex items-center gap-2 text-sm text-green-800">
+                                <span className="font-semibold">• Research Phase:</span>
+                                <span>Gathered data on {competitors.split(',').length} competitors</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-green-800">
+                                <span className="font-semibold">• Strategic Analysis:</span>
+                                <span>Identified key opportunities and threats</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-green-800">
+                                <span className="font-semibold">• Report Generation:</span>
+                                <span>Structured JSON report created</span>
+                            </div>
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-green-200">
+                            <p className="text-sm font-semibold text-green-900 mb-2">Next Steps:</p>
+                            <p className="text-sm text-green-800">
+                                Review the detailed report below. You can download the JSON data or start a new analysis for a different market segment.
+                            </p>
+                        </div>
+                        <button
+                            onClick={resetForm}
+                            className="mt-4 w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                        >
+                            Start New Analysis
+                        </button>
+                    </div>
+                )}
               </div>
             )}
 
@@ -481,4 +559,3 @@ export default function CompetitorAnalysisDemo() {
     </div>
   );
 }
-

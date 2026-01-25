@@ -13,6 +13,9 @@ import ChatInput from '@/components/demos/ChatInput';
 import AlertMessage from '@/components/demos/AlertMessage';
 import FileUpload from '@/components/demos/FileUpload';
 import ChatMessages, { ChatMessage } from '@/components/demos/ChatMessages';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+
+
 
 interface ProcessingStatus {
   document_id: string;
@@ -41,6 +44,7 @@ export default function LegalContractAnalyzerDemo() {
   const [currentAnswer, setCurrentAnswer] = useState('');
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [keyTerms, setKeyTerms] = useState<KeyTerm[]>([]);
+
   
   const questionInputRef = useRef<HTMLInputElement>(null);
 
@@ -229,6 +233,7 @@ export default function LegalContractAnalyzerDemo() {
     setIsAsking(true);
     setCurrentAnswer('');
 
+
     // Add user message
     addMessage({
       type: 'user',
@@ -241,6 +246,7 @@ export default function LegalContractAnalyzerDemo() {
       id: typingMessageId,
       type: 'assistant',
       content: '',
+      thinking: [], // Initialize thinking array
       isTyping: true,
     });
 
@@ -294,6 +300,28 @@ export default function LegalContractAnalyzerDemo() {
                 return;
               }
 
+                if (data.thinking) {
+                  console.log('Received thinking step:', data.thinking);
+                  const step = data.thinking as ThinkingEvent;
+                  
+                  setMessages(prev => {
+                    const newMessages = [...prev];
+                    const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
+                    if (typingMessage) {
+                      const currentThinking = typingMessage.thinking || [];
+                      // Check for duplicates
+                      const isDuplicate = currentThinking.some(
+                        s => s.content === step.content && s.category === step.category
+                      );
+                      
+                      if (!isDuplicate) {
+                        typingMessage.thinking = [...currentThinking, step];
+                      }
+                    }
+                    return newMessages;
+                  });
+                }
+
               if (data.sources) {
                 console.log('Received sources:', data.sources);
                 finalSources = data.sources;
@@ -309,6 +337,21 @@ export default function LegalContractAnalyzerDemo() {
                   const newMessages = [...prev];
                   const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
                   if (typingMessage) {
+                    // Ensure thinking process is marked as complete when content starts arriving
+                    const currentThinking = typingMessage.thinking || [];
+                    const hasComplete = currentThinking.some(e => e.category === 'complete');
+                    
+                    if (!hasComplete && currentThinking.length > 0) {
+                      typingMessage.thinking = [
+                        ...currentThinking,
+                        {
+                          category: 'complete',
+                          content: 'Analysis complete',
+                          timestamp: new Date().toISOString()
+                        }
+                      ];
+                    }
+
                     typingMessage.content = finalAnswer;
                     typingMessage.isTyping = false;
                   }
@@ -323,6 +366,21 @@ export default function LegalContractAnalyzerDemo() {
                   const newMessages = [...prev];
                   const typingMessage = newMessages.find(msg => msg.id === typingMessageId);
                   if (typingMessage) {
+                    // Fallback: Ensure thinking process is marked as complete if not done yet
+                    const currentThinking = typingMessage.thinking || [];
+                    const hasComplete = currentThinking.some(e => e.category === 'complete');
+                    
+                    if (!hasComplete && currentThinking.length > 0) {
+                      typingMessage.thinking = [
+                        ...currentThinking,
+                        {
+                          category: 'complete',
+                          content: 'Analysis complete',
+                          timestamp: new Date().toISOString()
+                        }
+                      ];
+                    }
+
                     typingMessage.content = finalAnswer;
                     typingMessage.sources = finalSources;
                     typingMessage.isTyping = false;
@@ -390,7 +448,7 @@ export default function LegalContractAnalyzerDemo() {
             Upload any document (PDF, Word, text) and get instant AI-powered analysis, key insights, and intelligent Q&A about your documents.
           </p>
           <Link
-            href="/challenges/website-rag"
+            href="/challenges/document-qa-chatbot"
             className="bg-white text-gray-900 font-semibold py-3 px-6 rounded-lg border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm hover:shadow-md"
           >
             View Learning Challenges
@@ -519,12 +577,7 @@ export default function LegalContractAnalyzerDemo() {
                       />
                     )}
                     
-                    {isAsking && (
-                      <AlertMessage
-                        type="info"
-                        message="AI is analyzing your document and will respond shortly..."
-                      />
-                    )}
+
                     
                     <ChatInput
                       value={question}

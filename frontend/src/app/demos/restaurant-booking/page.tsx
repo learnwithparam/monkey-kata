@@ -8,6 +8,11 @@ import { RoomAudioRenderer, RoomContext } from '@livekit/components-react';
 import SubmitButton from '@/components/demos/SubmitButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import VoiceInterface from '@/components/demos/VoiceInterface';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+
+interface StepData extends ThinkingEvent {
+  id: string;
+}
 
 interface ConnectionDetails {
   server_url: string;
@@ -22,6 +27,7 @@ export default function RestaurantBookingPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState('');
   const [participantName, setParticipantName] = useState('');
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
   const room = useMemo(() => new Room(), []);
 
   useEffect(() => {
@@ -34,12 +40,38 @@ export default function RestaurantBookingPage() {
       setError(`Media device error: ${err.message}`);
     };
 
+    const handleDataReceived = (payload: Uint8Array) => {
+      const decoder = new TextDecoder();
+      const str = decoder.decode(payload);
+      try {
+        const data = JSON.parse(str);
+        if (data.thinking) {
+          const step = data.thinking as ThinkingEvent;
+          setWorkflowSteps(prev => {
+            const newSteps = [...prev];
+            const existingStepIndex = newSteps.findIndex(s => s.content === step.content && s.category === step.category);
+            
+            if (existingStepIndex >= 0) {
+              newSteps[existingStepIndex] = { ...step, id: newSteps[existingStepIndex].id };
+            } else {
+              newSteps.push({ ...step, id: Math.random().toString(36).substr(2, 9) });
+            }
+            return newSteps;
+          });
+        }
+      } catch (err) {
+        console.error('Error parsing data message:', err);
+      }
+    };
+
     room.on(RoomEvent.Disconnected, onDisconnected);
     room.on(RoomEvent.MediaDevicesError, onMediaDevicesError);
+    room.on(RoomEvent.DataReceived, handleDataReceived);
 
     return () => {
       room.off(RoomEvent.Disconnected, onDisconnected);
       room.off(RoomEvent.MediaDevicesError, onMediaDevicesError);
+      room.off(RoomEvent.DataReceived, handleDataReceived);
       room.disconnect();
     };
   }, [room]);
@@ -95,6 +127,7 @@ export default function RestaurantBookingPage() {
     room.disconnect();
     setIsConnected(false);
     setConnectionDetails(null);
+    setWorkflowSteps([]);
   };
 
   return (
@@ -169,6 +202,13 @@ export default function RestaurantBookingPage() {
                   "I'm ready to place my order"
                 ]}
               />
+              <div className="mt-8">
+                <ThinkingBlock 
+                  events={workflowSteps} 
+                  title="Order Logic & Processing" 
+                  autoScroll={true}
+                />
+              </div>
             </RoomContext.Provider>
           )}
         </div>

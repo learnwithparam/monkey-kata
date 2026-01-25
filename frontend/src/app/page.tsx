@@ -5,7 +5,7 @@ import WeekSection from '@/components/WeekSection';
 import DemoCard from '@/components/DemoCard';
 import About from '@/components/About';
 import Footer from '@/components/Footer';
-import { weeksData } from '../../src/data/demos';
+import { categoriesData } from '../../src/data/demos';
 
 export default function Home() {
   return (
@@ -24,14 +24,12 @@ export default function Home() {
             <Hero />
 
             <div className="space-y-16 sm:space-y-20 md:space-y-24">
-              {weeksData.map((week: { weekNumber: string; weekTitle: string; weekColor: string; demos: { icon: React.ReactNode; title: string; description: string; demoHref?: string; challengeHref?: string; isComingSoon?: boolean }[] }, index: number) => (
+              {categoriesData.map((category, index: number) => (
                 <WeekSection
                   key={index}
-                  weekNumber={week.weekNumber}
-                  weekTitle={week.weekTitle}
-                  weekColor={week.weekColor}
+                  title={category.title}
                 >
-                  {week.demos.map((demo: { icon: React.ReactNode; title: string; description: string; demoHref?: string; challengeHref?: string; isComingSoon?: boolean }, demoIndex: number) => (
+                  {category.demos.map((demo, demoIndex) => (
                     <DemoCard
                       key={demoIndex}
                       icon={demo.icon}
@@ -40,6 +38,7 @@ export default function Home() {
                       demoHref={demo.demoHref}
                       challengeHref={demo.challengeHref}
                       isComingSoon={demo.isComingSoon}
+                      learnings={demo.learnings}
                     />
                   ))}
                 </WeekSection>

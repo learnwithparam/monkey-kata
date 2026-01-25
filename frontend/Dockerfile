@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.4
-FROM node:18-slim
+FROM node:22-slim
 
 # Install tini for proper signal handling (with BuildKit cache)
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

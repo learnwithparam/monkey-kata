@@ -8,6 +8,7 @@ import {
   CheckBadgeIcon 
 } from '@heroicons/react/24/outline';
 import { normalizeSpacing } from '@/utils/textFormatting';
+import ThinkingBlock, { ThinkingEvent } from './ThinkingBlock';
 
 export interface ChatMessage {
   id: string;
@@ -31,6 +32,7 @@ export interface ChatMessage {
     step_number: number;
     content: Record<string, unknown>;
   };
+  thinking?: ThinkingEvent[];
 }
 
 interface ChatMessagesProps {
@@ -131,7 +133,7 @@ export default function ChatMessages({
                         : 'bg-blue-50 text-blue-800 border border-blue-200 rounded-bl-sm'
                     }`}
                   >
-                    {message.isTyping ? (
+                    {message.isTyping && (!message.thinking || message.thinking.length === 0) ? (
                       <div className="flex items-center space-x-2">
                         <div className="flex space-x-1.5">
                           <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
@@ -142,6 +144,16 @@ export default function ChatMessages({
                       </div>
                     ) : (
                       <>
+                        {message.thinking && message.thinking.length > 0 && (
+                          <div className="mb-4">
+                            <ThinkingBlock 
+                              events={message.thinking} 
+                              title="Thinking Process"
+                              className="w-full"
+                              defaultExpanded={false}
+                            />
+                          </div>
+                        )}
                         {message.type === 'system' && (
                           <div className="flex items-start space-x-2 mb-3">
                             {message.content.includes('Successfully') || message.content.includes('completed') ? (

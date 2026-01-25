@@ -12,11 +12,19 @@ import {
   UserIcon,
   CogIcon,
   SparklesIcon,
+  ListBulletIcon,
+  CommandLineIcon,
 } from '@heroicons/react/24/outline';
 import StatusIndicator from '@/components/demos/StatusIndicator';
 import ProcessingButton from '@/components/demos/ProcessingButton';
 import AlertMessage from '@/components/demos/AlertMessage';
 import FileUpload from '@/components/demos/FileUpload';
+import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+import LiveLogViewer from '@/components/demos/LiveLogViewer';
+
+interface StepData extends ThinkingEvent {
+  id: string;
+}
 
 // Component to format reasoning text with proper structure
 const FormattedReasoning = ({ reason }: { reason: string }) => {
@@ -138,6 +146,12 @@ interface TopCandidatesResponse {
   all_candidates: ScoredLead[];
 }
 
+interface LogEntry {
+  timestamp: string;
+  content: string;
+  type: string;
+}
+
 interface EmailResult {
   candidate_id: string;
   candidate_name: string;
@@ -157,6 +171,9 @@ export default function LeadScoringDemo() {
   const [isGeneratingEmails, setIsGeneratingEmails] = useState(false);
   const [emails, setEmails] = useState<EmailResult[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
+  const [activeTab, setActiveTab] = useState<'workflow' | 'logs'>('workflow');
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadLeads = async () => {
@@ -170,6 +187,9 @@ export default function LeadScoringDemo() {
     setTopCandidates([]);
     setAllCandidates([]);
     setEmails([]);
+    setWorkflowSteps([]);
+    setLogs([]);
+    setActiveTab('logs'); // Auto-switch to logs to show activity
 
     try {
       const formData = new FormData();
@@ -192,13 +212,87 @@ export default function LeadScoringDemo() {
       setSessionId(result.session_id);
       setProcessingStatus(result);
       
-      // Start polling for status updates
-      pollProcessingStatus(result.session_id);
+      // Start streaming for status updates and thinking steps
+      startStreamingUpdates(result.session_id);
     } catch (error) {
       console.error('Error uploading leads:', error);
       setError('Failed to process leads. Please try again.');
       setIsProcessing(false);
     }
+  };
+
+  const startStreamingUpdates = async (sessionId: string) => {
+    setWorkflowSteps([]);
+    const eventSource = new EventSource(`${process.env.NEXT_PUBLIC_API_URL}/lead-scoring/stream/${sessionId}`);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.thinking) {
+          const step = data.thinking as ThinkingEvent;
+          
+          // Add to workflow steps
+          setWorkflowSteps(prev => {
+            const newSteps = [...prev];
+            // Check if this is an update to an existing step (same category and content prefix)
+            const existingStepIndex = newSteps.findIndex(s => 
+              s.category === step.category && 
+              s.agent === step.agent &&
+              (s.content === step.content || (step.content.length > 20 && s.content.startsWith(step.content.substring(0, 20))))
+            );
+            
+            if (existingStepIndex >= 0) {
+              newSteps[existingStepIndex] = { ...step, id: newSteps[existingStepIndex].id };
+            } else {
+              newSteps.push({ ...step, id: Math.random().toString(36).substr(2, 9) });
+            }
+            return newSteps;
+          });
+
+          // Add to logs
+          setLogs(prev => [...prev, {
+            timestamp: step.timestamp || new Date().toISOString(),
+            content: `[${step.category.toUpperCase()}] ${step.agent ? `(${step.agent}) ` : ''}${step.content}`,
+            type: 'log'
+          }]);
+        }
+        
+        if (data.status_update) {
+          const status = data.status_update;
+          setProcessingStatus(status);
+          
+          if (status.partial_results && status.partial_results.length > 0) {
+            setAllCandidates(status.partial_results);
+            const top3 = status.partial_results.slice(0, 3);
+            setTopCandidates(top3);
+          }
+        }
+        
+        if (data.done) {
+          eventSource.close();
+          setIsProcessing(false);
+          fetchTopCandidates(sessionId);
+        }
+        
+        if (data.error) {
+          setError(data.error);
+          eventSource.close();
+          setIsProcessing(false);
+        }
+      } catch (e) {
+        console.error('Error parsing SSE data:', e);
+      }
+    };
+
+    eventSource.onerror = (err) => {
+      console.error('EventSource failed:', err);
+      eventSource.close();
+      // fallback to polling if streaming fails
+      pollProcessingStatus(sessionId);
+    };
+
+    return () => eventSource.close();
   };
 
   const pollProcessingStatus = async (sessionId: string) => {
@@ -281,8 +375,8 @@ export default function LeadScoringDemo() {
       const result = await response.json();
       setProcessingStatus(result);
       
-      // Start polling again
-      pollProcessingStatus(sessionId);
+      // Start streaming again
+      startStreamingUpdates(sessionId);
     } catch (error) {
       console.error('Error submitting feedback:', error);
       setError('Failed to submit feedback');
@@ -525,6 +619,48 @@ export default function LeadScoringDemo() {
                     progress={processingStatus.progress ?? (processingStatus.status === 'completed' ? 100 : processingStatus.status === 'error' ? 0 : 0)}
                     documentsCount={processingStatus.total_leads}
                   />
+
+                  {/* View Switcher */}
+                  <div className="flex items-center justify-between mt-6 mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">Analysis Progress</h3>
+                    <div className="flex bg-gray-100 p-1 rounded-lg">
+                      <button 
+                        onClick={() => setActiveTab('workflow')}
+                        className={`p-2 rounded-md transition-all ${activeTab === 'workflow' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        title="Workflow View"
+                      >
+                        <ListBulletIcon className="w-5 h-5" />
+                      </button>
+                      <button 
+                        onClick={() => setActiveTab('logs')}
+                        className={`p-2 rounded-md transition-all ${activeTab === 'logs' ? 'bg-white shadow-sm text-green-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        title="Live Logs View"
+                      >
+                        <CommandLineIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Wrapper for Tabs */}
+                  <div>
+                    {/* Workflow Tab */}
+                    <div className={activeTab === 'workflow' ? 'block' : 'hidden'}>
+                      <ThinkingBlock 
+                        events={workflowSteps} 
+                        title="Agent Analysis thinking" 
+                        autoScroll={true}
+                        maxHeight="400px"
+                      />
+                    </div>
+
+                    {/* Logs Tab */}
+                    <div className={activeTab === 'logs' ? 'block' : 'hidden'}>
+                      <LiveLogViewer 
+                        logs={logs}
+                        isVisible={true}
+                      />
+                    </div>
+                  </div>
                   
                   {processingStatus.current_candidate && processingStatus.status === 'scoring' && (
                     <div className="bg-white rounded-lg p-3 border border-gray-200">
