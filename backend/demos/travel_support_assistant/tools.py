@@ -109,7 +109,7 @@ def cancel_booking(booking_id: str, reason: Optional[str] = None) -> str:
     
     return f"Booking {booking_id} not found."
 
-async def convert_currency_mcp(amount: float, from_currency: str, to_currency: str) -> str:
+async def convert_currency(amount: float, from_currency: str, to_currency: str) -> str:
     """
     Converts currency using the external MCP server.
     Use this tool when the user asks for prices in a different currency.
@@ -156,9 +156,6 @@ async def convert_currency_mcp(amount: float, from_currency: str, to_currency: s
                 
     except Exception as e:
         return f"MCP Currency Converter Error: {str(e)}"
-
-# Expose the async function directly. AutoGen 0.4 agents support async tools.
-convert_currency = convert_currency_mcp
 
 
 AVAILABLE_TOOLS = [lookup_booking, search_hotels, check_flight_status, search_policies, book_hotel, book_taxi, cancel_booking, convert_currency]
