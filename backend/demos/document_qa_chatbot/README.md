@@ -6,10 +6,10 @@ Learn how to build a production-ready Document RAG (Retrieval Augmented Generati
 
 Master the core components of a **Fast RAG Pipeline**:
 
-- **Document Parsing:** Handle PDF and Word documents efficiently.
-- **Robust Chunking:** Split text based on meaning while preserving context (recursive splitting).
-- **Fast Embeddings:** Use **all-MiniLM-L6-v2** (384-dim) for high-speed, low-latency vectors.
-- **Dense Retrieval:** Find relevant content using semantic similarity in **Qdrant**.
+- **Layout-Aware Parsing:** Use **PyMuPDF4LLM** to extract Markdown with tables and headers preserved.
+- **Robust Chunking:** Split based on Markdown structure (headers) for better context.
+- **Hybrid Embeddings:** combine **Dense** (all-MiniLM-L6-v2) and **Sparse** (BM25) vectors.
+- **Hybrid Retrieval:** Find relevant content using **Reciprocal Rank Fusion (RRF)** in Qdrant.
 - **Cross-Encoder Reranking:** Use a dedicated model to re-score results for maximum precision.
 
 ## Quick Start
@@ -28,14 +28,14 @@ make dev
 
 Follow these incremental challenges to master Document RAG.
 
-### Challenge 1: The Parser
+### Challenge 1: The Parser (Layout Aware)
 
-**Goal:** Extract clean text from PDFs and Docs.
+**Goal:** Extract clean **Markdown** from PDFs to preserve structure.
 
-- **The Problem:** Documents come in binary formats.
-- **The Solution:** Use libraries like `pypdf` and `python-docx` to extract text.
-- **Your Task:** Upload a PDF and check the logs. See how text is extracted and normalized.
-- **Key Concepts:** Text Extraction, File Formats.
+- **The Problem:** Standard PDF extraction (`pypdf`) flattens tables and headers into garbled text.
+- **The Solution:** Use **PyMuPDF4LLM** to convert PDF elements into Markdown format.
+- **Your Task:** Upload a PDF with tables. See how tables are converted to Markdown tables, preserving row/column relationships.
+- **Key Concepts:** PDF to Markdown, Layout Preservation.
 
 -----
 
@@ -54,27 +54,28 @@ Follow these incremental challenges to master Document RAG.
 
 -----
 
-### Challenge 3: The Embedder (Dense)
+### Challenge 3: The Embedder (Hybrid)
 
-**Goal:** Convert text into numbers (vectors) that represent meaning.
+**Goal:** Convert text into both **Dense** (meaning) and **Sparse** (keyword) vectors.
 
-- **The Problem:** Computers can't compare text directly.
-- **The Solution:** **Sentence Transformers**.
-- **Model:** `all-MiniLM-L6-v2` (Small, Fast, Effective).
-- **Your Task:** See how fast the 384-dimensional vectors are generated compared to larger models.
-- **Key Concepts:** Dense Embeddings, Vector Space.
+- **The Problem:** Dense vectors understand meaning but miss exact keywords (e.g. part numbers, names).
+- **The Solution:** **Hybrid Embeddings**.
+- **Dense:** `all-MiniLM-L6-v2` (384-dim) for semantic match.
+- **Sparse:** `BM25-style` (30k-dim) for keyword match.
+- **Your Task:** See how "Apple" (fruit) vs "Apple" (company) is handled.
+- **Key Concepts:** Hybrid Search, Sparse Vectors, Tokenization.
 
 -----
 
-### Challenge 4: The Retriever (Qdrant)
+### Challenge 4: The Retriever (Hybrid RRF)
 
-**Goal:** Find roughly relevant content from thousands of chunks.
+**Goal:** Find relevant content using **Reciprocal Rank Fusion (RRF)**.
 
 - **Architecture:**
-  - Query -> Embedding -> Vector (384 floats)
-  - Vector -> Qdrant -> Nearest Neighbors (Cosine Similarity)
-- **Your Task:** Ask a question and see the "Top 20" candidates retrieved by Qdrant.
-- **Key Concepts:** Vector Database, Cosine Similarity, ANN Search.
+  - Parallel Search: Dense Search (Semantic) + Sparse Search (Keyword)
+  - **Fusion:** Combine results using RRF (rank-based weighting).
+- **Your Task:** Ask a question that requires both understanding (dense) and specific details (sparse).
+- **Key Concepts:** Reciprocal Rank Fusion, Hybrid Search.
 
 -----
 

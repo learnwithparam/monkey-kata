@@ -24,20 +24,24 @@ import os
 import uuid
 import asyncio
 import logging
+import re
 from typing import List, Dict, Any, Optional, AsyncGenerator
 from dataclasses import dataclass
 from datetime import datetime
+from collections import Counter
+import math
+
 from utils.thinking_streamer import ThinkingStreamer
 
-# Lightweight PDF/Doc parsers
-import pypdf
+# Parsing
+import pymupdf4llm
 import docx
 
 # Embeddings & Reranking (Fast CPU friendly models)
 from sentence_transformers import SentenceTransformer, CrossEncoder
 
 # Text Splitting
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
 
 # Qdrant for vector database
 from qdrant_client import QdrantClient, models
@@ -65,7 +69,8 @@ class DocumentChunk:
     chunk_index: int
     page_number: int
     metadata: Dict[str, Any]
-    vector: Optional[List[float]] = None # Dense vector
+    dense_vector: Optional[List[float]] = None 
+    sparse_vector: Optional[Dict[int, float]] = None # Indices -> Values
 
     def to_payload(self) -> Dict[str, Any]:
         return {
@@ -77,14 +82,82 @@ class DocumentChunk:
         }
 
 # ============================================================================
+# STEP 1.5: SPARSE EMBEDDER (BM25-style)
+# ============================================================================
+class SimpleSparseEmbedder:
+    """
+    Simple hash-based sparse embedder for demo purposes.
+    Maps words to a fixed sparse space (30k dim) using hashing.
+    Ideally use SPLADE or similar for production.
+    """
+    def __init__(self, vocab_size: int = 30000):
+        self.vocab_size = vocab_size
+
+    def _tokenize(self, text: str) -> List[str]:
+        # Simple whitespace + alphanumeric separation
+        return re.findall(r'\w+', text.lower())
+
+    def _hash_token(self, token: str) -> int:
+        return int(int(abs(hash(token))) % self.vocab_size)
+
+    def compute_vector(self, text: str) -> models.SparseVector:
+        tokens = self._tokenize(text)
+        if not tokens:
+            return models.SparseVector(indices=[], values=[])
+            
+        counts = Counter(tokens)
+        indices = []
+        values = []
+        
+        for token, count in counts.items():
+            idx = self._hash_token(token)
+            indices.append(idx)
+            # Simple TF (could add IDF if we trained/tracked corpus stats)
+            values.append(float(count))
+            
+        return models.SparseVector(indices=indices, values=values)
+
+
+# ============================================================================
 # STEP 2: DOCUMENT PROCESSING
 # ============================================================================
+class DocumentParser:
+    """Handles parsing of PDF (PyMuPDF4LLM), Docx, etc."""
+    
+    @staticmethod
+    def parse_pdf(file_path: str) -> str:
+        """Parse PDF using PyMuPDF4LLM (Layout-aware Markdown)"""
+        try:
+            # Returns markdown string with tables and headers
+            md_text = pymupdf4llm.to_markdown(file_path)
+            return md_text
+        except Exception as e:
+            logging.error(f"PyMuPDF4LLM failed: {e}")
+            raise e
+
+    @staticmethod
+    def parse_docx(file_path: str) -> str:
+        """Parse Docx file"""
+        doc = docx.Document(file_path)
+        return "\n\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+
+
 class DocumentProcessor:
     """Parses and chunks documents"""
     
     def __init__(self):
         self.embedding_model = _EMBEDDING_MODEL
-        self.text_splitter = RecursiveCharacterTextSplitter(
+        self.sparse_embedder = SimpleSparseEmbedder()
+        
+        # Markdown splitter is better for the structured output from PyMuPDF
+        self.md_splitter = MarkdownHeaderTextSplitter(
+            headers_to_split_on=[
+                ("#", "Header 1"),
+                ("##", "Header 2"),
+                ("###", "Header 3"),
+            ]
+        )
+        self.recursive_splitter = RecursiveCharacterTextSplitter(
             chunk_size=500,
             chunk_overlap=50,
             separators=["\n\n", "\n", ". ", " ", ""]
@@ -98,31 +171,14 @@ class DocumentProcessor:
             pages = 1
             
             if ext == '.pdf':
-                reader = pypdf.PdfReader(file_path)
-                parts = []
-                for i, page in enumerate(reader.pages):
-                    try:
-                        text = page.extract_text()
-                        if text:
-                            parts.append(text)
-                    except Exception as e:
-                        logging.warning(f"Error reading page {i}: {e}")
-                content = "\n\n".join(parts)
-                pages = len(parts) if parts else 1
-                
-                # Cleaning PDF extraction artifacts
-                import re
-                
-                # 1. Normalize whitespace (remove excessive spaces/newlines)
-                content = re.sub(r'\s+', ' ', content)
-                
-                # Removed aggressive character merging logic as it can be risky.
-                # Rely on the LLM to understand spacing issues if they persist.
+                # Use PyMuPDF4LLM for robust Markdown extraction
+                content = DocumentParser.parse_pdf(file_path)
+                # Estimate pages roughly (PyMuPDF4LLM merges, need to check if we can get page counts cleanly)
+                # Text length is a proxy for now
+                pages = max(1, len(content) // 2000) 
                 
             elif ext in ['.docx', '.doc']:
-                doc = docx.Document(file_path)
-                content = "\n\n".join([p.text for p in doc.paragraphs if p.text.strip()])
-                # Docx doesn't map strictly to pages in this lib, approx 1 page
+                content = DocumentParser.parse_docx(file_path)
                 pages = max(1, len(content) // 3000)
                 
             elif ext == '.txt':
@@ -147,33 +203,53 @@ class DocumentProcessor:
             return None
 
     def chunk_document(self, document_content: Dict[str, Any], chunk_size: int = 500, chunk_overlap: int = 50) -> List[Dict[str, Any]]:
-        """Split content using RecursiveCharacterTextSplitter"""
-        # Update splitter settings
-        self.text_splitter._chunk_size = chunk_size
-        self.text_splitter._chunk_overlap = chunk_overlap
+        """Split content intelligently"""
+        self.recursive_splitter._chunk_size = chunk_size
+        self.recursive_splitter._chunk_overlap = chunk_overlap
         
         content = document_content['content']
-        texts = self.text_splitter.split_text(content)
         
-        chunks = []
-        for i, text in enumerate(texts):
-            # Estimate page number (very rough if not tracking per-page text)
-            # For pypdf we joined pages, so we lost exact alignment. 
-            # For this simple versions, we just assume page 1 or scale linearly.
-            # Ideally we'd chunk per page text, but for RAG content flow is often better.
-            chunks.append({
-                'content': text,
-                'page_number': 1 # Simplified
-            })
+        # 1. First split by Markdown headers if meaningful content
+        # (Only effective if parsing produced markdown)
+        md_splits = self.md_splitter.split_text(content)
+        
+        final_chunks = []
+        chunk_idx = 0
+        
+        # 2. Then recursively split within sections
+        for split in md_splits:
+            # Metadata from headers
+            headers = split.metadata
             
-        return chunks
+            sub_splits = self.recursive_splitter.split_text(split.page_content)
+            
+            for text in sub_splits:
+                final_chunks.append({
+                    'content': text,
+                    'page_number': 1, # TODO: improve page tracking
+                    'chunk_index': chunk_idx,
+                    'metadata': headers
+                })
+                chunk_idx += 1
+                
+        # Fallback if markdown splitting did nothing (e.g. plain text)
+        if not final_chunks:
+            texts = self.recursive_splitter.split_text(content)
+            for i, text in enumerate(texts):
+                final_chunks.append({
+                    'content': text,
+                    'page_number': 1,
+                    'chunk_index': i,
+                    'metadata': {}
+                })
+            
+        return final_chunks
 
     async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Generate dense embeddings"""
         if not texts:
             return []
             
-        # Run in executor
         loop = asyncio.get_event_loop()
         embeddings = await loop.run_in_executor(
             None,
@@ -183,6 +259,10 @@ class DocumentProcessor:
         if len(embeddings.shape) == 1:
             return [embeddings.tolist()]
         return embeddings.tolist()
+    
+    def generate_sparse_embeddings(self, texts: List[str]) -> List[models.SparseVector]:
+        """Generate simple sparse (BM25-like) vectors"""
+        return [self.sparse_embedder.compute_vector(text) for text in texts]
 
 # ============================================================================
 # STEP 3: RETRIEVAL & RAG (Qdrant)
@@ -202,16 +282,25 @@ class RAGPipeline:
         return f"doc_{document_id}"
 
     def upsert_documents(self, document_id: str, chunks: List[DocumentChunk]):
-        """Upload chunks to Qdrant"""
+        """Upload chunks to Qdrant with Hybrid support"""
         collection_name = self.get_collection_name(document_id)
         
-        # 384 dimensions for all-MiniLM-L6-v2
+        # Configure for Hybrid Search (Dense + Sparse)
         self.client.recreate_collection(
             collection_name=collection_name,
-            vectors_config=models.VectorParams(
-                size=384,
-                distance=models.Distance.COSINE
-            )
+            vectors_config={
+                "dense": models.VectorParams(
+                    size=384,
+                    distance=models.Distance.COSINE
+                )
+            },
+            sparse_vectors_config={
+                "sparse": models.SparseVectorParams(
+                    index=models.SparseIndexParams(
+                        on_disk=False,
+                    )
+                )
+            }
         )
         
         points = []
@@ -219,7 +308,10 @@ class RAGPipeline:
             points.append(models.PointStruct(
                 id=str(uuid.uuid4()),
                 payload=doc.to_payload(),
-                vector=doc.vector
+                vector={
+                    "dense": doc.dense_vector,
+                    "sparse": doc.sparse_vector
+                }
             ))
             
         batch_size = 100
@@ -233,28 +325,49 @@ class RAGPipeline:
         self, 
         query_text: str,
         query_vector: List[float], 
+        query_sparse_vector: Optional[models.SparseVector], # New argument
         document_id: str,
         max_chunks: int = 5,
         thinking_streamer: Optional[ThinkingStreamer] = None
     ) -> List[DocumentChunk]:
-        """Dense Search + Cross-Encoder Reranking"""
+        """Hybrid Search (Dense + Sparse with RRF) + Cross-Encoder Reranking"""
         collection_name = self.get_collection_name(document_id)
         
         # 1. Retrieve Pattern (Fetch more for reranking)
         limit = max(20, max_chunks * 4)
-        print(f"Retrieving top {limit} candidates...", flush=True)
+        print(f"Retrieving top {limit} candidates (Hybrid RRF)...", flush=True)
         
-        # Use query_points which is more stable across versions
-        search_result = self.client.query_points(
-            collection_name=collection_name,
-            query=query_vector,
-            limit=limit,
-            with_payload=True
-        )
+        # Use Qdrant Hybrid Search (RRF Fusion)
+        if query_sparse_vector:
+            search_result = self.client.query_points(
+                collection_name=collection_name,
+                prefetch=[
+                    models.Prefetch(
+                        query=query_vector,
+                        using="dense",
+                        limit=limit
+                    ),
+                    models.Prefetch(
+                        query=query_sparse_vector,
+                        using="sparse",
+                        limit=limit
+                    ),
+                ],
+                query=models.FusionQuery(fusion=models.Fusion.RRF),
+                limit=limit,
+                with_payload=True
+            )
+        else:
+            # Fallback to dense only if no sparse vector
+            search_result = self.client.query_points(
+                collection_name=collection_name,
+                query=query_vector,
+                using="dense",
+                limit=limit,
+                with_payload=True
+            )
         
         candidates = []
-        # query_points returns a QueryResponse object which has .points typically or just the list if internal
-        # In recent versions it returns QueryResponse(points=[ScoredPoint...])
         points = search_result.points
         
         for point in points:
@@ -269,6 +382,12 @@ class RAGPipeline:
         # 2. Reranking Pattern
         if not candidates:
             return []
+            
+        if thinking_streamer:
+            asyncio.create_task(thinking_streamer.emit_thinking(
+                "processing", 
+                f"Reranking {len(candidates)} candidates with Cross-Encoder..."
+            ))
             
         print("Reranking candidates...", flush=True)
         pairs = [[query_text, doc.content] for doc in candidates]

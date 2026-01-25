@@ -15,11 +15,9 @@ dependencies = [
     "chromadb>=0.4.0",
     "crewai>=1.4.1",
     "ddgs>=0.1.0",
-    "docling>=1.0.0",
     "duckduckgo-search>=4.0.0",
     "email-validator>=2.0.0",
     "fastapi>=0.104.1",
-    "FlagEmbedding>=1.2.0",
     "qdrant-client>=1.7.0",
     "google-generativeai>=0.8.0,<=0.8.5",
     "httpx>=0.25.2",
@@ -50,6 +48,7 @@ dependencies = [
     "torch>=2.0.0",
     "transformers>=4.30.0",
     "uvicorn[standard]>=0.24.0",
+    "pymupdf4llm>=0.2.9",
 ]
 
 [build-system]

@@ -9,7 +9,6 @@ services:
       - ./backend:/app
       # Exclude __pycache__ and .venv from bind mount to use Docker's layer caching and build-time dependencies
       - /app/__pycache__
-      - /app/.venv
     env_file:
       - ./backend/.env
     environment:
@@ -19,7 +18,7 @@ services:
       - API_PORT=8000
       - DEBUG=True
       - FRONTEND_URL=http://localhost:4020
-    command: uv run --no-project python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    command: /venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - ai-engineering-network
     restart: unless-stopped
@@ -81,13 +80,12 @@ services:
     volumes:
       - ./backend:/app
       - /app/__pycache__
-      - /app/.venv
     env_file:
       - ./backend/.env
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-    command: uv run --no-project python restaurant_agent.py dev
+    command: /venv/bin/python restaurant_agent.py dev
     networks:
       - ai-engineering-network
     depends_on:
@@ -103,13 +101,12 @@ services:
     volumes:
       - ./backend:/app
       - /app/__pycache__
-      - /app/.venv
     env_file:
       - ./backend/.env
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
-    command: uv run --no-project python triage_agent.py dev
+    command: /venv/bin/python triage_agent.py dev
     networks:
       - ai-engineering-network
     depends_on:

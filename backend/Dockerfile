@@ -8,6 +8,9 @@ WORKDIR /app
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+# Move venv to /venv to avoid bind mount conflicts
+ENV UV_PROJECT_ENVIRONMENT="/venv"
+ENV PATH="$UV_PROJECT_ENVIRONMENT/bin:$PATH"
 # Playwright environment variables
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 
@@ -49,7 +52,7 @@ RUN --mount=type=cache,target=/root/.cache \
 # Install Playwright browsers (Chromium only for headless automation)
 # This downloads the browser binaries needed for Playwright
 # --no-project: Run in the environment but don't try to install the project
-RUN uv run --no-project python -m playwright install chromium
+RUN /venv/bin/python -m playwright install chromium
 
 # Copy application code (this layer will be invalidated on code changes)
 COPY . .
@@ -62,4 +65,4 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Command (will be overridden by docker-compose)
-CMD ["uv", "run", "python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["/venv/bin/python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

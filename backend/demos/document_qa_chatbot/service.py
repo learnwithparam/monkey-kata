@@ -55,15 +55,20 @@ async def process_document_background(
             chunk_overlap
         )
         
-        # Step 5: Generate embeddings (Dense 384-dim)
+        # Step 5: Generate embeddings (Dense + Sparse)
         processing_status[document_id].update({
             "progress": 50,
-            "message": "Generating embeddings (all-MiniLM-L6-v2)..."
+            "message": "Generating Hybrid Embeddings (Dense + Sparse)..."
         })
         
         # Extract content list for batch embedding
         texts = [chunk['content'] for chunk in chunks_data]
+        
+        # 5a. Dense
         embeddings_list = await document_processor.generate_embeddings(texts)
+        
+        # 5b. Sparse
+        sparse_vectors_list = document_processor.generate_sparse_embeddings(texts)
         
         # Step 6: Create DocumentChunk objects
         documents = []
@@ -77,16 +82,18 @@ async def process_document_background(
                     "title": document_content.get("title", ""),
                     "document_id": document_id,
                     "chunk_size": len(chunk_data['content']),
+                    **chunk_data.get('metadata', {})
                 },
                 # Attach vectors for upsert
-                vector=embeddings_list[i]
+                dense_vector=embeddings_list[i],
+                sparse_vector=sparse_vectors_list[i]
             )
             documents.append(doc)
         
         # Step 7: Store in Qdrant
         processing_status[document_id].update({
             "progress": 90,
-            "message": "Indexing in Qdrant Vector Database..."
+            "message": "Indexing in Qdrant (Dense + Sparse)..."
         })
         
         rag_pipeline.upsert_documents(document_id, documents)
@@ -152,10 +159,13 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
     # Step 4: Generate embedding for the question
     yield f"data: {json.dumps({'status': 'processing', 'message': 'Finding relevant content in document...'})}\n\n"
     
-    await thinking_streamer.emit_thinking("reasoning", "Converting question to vector (all-MiniLM)...")
+    await thinking_streamer.emit_thinking("reasoning", "Converting question to Hybrid Vectors (Dense + Sparse)...")
     
     # We use generate_embeddings which returns a list, so we take [0]
     query_embedding_task = asyncio.create_task(document_processor.generate_embeddings([request.question]))
+    
+    # Generate sparse vector (synchronous as it's just hashing)
+    query_sparse_vector = document_processor.generate_sparse_embeddings([request.question])[0]
     
     # Concurrent wait for embedding and thinking events
     while not query_embedding_task.done():
@@ -168,10 +178,11 @@ async def generate_document_rag_stream(request: QuestionRequest) -> AsyncGenerat
     query_vectors = query_vectors_list[0]
     
     # Step 5: Find most relevant chunks using Qdrant Dense Search + Reranking
-    await thinking_streamer.emit_thinking("reasoning", "Performing Dense Search + Cross-Encoder Reranking...")
+    await thinking_streamer.emit_thinking("reasoning", "Performing Hybrid Search (RRF) + Cross-Encoder Reranking...")
     relevant_chunks = rag_pipeline.retrieve_relevant_chunks(
         query_text=request.question,
         query_vector=query_vectors,
+        query_sparse_vector=query_sparse_vector,
         document_id=document_id,
         max_chunks=request.max_chunks,
         thinking_streamer=thinking_streamer

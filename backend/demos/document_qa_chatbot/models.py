@@ -6,6 +6,7 @@ class QuestionRequest(BaseModel):
     question: str
     document_id: str
     max_chunks: int = 5  # How many relevant chunks to retrieve
+    use_hybrid: bool = True # Use hybrid retrieval (Dense + Sparse)
 
 
 class ProcessingStatus(BaseModel):
