@@ -70,6 +70,8 @@ async def process_case(case_id: str, case_intake: CaseIntake, previously_provide
         return {"error": str(e)}
 
 
+from .progress import set_progress_callback, set_log_capture_callback
+
 async def stream_case_processing(case_id: str, case_intake: CaseIntake) -> AsyncGenerator[str, None]:
     """
     Stream case processing updates via SSE.
@@ -78,7 +80,6 @@ async def stream_case_processing(case_id: str, case_intake: CaseIntake) -> Async
     and streams them to the client.
     """
     step_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
-    completion_event = asyncio.Event()
     
     # Callback to push updates to the queue
     def progress_callback(step_data: Dict[str, Any]):
@@ -89,10 +90,25 @@ async def stream_case_processing(case_id: str, case_intake: CaseIntake) -> Async
             if "steps" not in intake_sessions[case_id]:
                 intake_sessions[case_id]["steps"] = []
             intake_sessions[case_id]["steps"].append(step_data)
+            
+    # Callback to push logs to the queue
+    def log_callback(log_data: Any):
+        # Wrap log data in a consistent structure if it's not already
+        if isinstance(log_data, str):
+            from datetime import datetime
+            log_data = {
+                "type": "log",
+                "content": log_data,
+                "timestamp": datetime.now().isoformat()
+            }
+        elif isinstance(log_data, dict) and "type" not in log_data:
+            log_data["type"] = "log"
+            
+        step_queue.put_nowait(log_data)
 
-    # Set the callback (note: this is global, so it assumes one request at a time for this demo)
-    # In a production app, we'd pass a context object or use contextvars
+    # Set the callbacks (note: this is global, so it assumes one request at a time for this demo)
     set_progress_callback(progress_callback)
+    set_log_capture_callback(log_callback)
     
     # Yield initial connection message
     yield f"data: {json.dumps({'status': 'connected', 'case_id': case_id, 'message': 'Connected to intake agents...'})}\n\n"
@@ -115,6 +131,69 @@ async def stream_case_processing(case_id: str, case_intake: CaseIntake) -> Async
         yield f"data: {json.dumps({'step': step})}\n\n"
         
     # Check for exceptions
+    try:
+        result = await processing_task
+        if "error" in result:
+             yield f"data: {json.dumps({'error': result['error']})}\n\n"
+        else:
+             yield f"data: {json.dumps({'done': True, 'result': result, 'status': result.get('status')})}\n\n"
+    except Exception as e:
+        logger.error(f"Task failed: {e}")
+        yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+
+async def stream_additional_info_processing(case_id: str, additional_info: str) -> AsyncGenerator[str, None]:
+    """
+    Stream processing of user-provided additional info.
+    """
+    # Verify session exists
+    if case_id not in intake_sessions:
+        yield f"data: {json.dumps({'error': 'Case not found'})}\n\n"
+        return
+
+    session = intake_sessions[case_id]
+    case_intake = CaseIntake(**session["intake_data"])
+    
+    # Setup streaming queue (reuse logic from stream_case_processing)
+    step_queue: asyncio.Queue[Dict[str, Any]] = asyncio.Queue()
+    
+    def progress_callback(step_data: Dict[str, Any]):
+        step_queue.put_nowait(step_data)
+        # Store steps
+        if case_id in intake_sessions:
+            if "steps" not in intake_sessions[case_id]:
+                intake_sessions[case_id]["steps"] = []
+            intake_sessions[case_id]["steps"].append(step_data)
+            
+    def log_callback(log_data: Any):
+        if isinstance(log_data, str):
+            from datetime import datetime
+            log_data = {
+                "type": "log",
+                "content": log_data,
+                "timestamp": datetime.now().isoformat()
+            }
+        step_queue.put_nowait(log_data)
+
+    set_progress_callback(progress_callback)
+    set_log_capture_callback(log_callback)
+    
+    yield f"data: {json.dumps({'status': 'connected', 'message': 'Resuming analysis with new info...'})}\n\n"
+    
+    # Run processing with the NEW additional info provided
+    processing_task = asyncio.create_task(process_case(case_id, case_intake, previously_provided_info=additional_info))
+    
+    while not processing_task.done():
+        try:
+            step = await asyncio.wait_for(step_queue.get(), timeout=0.1)
+            yield f"data: {json.dumps({'step': step})}\n\n"
+        except asyncio.TimeoutError:
+            continue
+            
+    while not step_queue.empty():
+        step = step_queue.get_nowait()
+        yield f"data: {json.dumps({'step': step})}\n\n"
+        
     try:
         result = await processing_task
         if "error" in result:

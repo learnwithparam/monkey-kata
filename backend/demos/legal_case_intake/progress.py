@@ -89,8 +89,17 @@ def capture_log_line(line: str):
             if any(pattern in line_lower for pattern in skip_patterns):
                 return
             
-            # Capture everything else (CrewAI verbose output, agent activities, etc.)
-            _log_capture_callback(line_stripped)
+            from datetime import datetime
+            
+            # Format as a structured log event
+            log_event = {
+                "type": "log",
+                "content": line_stripped,
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Pass the structured object, callback handlers must expect this or serialize it
+            _log_capture_callback(log_event)
         except Exception as e:
             logger.warning(f"Error in log capture callback: {e}")
 

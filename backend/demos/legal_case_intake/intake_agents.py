@@ -208,7 +208,10 @@ RECOMMENDED_ACTION: [your recommendation]""",
             target="Running sequential agent tasks"
         )
         
-        result = crew.kickoff()
+        from .progress import capture_crewai_logs
+        
+        with capture_crewai_logs():
+            result = crew.kickoff()
         
         report_progress(
             "Review Agent: Completed case analysis",
@@ -268,15 +271,18 @@ RECOMMENDED_ACTION: [your recommendation]""",
         
         # Phone number validation - check if phone field exists and has valid format
         phone_text = (case_intake.client_phone or '').strip()
-        # Also check if phone is mentioned in description or additional info
-        all_text = f"{case_intake.case_description} {case_intake.additional_info or ''}"
+        
+        # CRITICAL: Include previously_provided_info in the text search
+        all_text = f"{case_intake.case_description} {case_intake.additional_info or ''} {previously_provided_info or ''}"
         all_text_lower = all_text.lower()
+        
         # Look for phone patterns: +1, (555), 555-1234, +153892839283, etc.
         # Match: + followed by 10-15 digits, or standard US format, or international format
+        # Relaxed regex to catch more variations
         phone_patterns = [
-            r'\+\d{10,15}',  # International format like +153892839283
-            r'(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}',  # Standard US format
-            r'\d{10,15}',  # Plain digits (10-15 digits)
+            r'\+?\d{1,3}[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}',  # US/General
+            r'\d{3}[-\s.]?\d{3}[-\s.]?\d{4}', # XXX-XXX-XXXX
+            r'\+?\d{8,15}' # Plain digits
         ]
         has_phone = bool(phone_text) or any(re.search(pattern, all_text) for pattern in phone_patterns)
         
