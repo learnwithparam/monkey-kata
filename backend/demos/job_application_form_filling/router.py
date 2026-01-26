@@ -6,7 +6,7 @@ import tempfile
 import os
 import shutil
 
-from .models import ResumeUploadResponse, FormStructure, JobListing, ServiceInfo, FormField
+from .models import ResumeUploadResponse, FormStructure, JobListing, ServiceInfo, FormField, FillFormRequest
 from .resume_parser import parse_resume_pdf
 from .html_parser import parse_html_form
 from .service import stream_form_filling, sessions
@@ -28,9 +28,15 @@ async def upload_resume(file: UploadFile = File(...)):
     shutil.rmtree(temp_dir)
     return ResumeUploadResponse(session_id=session_id, resume_data=resume_data, status="parsed", message="Parsed")
 
+@router.get("/session/{session_id}")
+async def get_session_status(session_id: str):
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return sessions[session_id]
+
 @router.post("/fill-form-stream")
-async def fill_form_stream(session_id: str = Query(...), html_content: str = Body(...)):
-    form_structure = parse_html_form(html_content)
+async def fill_form_stream(session_id: str = Query(...), request: FillFormRequest = Body(...)):
+    form_structure = parse_html_form(request.html_content)
     return StreamingResponse(stream_form_filling(session_id, form_structure), media_type="text/event-stream")
 
 @router.get("/job-listing", response_model=JobListing)

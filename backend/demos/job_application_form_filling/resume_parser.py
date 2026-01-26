@@ -37,15 +37,37 @@ async def parse_resume_pdf(file_path: str) -> Optional[ResumeData]:
         shutil.copy2(file_path, temp_file)
         
         try:
-            reader = SimpleDirectoryReader(input_dir=temp_dir)
-            documents = reader.load_data()
+            file_size = os.path.getsize(temp_file)
+            logger.info(f"Resume file size: {file_size} bytes")
+
+            if file_size == 0:
+                raise Exception("Uploaded resume file is empty")
             
-            if not documents:
-                raise Exception("No content extracted from resume")
+            resume_text = ""
             
-            # Extract text content
-            resume_text = "\n".join([doc.text for doc in documents])
-            
+            # Try method 1: LlamaIndex SimpleDirectoryReader
+            try:
+                reader = SimpleDirectoryReader(input_files=[temp_file])
+                documents = reader.load_data()
+                if documents:
+                    resume_text = "\n".join([doc.text for doc in documents])
+            except Exception as e:
+                logger.warning(f"LlamaIndex extraction failed: {e}")
+
+            # Try method 2: pymupdf4llm (fallback)
+            if not resume_text:
+                try:
+                    import pymupdf4llm
+                    logger.info("Falling back to pymupdf4llm for PDF extraction")
+                    resume_text = pymupdf4llm.to_markdown(temp_file)
+                except ImportError:
+                    logger.warning("pymupdf4llm not installed, skipping fallback")
+                except Exception as e:
+                    logger.warning(f"pymupdf4llm extraction failed: {e}")
+
+            if not resume_text:
+                 raise Exception("No content extracted from resume (tried LlamaIndex and pymupdf4llm)")
+                
         finally:
             # Clean up temp directory
             shutil.rmtree(temp_dir)
@@ -147,18 +169,18 @@ Important:
         work_experience = []
         for exp in data.get("work_experience", []):
             work_experience.append(WorkExperience(
-                company=exp.get("company", ""),
-                role=exp.get("role", ""),
-                start_date=exp.get("start_date", ""),
+                company=exp.get("company") or "",
+                role=exp.get("role") or "",
+                start_date=exp.get("start_date") or "",
                 end_date=exp.get("end_date"),
-                description=exp.get("description", "")
+                description=exp.get("description") or ""
             ))
         
         education = []
         for edu in data.get("education", []):
             education.append(Education(
-                degree=edu.get("degree", ""),
-                institution=edu.get("institution", ""),
+                degree=edu.get("degree") or "",
+                institution=edu.get("institution") or "",
                 graduation_date=edu.get("graduation_date"),
                 gpa=edu.get("gpa")
             ))

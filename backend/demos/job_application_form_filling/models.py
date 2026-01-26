@@ -108,3 +108,8 @@ class ServiceInfo(BaseModel):
     description: str
 
 
+class FillFormRequest(BaseModel):
+    """Request for form filling"""
+    html_content: str = Field(..., description="HTML content of the form")
+
+

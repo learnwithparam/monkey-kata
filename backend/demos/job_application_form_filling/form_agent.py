@@ -101,10 +101,12 @@ async def fill_form_from_resume(
             
             # Yield update
             yield {
-                "field_name": field.name,
-                "field_label": field.label,
-                "value": value,
-                "section": field.section,
+                "field": {
+                    "name": field.name,
+                    "label": field.label,
+                    "value": value,
+                    "section": field.section
+                },
                 "progress": progress,
                 "message": f"Filled {field.label}"
             }

@@ -24,8 +24,13 @@ async def stream_form_filling(session_id: str, form_structure: FormStructure) ->
         try:
             async for update in fill_form_from_resume(resume_data, form_structure):
                 step_queue.put_nowait(update)
+            sessions[session_id]["status"] = "completed"
             complete.set()
-        except: complete.set()
+        except Exception as e:
+            logger.error(f"Error filling form: {e}")
+            sessions[session_id]["status"] = "error"
+            sessions[session_id]["error"] = str(e)
+            complete.set()
         finally: set_progress_callback(None)
 
     asyncio.create_task(run_filling())

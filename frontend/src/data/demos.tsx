@@ -63,9 +63,10 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/bedtime-story-generator",
         apiSlug: "bedtime_story_generator",
         learnings: [
-          "Prompt Templates",
-          "Variable Handling",
-          "Temperature Control"
+          "Learn to stream LLM responses in real-time for better user experience",
+          "Master temperature and max_tokens to control creativity and output length",
+          "Build effective prompts using proven patterns and structures",
+          "Handle streaming responses and update UI in real-time"
         ]
       },
       {
@@ -76,9 +77,10 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/invoice-parser",
         apiSlug: "invoice_parser",
         learnings: [
-          "Multi-modal LLM Capabilities",
-          "Pydantic Output Validation",
-          "Handling Different File Formats"
+          "Use vision-enabled LLMs to extract structured data from images and PDFs",
+          "Enforce type-safe structured outputs with Pydantic validation",
+          "Classify documents without training data using zero-shot learning",
+          "Automatically detect document types and intents"
         ]
       },
       {
@@ -89,10 +91,10 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/cv-analyzer",
         apiSlug: "cv_analyzer",
         learnings: [
-          "Advanced Prompt Chaining",
-          "Dynamic Context Injection",
-          "Structured Output Validation",
-          "Real-time Multi-Agent Workflow"
+          "Use LlamaIndex for document processing and vector operations",
+          "Build complex multi-agent workflows with LangGraph orchestration",
+          "Implement section-aware chunking strategies for CV documents",
+          "Create embeddings that preserve CV section context"
         ]
       }
     ]
@@ -109,9 +111,10 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/image-to-drawing",
         apiSlug: "image_to_drawing",
         learnings: [
-          "Image Processing Pipelines",
-          "Edge Detection Algorithms",
-          "File Upload/Download Handling"
+          "Transform images using image-to-image generation models",
+          "Implement provider pattern for multi-model support",
+          "Optimize images with pre and post-processing techniques",
+          "Handle async workflows with polling patterns"
         ]
       }
     ]
@@ -128,9 +131,11 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/website-rag",
         apiSlug: "website_rag",
         learnings: [
-          "Web Scraping & Crawling",
-          "Vector Database Indexing",
-          "RAG Query Processing"
+          "Build RAG systems with ChromaDB vector database",
+          "Use RecursiveCharacterTextSplitter for intelligent text chunking",
+          "Combine keyword and semantic search with hybrid retrieval",
+          "Improve search accuracy with Cross-Encoder reranking",
+          "Engineer effective RAG prompts for accurate answers"
         ]
       },
       {
@@ -141,9 +146,11 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/document-qa-chatbot",
         apiSlug: "document_qa_chatbot",
         learnings: [
-          "Document Ingestion Pipelines",
-          "Chunking Strategies",
-          "Context Retrieval"
+          "Store and query embeddings with Qdrant vector database",
+          "Generate embeddings using Sentence Transformers models",
+          "Split documents intelligently with RecursiveCharacterTextSplitter",
+          "Refine search results using Cross-Encoder reranking",
+          "Design chunking strategies for optimal retrieval"
         ]
       }
     ]
@@ -160,9 +167,9 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/travel-support",
         apiSlug: "travel_support_assistant",
         learnings: [
-          "Tool/Function Calling",
-          "Conversation State Management",
-          "External API Integration"
+          "Build multi-agent systems with AutoGen GroupChat orchestration",
+          "Enable agents to call functions and tools dynamically",
+          "Manage conversation state across agent interactions"
         ]
       }
     ]
@@ -179,9 +186,10 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/restaurant-booking",
         apiSlug: "restaurant_booking",
         learnings: [
-          "Voice-to-Text Integration",
-          "Real-time Interaction",
-          "Audio Processing"
+          "Build real-time voice AI systems with LiveKit",
+          "Integrate speech-to-text and text-to-speech with Deepgram",
+          "Design voice agent architecture for conversational AI",
+          "Enable voice agents to call tools and functions"
         ]
       },
       {
@@ -192,9 +200,9 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/medical-office-triage",
         apiSlug: "medical_office_triage",
         learnings: [
-          "Specialist Routing Logic",
-          "Multi-agent Orchestration",
-          "Context Preservation"
+          "Build multi-agent voice systems with LiveKit",
+          "Transfer conversations between specialized agents seamlessly",
+          "Preserve context when routing between different agents"
         ]
       }
     ]
@@ -211,9 +219,9 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/legal-case-intake",
         apiSlug: "legal_case_intake",
         learnings: [
-          "Complex Logic Handling",
-          "Approval Workflows",
-          "Structured Data Extraction"
+          "Orchestrate multi-agent workflows with CrewAI",
+          "Integrate human review and approval in AI workflows",
+          "Design sequential and parallel agent coordination"
         ]
       },
       {
@@ -224,9 +232,11 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/job-application-form-filling",
         apiSlug: "job_application_form_filling",
         learnings: [
-          "Document Understanding",
-          "Form Filling Automation",
-          "Data Mapping"
+          "Parse documents with LlamaIndex for structured extraction",
+          "Build agents that discover form structures autonomously",
+          "Map data semantically to form fields without hardcoding",
+          "Adapt to any form structure dynamically",
+          "Stream form filling progress in real-time"
         ]
       }
     ]
@@ -243,9 +253,9 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/lead-scoring",
         apiSlug: "lead_scoring",
         learnings: [
-          "Criteria Matching",
-          "Personalized Content Generation",
-          "Batch Processing"
+          "Coordinate multiple CrewAI crews for complex workflows",
+          "Process multiple candidates in parallel for speed",
+          "Integrate human feedback to refine AI outputs"
         ]
       },
       {
@@ -256,9 +266,9 @@ export const categoriesData: CategoryData[] = [
         challengeHref: "/challenges/competitor-analysis",
         apiSlug: "competitor_analysis",
         learnings: [
-          "Web Search Integration",
-          "Information Synthesis",
-          "Report Generation"
+          "Build research agents with LangChain Agent Executors",
+          "Coordinate multiple specialized agents for complex tasks",
+          "Enable agents to use tools like web search and scraping"
         ]
       }
     ]
