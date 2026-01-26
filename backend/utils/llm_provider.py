@@ -640,7 +640,7 @@ if OPENROUTER_AVAILABLE:
         def __init__(self, api_key: str, model: str = "minimax/minimax-m2:free"):
             self.api_key = api_key
             # Strip openrouter/ prefix if present (used by LiteLLM but not direct OpenRouter API)
-            self.model = model.replace("openrouter/", "") if model else model
+            self.model = model[11:] if model and model.startswith("openrouter/") else model
             # OpenRouter uses OpenAI-compatible format with different base URL
             # Prepare custom headers for OpenRouter
             default_headers = {
@@ -831,7 +831,7 @@ if FIREWORKS_AVAILABLE:
         def __init__(self, api_key: str, model: str = "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"):
             self.api_key = api_key
             # Strip fireworks/ prefix if present (used by LiteLLM but not direct Fireworks API)
-            self.model = model.replace("fireworks/", "") if model else model
+            self.model = model[10:] if model and model.startswith("fireworks/") else model
             self.base_url = "https://api.fireworks.ai/inference/v1/chat/completions"
         
         async def generate_text(self, prompt: str, **kwargs) -> str:
