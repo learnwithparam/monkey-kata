@@ -8,6 +8,7 @@ Agent that intelligently fills job application forms from resume data.
 import logging
 import asyncio
 from typing import Dict, Any, AsyncGenerator, Callable, Optional
+from datetime import datetime
 
 from utils.llm_provider import get_llm_provider
 from .models import ResumeData, FormField, FormStructure
@@ -39,67 +40,52 @@ def report_progress(message: str, field_name: str = "", field_label: str = "", v
 
 async def fill_form_from_resume(
     resume_data: ResumeData,
-    form_structure: FormStructure
+    form_structure: FormStructure,
+    thinking_streamer: Optional[Any] = None
 ) -> AsyncGenerator[Dict[str, Any], None]:
     """
     Agentic form filling: AI agent autonomously understands form structure
     and available data, then intelligently fills all fields.
-    
-    This uses an agentic approach where the AI:
-    1. Analyzes the entire form structure
-    2. Understands all available resume data
-    3. Creates a mapping strategy
-    4. Fills fields intelligently based on semantic understanding
-    
-    Args:
-        resume_data: Parsed resume data
-        form_structure: Form structure with fields to fill
-        
-    Yields:
-        Dictionary with field filling updates
     """
     try:
+        if thinking_streamer:
+            await thinking_streamer.emit_thinking("planning", f"Analyzing form structure with {len(form_structure.fields)} fields...")
+            
         logger.info(f"Starting fill_form_from_resume with {len(form_structure.fields)} fields")
         provider = get_llm_provider()
         total_fields = len(form_structure.fields)
         
-        logger.info(f"Total fields to fill: {total_fields}")
-        
-        report_progress(
-            "AI Agent: Analyzing form structure and available data...",
-            progress=0.0
-        )
-        
         # Step 1: Agent understands the form structure and data
-        logger.info("Waiting before agent analysis...")
-        await asyncio.sleep(1.0)  # Brief pause for user to see the analysis
-        
+        if thinking_streamer:
+             await thinking_streamer.emit_thinking("reasoning", "Mapping resume data to form fields using semantic understanding...")
+             
         # Step 2: Agent generates all field values in one intelligent pass
         logger.info("Calling agentic_form_filling...")
-        filled_values = await agentic_form_filling(resume_data, form_structure, provider)
+        
+        filled_values = await agentic_form_filling(resume_data, form_structure, provider, thinking_streamer)
         logger.info(f"Agent returned {len(filled_values)} filled values")
         
+        if thinking_streamer:
+            await thinking_streamer.emit_thinking("tool_use", "Starting to populate form fields...")
+        
         # Step 3: Stream the filled values field by field
-        logger.info("Starting to stream filled values field by field...")
         filled_count = 0
         for field in form_structure.fields:
             filled_count += 1
             progress = filled_count / total_fields
             
             value = filled_values.get(field.name, "")
-            logger.info(f"Filling field {filled_count}/{total_fields}: {field.name} = {value[:50] if value else '(empty)'}...")
             
-            # Report progress
-            report_progress(
-                f"Filling {field.label}...",
-                field_name=field.name,
-                field_label=field.label,
-                value=value,
-                section=field.section,
-                progress=progress
-            )
+            # Detailed log for technical transparency
+            if thinking_streamer:
+                log_message = f"Field '{field.label}' ({field.name}) set to: '{value[:30]}...'" if value else f"Field '{field.label}' left empty"
+                yield {
+                    "type": "log",
+                    "content": log_message,
+                    "timestamp": datetime.now().isoformat()
+                }
             
-            # Yield update
+            # Visual update for the user
             yield {
                 "field": {
                     "name": field.name,
@@ -111,18 +97,12 @@ async def fill_form_from_resume(
                 "message": f"Filled {field.label}"
             }
             
-            # 2 second delay between fields for better user experience
-            logger.debug(f"Waiting 2 seconds before next field...")
-            await asyncio.sleep(2.0)
+            # Small delay for visual effect
+            await asyncio.sleep(0.5)
         
-        report_progress(
-            "Form filling completed!",
-            progress=1.0
-        )
-        
-        # 3 second delay before showing completion/submit button
-        await asyncio.sleep(3.0)
-        
+        if thinking_streamer:
+            await thinking_streamer.emit_thinking("complete", "Form filling completed successfully.")
+            
         yield {
             "done": True,
             "status": "completed",
@@ -132,6 +112,9 @@ async def fill_form_from_resume(
         
     except Exception as e:
         logger.error(f"Error filling form: {e}")
+        if thinking_streamer:
+             step_queue = asyncio.Queue() # Dummy queue just to format the error
+             # In a real scenario we might stream the error via thinking streamer too, but here we just yield it
         yield {
             "error": str(e),
             "status": "error",
@@ -142,7 +125,8 @@ async def fill_form_from_resume(
 async def agentic_form_filling(
     resume_data: ResumeData,
     form_structure: Optional[FormStructure] = None,
-    provider = None
+    provider = None,
+    thinking_streamer: Optional[Any] = None
 ) -> Dict[str, str]:
     """
     Agentic form filling: AI agent autonomously discovers form structure and fills it.
@@ -230,54 +214,59 @@ The form structure is not predefined. You must intelligently determine what fiel
         field_names_instruction = "- Determine appropriate field names based on standard job application forms (e.g., full_name, email, phone, work_experience, education, skills)"
     
     agent_prompt = f"""You are an autonomous AI agent that dynamically discovers and fills job application forms.
-
-Your mission: 
-1. Understand the form structure (whether provided or discover it dynamically)
-2. Understand all available resume data
-3. Autonomously map resume data to form fields
-4. Generate all field values intelligently
-
-{form_context}
-
-{resume_context}
-
-Agent Instructions:
-1. **Form Understanding**: 
-   - If form structure is provided, use it exactly
-   - If not provided, intelligently determine what fields a job application form should have
-   - Consider standard sections: Personal Information, Work Experience, Education, Skills
-
-2. **Data Mapping**:
-   - Match resume data to form fields semantically (e.g., "Full Name"/"Name" = name, "Email Address"/"Email" = email)
-   - Understand field types and format data accordingly:
-     * text/email/tel: Single value
-     * textarea: Multi-line formatted text
-   - For work experience/education: Format as readable lists with proper structure
-   - For skills: Format as comma-separated or bullet points
-
-3. **Intelligent Decisions**:
-   - Handle variations in field names (e.g., "Work History" vs "Work Experience")
-   - Format dates consistently
-   - Handle missing data gracefully (empty string if not available)
-   - Ensure values are ready for direct insertion into form fields
-
-4. **Output Format**:
-{field_names_instruction}
-- Return a JSON object mapping each field name to its filled value
-- Format values exactly as they should appear in the form
-- For multi-line fields, use \\n for line breaks
-- If a field has no relevant data, use an empty string ""
-
-Return ONLY valid JSON in this format:
-{{
-  "field_name_1": "filled value 1",
-  "field_name_2": "filled value 2",
-  ...
-}}
-
-Do not include explanations, labels, or additional text outside the JSON."""
     
+    Your mission: 
+    1. Understand the form structure (whether provided or discover it dynamically)
+    2. Understand all available resume data
+    3. Autonomously map resume data to form fields
+    4. Generate all field values intelligently
+    
+    {form_context}
+    
+    {resume_context}
+    
+    Agent Instructions:
+    1. **Form Understanding**: 
+       - If form structure is provided, use it exactly
+       - If not provided, intelligently determine what fields a job application form should have
+       - Consider standard sections: Personal Information, Work Experience, Education, Skills
+    
+    2. **Data Mapping**:
+       - Match resume data to form fields semantically (e.g., "Full Name"/"Name" = name, "Email Address"/"Email" = email)
+       - Understand field types and format data accordingly:
+         * text/email/tel: Single value
+         * textarea: Multi-line formatted text
+       - For work experience/education: Format as readable lists with proper structure
+       - For skills: Format as comma-separated or bullet points
+    
+    3. **Intelligent Decisions**:
+       - Handle variations in field names (e.g., "Work History" vs "Work Experience")
+       - Format dates consistently
+       - Handle missing data gracefully (empty string if not available)
+       - Ensure values are ready for direct insertion into form fields
+    
+    4. **Output Format**:
+    {field_names_instruction}
+    - Return a JSON object mapping each field name to its filled value
+    - Format values exactly as they should appear in the form
+    - For multi-line fields, use \\n for line breaks
+    - If a field has no relevant data, use an empty string ""
+    
+    Return ONLY valid JSON in this format:
+    {{
+      "field_name_1": "filled value 1",
+      "field_name_2": "filled value 2",
+      ...
+    }}
+    
+    Do not include explanations, labels, or additional text outside the JSON."""
+        
     try:
+        if thinking_streamer:
+             await thinking_streamer.emit_thinking("reasoning", "Constructing agentic prompt with resume data and form structure...")
+             await asyncio.sleep(0.5)
+             await thinking_streamer.emit_thinking("model_call", "Invoking Gemini to determine optimal field values...")
+
         logger.info("Calling LLM provider to generate field values...")
         logger.debug(f"Prompt length: {len(agent_prompt)} characters")
         response = await provider.generate_text(

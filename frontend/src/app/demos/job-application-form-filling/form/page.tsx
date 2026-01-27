@@ -6,13 +6,22 @@ import {
   DocumentTextIcon,
   CheckCircleIcon,
   SparklesIcon,
+  CommandLineIcon,
+  ListBulletIcon,
 } from '@heroicons/react/24/outline';
 import StatusIndicator from '@/components/demos/StatusIndicator';
 import AlertMessage from '@/components/demos/AlertMessage';
 import ThinkingBlock, { ThinkingEvent } from '@/components/demos/ThinkingBlock';
+import LiveLogViewer from '@/components/demos/LiveLogViewer';
 
 interface StepData extends ThinkingEvent {
   id: string;
+}
+
+interface LogEntry {
+  timestamp: string;
+  content: string;
+  type: string;
 }
 
 interface FormField {
@@ -42,6 +51,8 @@ function FormPageContent() {
   const [currentMessage, setCurrentMessage] = useState('');
   const [highlightedField, setHighlightedField] = useState<string | null>(null);
   const [workflowSteps, setWorkflowSteps] = useState<StepData[]>([]);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [activeTab, setActiveTab] = useState<'workflow' | 'logs'>('workflow');
   const fieldRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   useEffect(() => {
@@ -188,6 +199,15 @@ function FormPageContent() {
                 setCurrentMessage(data.message || 'Starting form filling...');
                 continue;
               }
+              
+              if (data.type === 'log') {
+                setLogs(prev => [...prev, {
+                  timestamp: data.timestamp,
+                  content: data.content,
+                  type: 'log'
+                }]);
+                continue;
+              }
 
               if (data.thinking) {
                 const step = data.thinking as ThinkingEvent;
@@ -200,8 +220,22 @@ function FormPageContent() {
                   } else {
                     newSteps.push({ ...step, id: Math.random().toString(36).substr(2, 9) });
                   }
+                  
+                  // Auto-switch to logs if it's a tool use heavy operation to keep user engaged
+                  if (step.category === 'tool_use' && activeTab === 'workflow') {
+                      // Optional: could auto-switch but sticking to user preference for now
+                  }
+                  
                   return newSteps;
                 });
+                // Also log thinking events into logs for complete history
+                if (step.category !== 'processing') {
+                    setLogs(prev => [...prev, {
+                        timestamp: new Date().toISOString(),
+                        content: step.content,
+                        type: 'log'
+                    }]);
+                }
               }
 
               if (data.field) {
@@ -334,11 +368,37 @@ function FormPageContent() {
                   ></div>
                 </div>
                 
-                <ThinkingBlock 
-                  events={workflowSteps} 
-                  title="Form Filling Intelligence" 
-                  autoScroll={true}
-                />
+                <div className="flex bg-gray-100 p-1 rounded-lg mb-4 w-fit">
+                    <button 
+                        onClick={() => setActiveTab('workflow')}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'workflow' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <ListBulletIcon className="w-4 h-4" />
+                        Workflow
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('logs')}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${activeTab === 'logs' ? 'bg-white shadow-sm text-green-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                        <CommandLineIcon className="w-4 h-4" />
+                        Live Logs
+                    </button>
+                </div>
+
+                <div className={activeTab === 'workflow' ? 'block' : 'hidden'}>
+                  <ThinkingBlock 
+                    events={workflowSteps} 
+                    title="Form Filling Intelligence" 
+                    autoScroll={true}
+                  />
+                </div>
+                
+                <div className={activeTab === 'logs' ? 'block' : 'hidden'}>
+                    <LiveLogViewer 
+                        logs={logs}
+                        isVisible={true}
+                    />
+                </div>
               </div>
             )}
           </div>
