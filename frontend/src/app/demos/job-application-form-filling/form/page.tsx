@@ -355,7 +355,7 @@ function FormPageContent() {
               status={isComplete ? 'completed' : isFilling ? 'processing' : 'idle'}
               message={currentMessage || (isComplete ? 'Form filled successfully!' : 'Waiting to start...')}
             />
-            {isFilling && (
+            {(isFilling || isComplete) && (
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">Progress</span>
