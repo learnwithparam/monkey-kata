@@ -26,7 +26,7 @@ export default function Navigation() {
               <Link href="#about" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">
                 About
               </Link>
-              <Link href="https://www.skool.com/learnwithparam" target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">
+              <Link href="https://www.skool.com/learnwithparamcom-8430" target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors">
                 Community
               </Link>
             </nav>
@@ -35,7 +35,7 @@ export default function Navigation() {
           {/* CTA Button - Desktop Only */}
           <div className="hidden lg:flex items-center">
             <Link 
-              href="https://www.skool.com/learnwithparam" 
+              href="https://www.skool.com/learnwithparamcom-8430" 
               target="_blank" 
               rel="noopener noreferrer"
               className="btn-primary text-sm hover:scale-105 inline-block"
@@ -78,7 +78,7 @@ export default function Navigation() {
                 About
               </Link>
               <Link 
-                href="https://www.skool.com/learnwithparam" 
+                href="https://www.skool.com/learnwithparamcom-8430" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md"
@@ -88,7 +88,7 @@ export default function Navigation() {
               </Link>
               <div className="pt-4 border-t border-gray-200">
                 <Link 
-                  href="https://www.skool.com/learnwithparam" 
+                  href="https://www.skool.com/learnwithparamcom-8430" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="btn-primary text-base hover:scale-105 w-full text-center block"

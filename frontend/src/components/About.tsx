@@ -24,7 +24,7 @@ export default function About() {
 
         <div className="text-center">
           <a
-            href="https://www.skool.com/learnwithparam" 
+            href="https://www.skool.com/learnwithparamcom-8430" 
             target="_blank" 
             rel="noopener noreferrer"
             className="inline-flex items-center justify-center bg-gray-900 hover:bg-gray-800 text-white font-semibold py-4 px-8 sm:py-5 sm:px-12 rounded-xl text-lg sm:text-xl transition-all duration-300 shadow-lg hover:shadow-2xl transform hover:scale-105"
