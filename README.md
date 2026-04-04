@@ -1,10 +1,17 @@
-# 🎯 Repository Overview
+# AI Bootcamp
 
-### What's Included
+![AI Bootcamp Open Graph preview](https://www.learnwithparam.com/ai-bootcamp/opengraph-image)
+
+Hands-on AI engineering demos, bootcamp-ready workshop material, and production-style examples for learners who want to build real apps with modern AI tools.
+
+> Regional pricing is available for eligible learners, with discounts of up to 60% in supported regions. Start here: https://www.learnwithparam.com/ai-bootcamp
+
+### What is inside
 - **API Server**: FastAPI backend with interactive demos
 - **Frontend**: Next.js application with real-time AI interactions
 - **Demos**: Production-ready implementations of AI systems
 - **Infrastructure**: Docker, monitoring, and deployment configurations
+- **Learning Path**: Search-friendly project structure, clear docs, and copy that helps people discover the bootcamp from GitHub
 
 ## 🚀 Quick Start
 
